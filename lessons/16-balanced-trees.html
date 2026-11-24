@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="16" data-pattern="Balanced BST">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>16 Balanced trees | Algorithm guide</title>
+<meta name="description" content="Balanced trees animated: rotations, AVL inserts with all four cases, building a balanced BST, checking balance and deleting from a BST.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 16</span><span>Data structures</span><span class="stars" title="Fairly likely in interviews">★★</span></div>
+<h1>Balanced trees</h1>
+<p class="sub">Keep the tree short, and every search stays fast.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 8 (a balancing act, shorter trees are faster, AVL trees, splay trees, B-trees) and appendix A. This file explains the same ideas in plain English and then makes them concrete with a working AVL tree. Interviews seldom ask you to code a balanced tree from scratch, but they often ask <em>why</em> balancing matters, <em>what</em> the rotations do, and <em>which</em> structure a database or <code>TreeMap</code> uses. You need to answer those cleanly.</p></blockquote>
+<div class="glance"><div><b>Why it matters</b><p>A BST costs <code>O(height)</code>. Sorted input makes a chain (height n); balancing keeps it about log₂ n.</p></div><div><b>The repair tool</b><p>A rotation rewires three links in <code>O(1)</code> and keeps the BST order.</p></div><div><b>Know by name</b><p>AVL (strict), red-black (TreeMap, std::map), B-tree (databases), skip list (Redis).</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="why-balance-matters">
+<h2>1. Why balance matters</h2>
+<p>From file 15: searching a binary search tree (BST) costs <code>O(height)</code>. Height depends on the <strong>shape</strong>:</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    subgraph Bad["Insert 1, 2, 3, 4, 5 in order: a chain"]
+        direction TB
+        B1["1"] --&gt; B2["2"] --&gt; B3["3"] --&gt; B4["4"] --&gt; B5["5"]
+    end
+    subgraph Good["Same numbers, balanced"]
+        direction TB
+        G3["3"] --&gt; G2["2"]
+        G3 --&gt; G4["4"]
+        G2 --&gt; G1["1"]
+        G4 --&gt; G5["5"]
+    end</pre></figure>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Shape</th><th>Height for <code>n</code> nodes</th><th>Search cost</th></tr></thead><tbody>
+<tr><td>Chain (worst, sorted input)</td><td><code>n</code></td><td><code>O(n)</code>, no better than a linked list</td></tr>
+<tr><td>Balanced</td><td>about <code>log₂ n</code></td><td><code>O(log n)</code></td></tr>
+</tbody></table></div>
+<p>For a million items: a chain needs up to 1,000,000 steps; a balanced tree needs about 20.</p>
+<p><strong>Balanced</strong> means that for every node, the heights of its left and right subtrees are similar. A <strong>self-balancing tree</strong> repairs its own shape after every insert or delete, so you get <code>O(log n)</code> <em>guaranteed</em>, even if the data arrives in sorted order.</p>
+</section>
+<section class="sec" id="the-repair-tool-rotations">
+<h2>2. The repair tool: rotations</h2>
+<p>A <strong>rotation</strong> is a small local rewiring of three nodes that makes one side shorter and the other taller <strong>while keeping the BST ordering rule intact</strong> (smaller on the left, larger on the right).</p>
+<h3 id="right-rotation-fixes-a-left-heavy-shape">Right rotation (fixes a left-heavy shape)</h3>
+<p>Node <code>y</code> is too heavy on the left. Its left child <code>x</code> is lifted up to become the parent; <code>y</code> drops down to the right of <code>x</code>. <code>x</code>'s old right subtree (<code>B</code>), whose values lie <em>between</em> <code>x</code> and <code>y</code>, becomes <code>y</code>'s new left subtree.</p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart LR
+    subgraph Before["Before"]
+        direction TB
+        Y1["y"] --&gt; X1["x"]
+        Y1 --&gt; C1["C"]
+        X1 --&gt; A1["A"]
+        X1 --&gt; B1["B"]
+    end
+    subgraph After["After rotating right at y"]
+        direction TB
+        X2["x"] --&gt; A2["A"]
+        X2 --&gt; Y2["y"]
+        Y2 --&gt; B2["B"]
+        Y2 --&gt; C2["C"]
+    end
+    Before --&gt; After</pre></figure>
+<p>Order check: <code>A &lt; x &lt; B &lt; y &lt; C</code> holds before <em>and</em> after. Only three pointers changed, so a rotation costs <code>O(1)</code>.</p>
+<p>A <strong>left rotation</strong> is the mirror image.</p>
+</section>
+<section class="sec" id="avl-trees-the-strict-balance-tree">
+<div class="stage" id="st-rot" data-anim="rotate" data-code="code-4"></div>
+<h2>3. AVL trees: the strict-balance tree</h2>
+<p>An <strong>AVL tree</strong> (named after its inventors Adelson-Velsky and Landis) keeps this rule for <strong>every node</strong>:</p>
+<blockquote><p><strong>balance factor = height(left) − height(right) ∈ {−1, 0, +1}</strong></p></blockquote>
+<p>After each insert or delete, walk back up the path, update heights, and where a node's balance factor reaches <code>±2</code>, fix it with rotations. There are <strong>four cases</strong>, named by where the extra weight sits:</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    A["Node z has balance factor +2 or -2"] --&gt; B{"Which side is heavy?"}
+    B --&gt;|"left is heavy (+2)"| C{"Is the left child leaning left or right?"}
+    B --&gt;|"right is heavy (-2)"| D{"Is the right child leaning right or left?"}
+    C --&gt;|"left or even: LL case"| E["Rotate right at z"]
+    C --&gt;|"right: LR case"| F["Rotate left at the left child, then rotate right at z"]
+    D --&gt;|"right or even: RR case"| G["Rotate left at z"]
+    D --&gt;|"left: RL case"| H["Rotate right at the right child, then rotate left at z"]</pre></figure>
+<p><strong>The zig-zag cases need two rotations.</strong> If the extra weight is on the <em>inner</em> side (left-right or right-left), a single rotation would just move the problem to the other side. First turn the zig-zag into a straight line, then rotate.</p>
+<p><strong>A tiny walk-through:</strong> insert <code>1, 2, 3</code> into an AVL tree.</p>
+<div class="table-wrap"><table id="tbl-2" class="trace"><thead><tr><th>Step</th><th>Tree</th><th>Balance</th></tr></thead><tbody>
+<tr><td>insert 1</td><td><code>1</code></td><td>fine</td></tr>
+<tr><td>insert 2</td><td><code>1 → right 2</code></td><td><code>1</code> has balance −1: fine</td></tr>
+<tr><td>insert 3</td><td><code>1 → right 2 → right 3</code> (a chain)</td><td><code>1</code> has balance <strong>−2</strong>: RR case</td></tr>
+<tr><td>rotate left at 1</td><td><code>2</code> with children <code>1</code> and <code>3</code></td><td>balanced ✔</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-avl0" data-anim="avlIntro,plainBST" data-code="code-4" data-flow="fig-3"></div>
+<p><strong>Guarantees.</strong> Height ≤ about <code>1.44 · log₂ n</code>. Search, insert, delete: all <code>O(log n)</code>. An insert needs at most <strong>one</strong> rebalancing step (one single or double rotation); a delete may need up to <code>O(log n)</code> rotations along the path.</p>
+</section>
+<section class="sec" id="the-other-balanced-structures-you-should-be-able-to-describe">
+<h2>4. The other balanced structures you should be able to describe</h2>
+<p>You rarely code these. You should be able to say what they are <em>for</em>.</p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Structure</th><th>One-sentence idea</th><th>Where it appears</th></tr></thead><tbody>
+<tr><td><strong>Red-black tree</strong></td><td>Nodes are colored red or black with rules that keep the longest path at most <strong>twice</strong> the shortest. Looser than AVL: fewer rotations on updates, slightly taller.</td><td>Java <code>TreeMap</code>/<code>TreeSet</code>, C++ <code>std::map</code>/<code>std::set</code>, Linux kernel scheduler</td></tr>
+<tr><td><strong>AVL tree</strong></td><td>Stricter: the shortest, so the fastest <em>lookups</em>. More rotations on updates.</td><td>Read-heavy in-memory indexes</td></tr>
+<tr><td><strong>Splay tree</strong></td><td>After every access, the touched node is rotated all the way <strong>to the root</strong>. No balance info stored. Recently used items are near the top (a natural cache), and any long sequence of <code>m</code> operations costs <code>O(m log n)</code> <strong>amortized</strong>, though one operation can be slow.</td><td>Caches, garbage collectors, network routers</td></tr>
+<tr><td><strong>B-tree</strong> (and <strong>B+ tree</strong>)</td><td>A <em>wide</em> tree: each node holds <strong>many keys</strong> (hundreds) and has many children, and all leaves are at the same depth. Designed for <strong>disks</strong>, where reading one big block is as cheap as reading one byte.</td><td>Database indexes (PostgreSQL, MySQL/InnoDB), file systems</td></tr>
+<tr><td><strong>Skip list</strong></td><td>Layers of linked lists with random shortcuts. Balanced <em>probabilistically</em> (no rotations).</td><td>Redis sorted sets, LevelDB memtables</td></tr>
+</tbody></table></div>
+<h3 id="why-databases-use-b-trees-not-binary-trees">Why databases use B-trees, not binary trees</h3>
+<p>A disk read is the slow part (thousands of times slower than memory). A binary tree over a billion rows is about 30 levels deep, which means about 30 disk reads. A B-tree whose nodes each hold, say, 500 keys is only about <code>log₅₀₀ 10⁹ ≈ 3.3</code> levels deep, so roughly 3 or 4 disk reads. <strong>Fewer, fatter nodes</strong> is the whole trick.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    R["Root node: keys 100 | 200 | 300"] --&gt; A["keys less than 100"]
+    R --&gt; B["keys 100 to 199"]
+    R --&gt; C["keys 200 to 299"]
+    R --&gt; D["keys 300 and above"]</pre></figure>
+<p>A <strong>B+ tree</strong> keeps all the actual records in the leaves, linked left to right, so a <strong>range query</strong> ("all orders from March") is one descent plus a scan along the leaf chain.</p>
+</section>
+<section class="sec" id="where-this-shows-up-in-interviews">
+<h2>5. Where this shows up in interviews</h2>
+<ul>
+<li>"<strong>Why not just use a plain BST?</strong>" (sorted input degrades it to a chain.)</li>
+<li>"<strong>What does <code>TreeMap</code>/<code>std::map</code>/an ordered map give you that a hash map does not?</strong>" (sorted iteration, range queries, <code>floor</code>/<code>ceiling</code>, all <code>O(log n)</code>.)</li>
+<li>"<strong>Design a data structure that supports insert, delete, and 'find the closest value'</strong>" (a balanced BST or sorted structure; in Go there is no built-in one, so you would use a library or explain it.)</li>
+<li>"<strong>How does a database index work?</strong>" (B+ tree.)</li>
+<li>Questions that give you <strong>sorted data</strong> and ask you to build a <strong>balanced BST</strong> (Problem 1 below).</li>
+</ul>
+<p><strong>Go and TypeScript have no built-in balanced tree.</strong> In an interview you describe it, use a sorted array with binary search (<code>O(log n)</code> search, <code>O(n)</code> insert), or pick the right tool (a heap, a sorted structure from a library). Be ready to say that explicitly.</p>
+</section>
+<section class="sec" id="practice-problems">
+<h2>6. Practice problems</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Convert Sorted Array to Height-Balanced BST (LeetCode 108, Easy)</h3>
+<p><strong>Task.</strong> Turn a sorted array into a BST whose two subtrees' heights never differ by more than 1. <code>[-10, -3, 0, 5, 9]</code> → a tree such as <code>[0, -10, 5, null, -3, null, 9]</code>.</p>
+<p><strong>Idea.</strong> The <strong>middle</strong> element is the best root: half the items are smaller (left subtree) and half are larger (right subtree). Do the same recursively on each half. Halving guarantees balance, and the sorted order guarantees the BST rule.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["[-10, -3, 0, 5, 9]  pick the middle: 0"] --&gt; B["left half [-10, -3]  pick -10"]
+    A --&gt; C["right half [5, 9]  pick 5"]
+    B --&gt; D["right half [-3]"]
+    C --&gt; E["right half [9]"]</pre></figure>
+<div class="stage" id="st-p1" data-anim="sortedToBST" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts"><code class="language-ts">class TreeNode {
+  constructor(
+    public val: number,
+    public left: TreeNode | null = null,
+    public right: TreeNode | null = null,
+  ) {}
+}
+
+function toLevelArray(root: TreeNode | null): (number | null)[] {
+  const out: (number | null)[] = [];
+  const queue: (TreeNode | null)[] = [root];
+  for (let head = 0; head &lt; queue.length; head++) {
+    const node = queue[head];
+    if (node === null) {
+      out.push(null);
+      continue;
+    }
+    out.push(node.val);
+    queue.push(node.left, node.right);
+  }
+  while (out.length &gt; 0 &amp;&amp; out[out.length - 1] === null) out.pop();
+  return out;
+}
+
+function sortedArrayToBST(nums: number[]): TreeNode | null {
+  function build(lo: number, hi: number): TreeNode | null {
+    if (lo &gt; hi) return null;
+    const mid = lo + Math.floor((hi - lo) / 2); // the middle becomes the root
+    return new TreeNode(nums[mid], build(lo, mid - 1), build(mid + 1, hi));
+  }
+  return build(0, nums.length - 1);
+}
+console.log(toLevelArray(sortedArrayToBST([-10, -3, 0, 5, 9]))); // [ 0, -10, 5, null, -3, null, 9 ]
+console.log(toLevelArray(sortedArrayToBST([1, 3]))); // [ 1, null, 3 ]
+console.log(toLevelArray(sortedArrayToBST([]))); // []</code></pre>
+<pre data-lang="go"><code class="language-go">type TreeNode struct {
+	Val         int
+	Left, Right *TreeNode
+}
+
+func toLevelArray(root *TreeNode) []string {
+	out := []string{}
+	queue := []*TreeNode{root}
+	for head := 0; head &lt; len(queue); head++ {
+		node := queue[head]
+		if node == nil {
+			out = append(out, "null")
+			continue
+		}
+		out = append(out, strconv.Itoa(node.Val))
+		queue = append(queue, node.Left, node.Right)
+	}
+	for len(out) &gt; 0 &amp;&amp; out[len(out)-1] == "null" {
+		out = out[:len(out)-1]
+	}
+	return out
+}
+
+func sortedArrayToBST(nums []int) *TreeNode {
+	var build func(lo, hi int) *TreeNode
+	build = func(lo, hi int) *TreeNode {
+		if lo &gt; hi {
+			return nil
+		}
+		mid := lo + (hi-lo)/2 // the middle becomes the root
+		return &amp;TreeNode{Val: nums[mid], Left: build(lo, mid-1), Right: build(mid+1, hi)}
+	}
+	return build(0, len(nums)-1)
+}
+
+func exampleSortedArrayToBST() {
+	fmt.Println(toLevelArray(sortedArrayToBST([]int{-10, -3, 0, 5, 9}))) // [0 -10 5 null -3 null 9]
+	fmt.Println(toLevelArray(sortedArrayToBST([]int{1, 3})))             // [1 null 3]
+	fmt.Println(toLevelArray(sortedArrayToBST([]int{})))                 // []
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(log n)</code> for the recursion (plus the tree). <strong>Follow-up:</strong> <em>sorted linked list to BST (LeetCode 109)</em>: use slow/fast pointers to find the middle (file 12).</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Balanced Binary Tree (LeetCode 110, Easy)</h3>
+<p><strong>Task.</strong> Is the tree height-balanced: for <strong>every</strong> node, do its left and right subtree heights differ by at most 1?</p>
+<p><strong>The slow way.</strong> At every node compute both heights separately: heights are recomputed again and again, <code>O(n²)</code> for a chain.</p>
+<p><strong>The one-pass way.</strong> Make <code>height(node)</code> return a <strong>signal</strong>: the real height, or <code>−1</code> meaning "something below is already unbalanced". The moment any child returns <code>−1</code>, or the two heights differ by more than 1, return <code>−1</code> upward.</p>
+<div class="stage" id="st-p2" data-anim="isBalanced" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function isBalanced(root: TreeNode | null): boolean {
+  // returns the height, or -1 if some subtree below is not balanced
+  function heightOrFail(node: TreeNode | null): number {
+    if (node === null) return 0;
+    const left = heightOrFail(node.left);
+    if (left === -1) return -1; // bad news travels up
+    const right = heightOrFail(node.right);
+    if (right === -1) return -1;
+    if (Math.abs(left - right) &gt; 1) return -1; // this node is unbalanced
+    return 1 + Math.max(left, right);
+  }
+  return heightOrFail(root) !== -1;
+}
+const balancedTree = new TreeNode(3, new TreeNode(9), new TreeNode(20, new TreeNode(15), new TreeNode(7)));
+const chainTree = new TreeNode(1, new TreeNode(2, new TreeNode(3)));
+console.log(isBalanced(balancedTree)); // true
+console.log(isBalanced(chainTree)); // false
+console.log(isBalanced(null)); // true</code></pre>
+<pre data-lang="go"><code class="language-go">func isBalanced(root *TreeNode) bool {
+	// returns the height, or -1 if some subtree below is not balanced
+	var heightOrFail func(node *TreeNode) int
+	heightOrFail = func(node *TreeNode) int {
+		if node == nil {
+			return 0
+		}
+		left := heightOrFail(node.Left)
+		if left == -1 {
+			return -1 // bad news travels up
+		}
+		right := heightOrFail(node.Right)
+		if right == -1 {
+			return -1
+		}
+		if left-right &gt; 1 || right-left &gt; 1 {
+			return -1 // this node is unbalanced
+		}
+		return 1 + max(left, right)
+	}
+	return heightOrFail(root) != -1
+}
+
+func exampleIsBalanced() {
+	balanced := &amp;TreeNode{Val: 3, Left: &amp;TreeNode{Val: 9}, Right: &amp;TreeNode{Val: 20, Left: &amp;TreeNode{Val: 15}, Right: &amp;TreeNode{Val: 7}}}
+	chain := &amp;TreeNode{Val: 1, Left: &amp;TreeNode{Val: 2, Left: &amp;TreeNode{Val: 3}}}
+	fmt.Println(isBalanced(balanced)) // true
+	fmt.Println(isBalanced(chain))    // false
+	fmt.Println(isBalanced(nil))      // true
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(h)</code>.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Delete Node in a BST (LeetCode 450, Medium)</h3>
+<p>Searching and inserting in a BST are straightforward (go left or right by comparison). <strong>Deleting</strong> is the one operation with real cases, and it is what an AVL tree must also do before rebalancing.</p>
+<p><strong>Task.</strong> Delete the node with a given key and return the new root. <code>[5, 3, 6, 2, 4, null, 7]</code>, key <code>3</code> → <code>[5, 4, 6, 2, null, null, 7]</code> (one valid answer).</p>
+<p><strong>The three cases after finding the node:</strong></p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["Found the node to delete"] --&gt; B{"How many children?"}
+    B --&gt;|"0 (a leaf)"| C["Just remove it: return null"]
+    B --&gt;|"1"| D["Replace the node with its only child"]
+    B --&gt;|"2"| E["Find the INORDER SUCCESSOR:&lt;br/&gt;the smallest node in the right subtree.&lt;br/&gt;Copy its value here, then delete that successor&lt;br/&gt;from the right subtree"]</pre></figure>
+<p><strong>Why the inorder successor?</strong> It is the next value in sorted order. Putting it in the deleted node's place keeps everything on the left smaller and everything on the right larger. Being the <em>smallest</em> of the right subtree, it has <strong>no left child</strong>, so deleting it falls into the easy cases (0 or 1 child).</p>
+<div class="stage" id="st-p3" data-anim="deleteBST" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function insertBST(root: TreeNode | null, val: number): TreeNode {
+  if (root === null) return new TreeNode(val);
+  if (val &lt; root.val) root.left = insertBST(root.left, val);
+  else root.right = insertBST(root.right, val);
+  return root;
+}
+
+function deleteNode(root: TreeNode | null, key: number): TreeNode | null {
+  if (root === null) return null; // key not found
+  if (key &lt; root.val) root.left = deleteNode(root.left, key);
+  else if (key &gt; root.val) root.right = deleteNode(root.right, key);
+  else {
+    if (root.left === null) return root.right; // 0 or 1 child (right)
+    if (root.right === null) return root.left; // 1 child (left)
+    let successor = root.right; // 2 children: the smallest node of the right subtree
+    while (successor.left !== null) successor = successor.left;
+    root.val = successor.val; // copy its value up
+    root.right = deleteNode(root.right, successor.val); // then remove the original
+  }
+  return root;
+}
+
+let bst: TreeNode | null = null;
+for (const v of [5, 3, 6, 2, 4, 7]) bst = insertBST(bst, v);
+console.log(toLevelArray(bst)); // [ 5, 3, 6, 2, 4, null, 7 ]
+bst = deleteNode(bst, 3);
+console.log(toLevelArray(bst)); // [ 5, 4, 6, 2, null, null, 7 ]
+bst = deleteNode(bst, 5); // delete the root
+console.log(toLevelArray(bst)); // [ 6, 4, 7, 2 ]
+console.log(toLevelArray(deleteNode(bst, 99))); // [ 6, 4, 7, 2 ]  (unchanged)</code></pre>
+<pre data-lang="go"><code class="language-go">func insertBST(root *TreeNode, val int) *TreeNode {
+	if root == nil {
+		return &amp;TreeNode{Val: val}
+	}
+	if val &lt; root.Val {
+		root.Left = insertBST(root.Left, val)
+	} else {
+		root.Right = insertBST(root.Right, val)
+	}
+	return root
+}
+
+func deleteNode(root *TreeNode, key int) *TreeNode {
+	if root == nil {
+		return nil // key not found
+	}
+	if key &lt; root.Val {
+		root.Left = deleteNode(root.Left, key)
+	} else if key &gt; root.Val {
+		root.Right = deleteNode(root.Right, key)
+	} else {
+		if root.Left == nil {
+			return root.Right // 0 or 1 child (right)
+		}
+		if root.Right == nil {
+			return root.Left // 1 child (left)
+		}
+		successor := root.Right // 2 children: the smallest node of the right subtree
+		for successor.Left != nil {
+			successor = successor.Left
+		}
+		root.Val = successor.Val                       // copy its value up
+		root.Right = deleteNode(root.Right, successor.Val) // then remove the original
+	}
+	return root
+}
+
+func exampleDeleteNode() {
+	var bst *TreeNode
+	for _, v := range []int{5, 3, 6, 2, 4, 7} {
+		bst = insertBST(bst, v)
+	}
+	fmt.Println(toLevelArray(bst)) // [5 3 6 2 4 null 7]
+	bst = deleteNode(bst, 3)
+	fmt.Println(toLevelArray(bst)) // [5 4 6 2 null null 7]
+	bst = deleteNode(bst, 5) // delete the root
+	fmt.Println(toLevelArray(bst)) // [6 4 7 2]
+	fmt.Println(toLevelArray(deleteNode(bst, 99))) // [6 4 7 2]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(h)</code>, space <code>O(h)</code>.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Implement an AVL Tree (insert with rotations)</h3>
+<p><strong>Task.</strong> Insert values into a self-balancing tree and show it stays short even for sorted input. This is the "hard" exercise for this topic. Do it once, slowly, so the rotations stop being magic.</p>
+<p><strong>Plan.</strong></p>
+<ol>
+<li>Every node stores its <strong>height</strong> (a leaf has height 1; an empty tree has height 0).</li>
+<li>After inserting recursively, <strong>update the current node's height</strong> on the way back up.</li>
+<li>Compute the <strong>balance factor</strong> = <code>height(left) − height(right)</code>.</li>
+<li>If it is <code>&gt; 1</code> (left-heavy): if the new value went into the left child's <strong>right</strong> side (LR case) rotate that child left first; then rotate right at the current node.</li>
+<li>If it is <code>&lt; −1</code> (right-heavy): mirror it.</li>
+</ol>
+<p><strong>Walk-through: insert <code>3, 2, 1</code></strong> (LL case)</p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>Step</th><th>Tree</th><th>Balance at root</th></tr></thead><tbody>
+<tr><td>insert 3</td><td><code>3</code></td><td>0</td></tr>
+<tr><td>insert 2</td><td><code>3</code> with left child 2</td><td>+1 fine</td></tr>
+<tr><td>insert 1</td><td><code>3 → 2 → 1</code> going left</td><td><strong>+2</strong> at 3: LL case</td></tr>
+<tr><td>rotate right at 3</td><td><code>2</code> with children 1 and 3</td><td>0 ✔</td></tr>
+</tbody></table></div>
+<p><strong>Walk-through: insert <code>3, 1, 2</code></strong> (LR case: the zig-zag)</p>
+<div class="table-wrap"><table id="tbl-5" class="trace"><thead><tr><th>Step</th><th>Tree</th><th>Action</th></tr></thead><tbody>
+<tr><td>after 3, 1, 2</td><td><code>3</code> → left <code>1</code> → right <code>2</code></td><td>balance at 3 is +2, and 1 leans right</td></tr>
+<tr><td>rotate left at 1</td><td><code>3</code> → left <code>2</code> → left <code>1</code></td><td>now a straight line (LL)</td></tr>
+<tr><td>rotate right at 3</td><td><code>2</code> with children 1 and 3</td><td>✔</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p4" data-anim="avl,avlLR,plainBST" data-code="code-4" data-flow="fig-3"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">class AVLNode {
+  height = 1; // a new node is a leaf
+  constructor(
+    public val: number,
+    public left: AVLNode | null = null,
+    public right: AVLNode | null = null,
+  ) {}
+}
+
+const heightOf = (n: AVLNode | null): number =&gt; (n === null ? 0 : n.height);
+const refreshHeight = (n: AVLNode): void =&gt; {
+  n.height = 1 + Math.max(heightOf(n.left), heightOf(n.right));
+};
+const balanceFactor = (n: AVLNode): number =&gt; heightOf(n.left) - heightOf(n.right);
+
+function rotateRight(y: AVLNode): AVLNode {
+  const x = y.left!; // x moves up
+  y.left = x.right; // x's inner subtree becomes y's left
+  x.right = y; // y moves down
+  refreshHeight(y); // y first: it is now lower than x
+  refreshHeight(x);
+  return x; // the new root of this subtree
+}
+
+function rotateLeft(x: AVLNode): AVLNode {
+  const y = x.right!; // y moves up
+  x.right = y.left;
+  y.left = x;
+  refreshHeight(x);
+  refreshHeight(y);
+  return y;
+}
+
+function avlInsert(node: AVLNode | null, val: number): AVLNode {
+  if (node === null) return new AVLNode(val);
+  if (val &lt; node.val) node.left = avlInsert(node.left, val);
+  else if (val &gt; node.val) node.right = avlInsert(node.right, val);
+  else return node; // ignore duplicates
+  refreshHeight(node);
+  const balance = balanceFactor(node);
+  if (balance &gt; 1) {
+    if (val &gt; node.left!.val) node.left = rotateLeft(node.left!); // LR case: straighten first
+    return rotateRight(node); // LL case
+  }
+  if (balance &lt; -1) {
+    if (val &lt; node.right!.val) node.right = rotateRight(node.right!); // RL case: straighten first
+    return rotateLeft(node); // RR case
+  }
+  return node;
+}
+
+function avlInorder(node: AVLNode | null, out: number[] = []): number[] {
+  if (node === null) return out;
+  avlInorder(node.left, out);
+  out.push(node.val);
+  avlInorder(node.right, out);
+  return out;
+}
+
+// Compare with a plain BST on sorted input.
+let plain: TreeNode | null = null;
+let avl: AVLNode | null = null;
+for (let v = 1; v &lt;= 15; v++) {
+  plain = insertBST(plain, v);
+  avl = avlInsert(avl, v);
+}
+const plainHeight = (n: TreeNode | null): number =&gt; (n === null ? 0 : 1 + Math.max(plainHeight(n.left), plainHeight(n.right)));
+console.log("plain BST height:", plainHeight(plain)); // 15
+console.log("AVL height:", avl!.height); // 4
+console.log(avlInorder(avl).join(",")); // 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+console.log(avl!.val); // 8  (the root is the middle value)
+
+// The two single-rotation walk-throughs from the text:
+console.log(avlInorder(avlInsert(avlInsert(avlInsert(null, 3), 2), 1)).join(","), "root:", avlInsert(avlInsert(avlInsert(null, 3), 2), 1).val); // 1,2,3 root: 2
+console.log("LR case root:", avlInsert(avlInsert(avlInsert(null, 3), 1), 2).val); // LR case root: 2</code></pre>
+<pre data-lang="go"><code class="language-go">type AVLNode struct {
+	Val         int
+	Height      int
+	Left, Right *AVLNode
+}
+
+func heightOf(n *AVLNode) int {
+	if n == nil {
+		return 0
+	}
+	return n.Height
+}
+func refreshHeight(n *AVLNode)     { n.Height = 1 + max(heightOf(n.Left), heightOf(n.Right)) }
+func balanceFactor(n *AVLNode) int { return heightOf(n.Left) - heightOf(n.Right) }
+
+func rotateRight(y *AVLNode) *AVLNode {
+	x := y.Left // x moves up
+	y.Left = x.Right // x's inner subtree becomes y's left
+	x.Right = y      // y moves down
+	refreshHeight(y) // y first: it is now lower than x
+	refreshHeight(x)
+	return x // the new root of this subtree
+}
+
+func rotateLeft(x *AVLNode) *AVLNode {
+	y := x.Right // y moves up
+	x.Right = y.Left
+	y.Left = x
+	refreshHeight(x)
+	refreshHeight(y)
+	return y
+}
+
+func avlInsert(node *AVLNode, val int) *AVLNode {
+	if node == nil {
+		return &amp;AVLNode{Val: val, Height: 1} // a new node is a leaf
+	}
+	if val &lt; node.Val {
+		node.Left = avlInsert(node.Left, val)
+	} else if val &gt; node.Val {
+		node.Right = avlInsert(node.Right, val)
+	} else {
+		return node // ignore duplicates
+	}
+	refreshHeight(node)
+	balance := balanceFactor(node)
+	if balance &gt; 1 {
+		if val &gt; node.Left.Val {
+			node.Left = rotateLeft(node.Left) // LR case: straighten first
+		}
+		return rotateRight(node) // LL case
+	}
+	if balance &lt; -1 {
+		if val &lt; node.Right.Val {
+			node.Right = rotateRight(node.Right) // RL case: straighten first
+		}
+		return rotateLeft(node) // RR case
+	}
+	return node
+}
+
+func avlInorder(node *AVLNode, out *[]int) {
+	if node == nil {
+		return
+	}
+	avlInorder(node.Left, out)
+	*out = append(*out, node.Val)
+	avlInorder(node.Right, out)
+}
+
+func plainHeight(n *TreeNode) int {
+	if n == nil {
+		return 0
+	}
+	return 1 + max(plainHeight(n.Left), plainHeight(n.Right))
+}
+
+func exampleAVL() {
+	var plain *TreeNode
+	var avl *AVLNode
+	for v := 1; v &lt;= 15; v++ {
+		plain = insertBST(plain, v)
+		avl = avlInsert(avl, v)
+	}
+	fmt.Println("plain BST height:", plainHeight(plain)) // 15
+	fmt.Println("AVL height:", avl.Height)               // 4
+	var order []int
+	avlInorder(avl, &amp;order)
+	fmt.Println(order) // [1 2 3 ... 15]
+	fmt.Println(avl.Val) // 8  (the root is the middle value)
+
+	// The two single-rotation walk-throughs from the text:
+	ll := avlInsert(avlInsert(avlInsert(nil, 3), 2), 1)
+	lr := avlInsert(avlInsert(avlInsert(nil, 3), 1), 2)
+	fmt.Println("LL case root:", ll.Val, "LR case root:", lr.Val) // 2 and 2
+}</code></pre>
+</div>
+<p><strong>What the output shows.</strong> Inserting <code>1…15</code> in order gives a plain BST of height <strong>15</strong> (a chain) but an AVL tree of height <strong>4</strong> (a perfect tree). That is exactly the <code>log₂ 15 ≈ 3.9</code> promise.</p>
+<p><strong>Complexity.</strong> Insert <code>O(log n)</code>, space <code>O(log n)</code> recursion.</p>
+<p><strong>Why <code>refreshHeight(y)</code> before <code>refreshHeight(x)</code> in a rotation?</strong> After the rotation <code>y</code> is a <em>child</em> of <code>x</code>, so <code>x</code>'s height depends on <code>y</code>'s new height. Always update the lower node first.</p>
+</section>
+</section>
+<section class="sec" id="quick-q-a-for-the-interview">
+<h2>Quick Q&amp;A for the interview</h2>
+<div class="table-wrap"><table id="tbl-6"><thead><tr><th>Question</th><th>Short answer</th></tr></thead><tbody>
+<tr><td>What is the height of a balanced BST with <code>n</code> nodes?</td><td><code>Θ(log n)</code>.</td></tr>
+<tr><td>AVL vs red-black?</td><td>AVL is stricter (faster lookups, more rotations on update); red-black is looser (fewer rotations on update, used in library <code>TreeMap</code>s).</td></tr>
+<tr><td>Why not balance by always rebuilding from a sorted array?</td><td>Rebuilding is <code>O(n)</code> per update. Rotations are <code>O(1)</code> local fixes.</td></tr>
+<tr><td>Insertion in an AVL tree: how many rotations at most?</td><td>One (a single or a double rotation).</td></tr>
+<tr><td>Splay tree: worst case for one operation?</td><td><code>O(n)</code>, but any sequence of <code>m</code> operations is <code>O(m log n)</code> amortized.</td></tr>
+<tr><td>Why B-trees for disks?</td><td>Wide nodes → very few levels → few disk reads.</td></tr>
+<tr><td>Sorted order + fast insert + range queries?</td><td>A balanced BST / B-tree (hash maps give no order).</td></tr>
+<tr><td>Heap vs BST?</td><td>A heap only gives the min or max fast. A BST gives any key, sorted order, and range queries, but is more complex.</td></tr>
+</tbody></table></div>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Quoting <code>O(log n)</code> for a plain BST</strong> without saying "if balanced".</li>
+<li><strong>Mixing up the four rotation cases</strong>: the zig-zag (LR/RL) needs <em>two</em> rotations.</li>
+<li><strong>Forgetting to update heights</strong> after a rotation (and in the wrong order: child first).</li>
+<li><strong>Losing the new subtree root</strong> after a rotation (you must return it and reattach it to the parent).</li>
+<li><strong>Deleting a node with two children</strong> by simply removing it. Use the inorder successor (or predecessor).</li>
+<li><strong>Duplicates in a BST</strong> without deciding the rule (left, right, or counts).</li>
+<li><strong>Claiming TypeScript or Go has a built-in ordered tree map.</strong> Neither does.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Six AVL inserts</h3>
+<p>Draw the tree after inserting <code>10, 20, 30, 40, 50, 25</code> into an AVL tree (apply the rule one insert at a time).</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>After 10, 20, 30 the first rotation happens. Watch for a zig-zag when 25 arrives.</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>10, 20, 30: RR at 10, so rotate left: <code>20(10, 30)</code>. 40 hangs under 30. 50 makes 30 right-heavy (RR): rotate left at 30, giving <code>20(10, 40(30, 50))</code>. 25 goes 20 → 40 → 30 → left. Now 20 has balance −2 and its right child 40 has +1: the <strong>RL case</strong>. Rotate 40 right, then 20 left. Result, level order: <code>[30, 20, 40, 10, 25, null, 50]</code>, height 3. Run the last preset of the AVL animation to check each step.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Balance −2, right child +1</h3>
+<p>A node has balance factor −2 and its right child has balance factor +1. Which case is this, and which two rotations fix it?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The <strong>RL case</strong>: heavy on the right, with the extra weight on the inner (left) side of the right child. First rotate the right child <em>right</em> to straighten the zig-zag, then rotate the node <em>left</em>. The second preset of the “LR case” tab shows the mirror image.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · B-tree height</h3>
+<p>Why does a B-tree node hold many keys? Compute the height for 10⁹ keys with 500 keys per node.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>A node fills one disk page, so it holds hundreds of keys and has hundreds of children: each disk read rules out far more than half. With 500 keys per node, about 501 children: height ≈ log₅₀₀(10⁹) = 9 / 2.7 ≈ 3.3, so <strong>4 levels</strong>, and the top one or two usually sit in memory. A balanced binary tree would need about 30 levels, each one a disk read.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Sorted list to BST</h3>
+<p>Convert <em>Sorted Linked List to BST</em> (LeetCode 109) using the slow/fast middle trick. What is its complexity?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Find the middle of the range <code>[start, end)</code> with slow/fast pointers, make it the root, and recurse on the two halves. Each level of recursion walks the whole list once in total, and there are log n levels: <strong><code>O(n log n)</code> time</strong>, <code>O(log n)</code> stack. (An <code>O(n)</code> version builds in inorder order while walking the list once.)</p><div class="code-tabs" id="code-ex4">
+<pre data-lang="ts"><code class="language-ts">class ListNode {
+  constructor(public val: number, public next: ListNode | null = null) {}
+}
+class TreeNode {
+  constructor(public val: number, public left: TreeNode | null = null, public right: TreeNode | null = null) {}
+}
+
+// Sorted List to BST: the middle node (found with slow/fast) becomes the root.
+function sortedListToBST(head: ListNode | null): TreeNode | null {
+  function build(start: ListNode | null, end: ListNode | null): TreeNode | null {
+    if (start === end) return null; // the range [start, end) is empty
+    let slow = start!, fast = start!;
+    while (fast.next !== end &amp;&amp; fast.next!.next !== end) {
+      slow = slow.next!;
+      fast = fast.next!.next!;
+    }
+    return new TreeNode(slow.val, build(start, slow), build(slow.next, end));
+  }
+  return build(head, null);
+}
+
+const fromArray = (a: number[]): ListNode | null =&gt; a.reduceRight&lt;ListNode | null&gt;((next, v) =&gt; new ListNode(v, next), null);
+const preorder = (n: TreeNode | null): number[] =&gt; (n === null ? [] : [n.val, ...preorder(n.left), ...preorder(n.right)]);
+console.log(preorder(sortedListToBST(fromArray([-10, -3, 0, 5, 9]))).join(",")); // 0,-10,-3,5,9
+console.log(preorder(sortedListToBST(fromArray([1, 2, 3, 4]))).join(",")); // 2,1,3,4
+console.log(preorder(sortedListToBST(null)).length); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">type ListNode struct {
+	Val  int
+	Next *ListNode
+}
+type TreeNode struct {
+	Val         int
+	Left, Right *TreeNode
+}
+
+// Sorted List to BST: the middle node (found with slow/fast) becomes the root.
+func sortedListToBST(head *ListNode) *TreeNode {
+	var build func(start, end *ListNode) *TreeNode
+	build = func(start, end *ListNode) *TreeNode {
+		if start == end {
+			return nil // the range [start, end) is empty
+		}
+		slow, fast := start, start
+		for fast.Next != end &amp;&amp; fast.Next.Next != end {
+			slow = slow.Next
+			fast = fast.Next.Next
+		}
+		return &amp;TreeNode{Val: slow.Val, Left: build(start, slow), Right: build(slow.Next, end)}
+	}
+	return build(head, nil)
+}
+
+func preorder(n *TreeNode) []int {
+	if n == nil {
+		return []int{}
+	}
+	return append(append([]int{n.Val}, preorder(n.Left)...), preorder(n.Right)...)
+}
+
+func exampleSortedListToBST() {
+	fromSlice := func(a []int) *ListNode {
+		var head *ListNode
+		for i := len(a) - 1; i &gt;= 0; i-- {
+			head = &amp;ListNode{Val: a[i], Next: head}
+		}
+		return head
+	}
+	fmt.Println(preorder(sortedListToBST(fromSlice([]int{-10, -3, 0, 5, 9})))) // [0 -10 -3 5 9]
+	fmt.Println(preorder(sortedListToBST(fromSlice([]int{1, 2, 3, 4}))))       // [2 1 3 4]
+	fmt.Println(len(preorder(sortedListToBST(nil))))                            // 0
+}</code></pre>
+</div></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · An ordered set in Go</h3>
+<p>You need an "ordered set with <code>floor</code> and <code>ceiling</code>" in Go. What are your options? (Sorted slice + binary search, an external library, or write a tree.)</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Go has no built-in ordered map. Options: (1) a <strong>sorted slice + <code>sort.SearchInts</code></strong>: <code>O(log n)</code> floor/ceiling, <code>O(n)</code> insert, simplest and fine for interviews; (2) an external library (a B-tree or red-black tree package, or a skip list); (3) write your own tree (treap or AVL), which is rarely worth it in an interview. TypeScript is in the same position: no built-in TreeMap.</p><div class="code-tabs" id="code-ex5">
+<pre data-lang="go"><code class="language-go">// An ordered set of ints on a sorted slice: Floor and Ceiling by binary search.
+// Insert is O(n) because of the shift, which is fine up to roughly 10^5 items.
+type OrderedSet struct{ keys []int }
+
+func (s *OrderedSet) Insert(v int) {
+	i := sort.SearchInts(s.keys, v)
+	if i &lt; len(s.keys) &amp;&amp; s.keys[i] == v {
+		return // already present
+	}
+	s.keys = append(s.keys, 0)
+	copy(s.keys[i+1:], s.keys[i:])
+	s.keys[i] = v
+}
+
+// Floor: the largest key &lt;= v.
+func (s *OrderedSet) Floor(v int) (int, bool) {
+	i := sort.SearchInts(s.keys, v+1) // first key &gt; v
+	if i == 0 {
+		return 0, false
+	}
+	return s.keys[i-1], true
+}
+
+// Ceiling: the smallest key &gt;= v.
+func (s *OrderedSet) Ceiling(v int) (int, bool) {
+	i := sort.SearchInts(s.keys, v) // first key &gt;= v
+	if i == len(s.keys) {
+		return 0, false
+	}
+	return s.keys[i], true
+}
+
+func exampleOrderedSet() {
+	s := &amp;OrderedSet{}
+	for _, v := range []int{20, 5, 40, 10, 5} {
+		s.Insert(v)
+	}
+	fmt.Println(s.keys)          // [5 10 20 40]
+	fmt.Println(s.Floor(15))     // 10 true
+	fmt.Println(s.Ceiling(15))   // 20 true
+	fmt.Println(s.Floor(4))      // 0 false
+	fmt.Println(s.Ceiling(40))   // 40 true
+}</code></pre>
+</div></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="bal16"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/16.js"></script>
+</body>
+</html>

@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="13" data-pattern="Stack">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13 Stacks and the monotonic stack | Algorithm guide</title>
+<meta name="description" content="Stacks animated: bracket matching, min stack, postfix evaluation, daily temperatures, decoding and the largest rectangle in a histogram.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 13</span><span>Data structures</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Stacks and the monotonic stack</h1>
+<p class="sub">Finish the newest unfinished thing first.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 3 introduces the <strong>call stack</strong> (a stack of sticky notes). This file turns that idea into a tool you build yourself. It covers v2 questions: Valid Parentheses, Daily Temperatures, Min Stack, and the explicit-stack version of Decode String.</p></blockquote>
+<div class="glance"><div><b>Plain stack</b><p>Unfinished business resolved in reverse order of arrival: brackets, undo, nested decoding.</p></div><div><b>Monotonic stack</b><p>Keep the stack sorted; popping gives each item its next greater or smaller element.</p></div><div><b>What it costs</b><p><code>O(n)</code>: every item is pushed once and popped at most once.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>A <strong>stack</strong> is a pile where you can only touch the <strong>top</strong>:</p>
+<ul>
+<li><strong>push</strong>: put something on top.</li>
+<li><strong>pop</strong>: take the top thing off.</li>
+<li><strong>peek</strong>: look at the top without removing it.</li>
+</ul>
+<p>Think of a stack of plates in a cafeteria, or the "undo" history in a text editor: the <strong>last</strong> thing added is the <strong>first</strong> thing removed (LIFO: last in, first out).</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart TD
+    subgraph Stack["A stack of plates (top is the newest)"]
+        T["3  (top)"]
+        M["2"]
+        B["1  (bottom)"]
+    end
+    P["push 4"] --&gt; Stack
+    Stack --&gt; Q["pop returns 3"]</pre></figure>
+<p>Both push and pop are <code>O(1)</code> when you use the end of a dynamic array (TypeScript <code>push/pop</code>, Go <code>append</code> and re-slice).</p>
+<h3 id="why-stacks-solve-problems">Why stacks solve problems</h3>
+<p>Whenever you have <strong>unfinished business</strong> that must be resolved in <strong>reverse order of arrival</strong>, a stack is the natural tool:</p>
+<ul>
+<li>A bracket you opened must be the <strong>first</strong> one you close (innermost first).</li>
+<li>A function you called must finish before the function that called it (the call stack itself).</li>
+<li>"Undo" must reverse the <strong>latest</strong> change first.</li>
+<li>An item waiting for something better to appear later (the next warmer day) stays on the stack until that thing arrives.</li>
+</ul>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>2. How to recognize it</h2>
+<ul>
+<li>Matching or nested pairs: brackets, tags, quotes.</li>
+<li>"<strong>Next greater / smaller</strong> element", "how many days until a warmer day", "span", "histogram".</li>
+<li>Evaluating expressions (postfix, parsing) or decoding nested structures.</li>
+<li>"<strong>Undo</strong>" or "go back" operations; backtracking done by hand.</li>
+<li>Converting a recursive function into a loop.</li>
+</ul>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    A["Problem"] --&gt; B{"Resolve the NEWEST unfinished item first?"}
+    B --&gt;|Yes| C["Plain stack"]
+    B --&gt;|No| D{"For each item, find the nearest item&lt;br/&gt;on one side that is bigger or smaller?"}
+    D --&gt;|Yes| E["Monotonic stack"]
+    D --&gt;|No| F["Probably another pattern"]</pre></figure>
+</section>
+<section class="sec" id="the-monotonic-stack-the-powerful-variation">
+<h2>3. The monotonic stack (the powerful variation)</h2>
+<p>A <strong>monotonic stack</strong> keeps its items in <strong>sorted order</strong> (always decreasing, or always increasing, from bottom to top). Before pushing a new item, you <strong>pop</strong> every item that would break the order. The pops are where the answers happen.</p>
+<p><strong>Everyday picture.</strong> A line of people waiting to see over a fence, and you only keep a person in line if nobody <em>taller</em> than them has arrived behind them. When a taller person arrives, everyone shorter in front of them gets "answered": <em>"you found the next taller person: it is this one."</em> Those shorter people leave the line.</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    A["Take the next item x"] --&gt; B{"Stack non-empty and&lt;br/&gt;top breaks the order against x?"}
+    B --&gt;|Yes| C["Pop the top: x is the answer for it&lt;br/&gt;(next greater or smaller element)"]
+    C --&gt; B
+    B --&gt;|No| D["Push x"]
+    D --&gt; A</pre></figure>
+<p><strong>Why it is <code>O(n)</code> even with a <code>while</code> inside a <code>for</code>:</strong> every item is pushed once and popped at most once, so the total number of pops is at most <code>n</code> (the amortized argument from file 02).</p>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>You want…</th><th>Stack order</th><th>Pop while…</th><th>Popped item's answer is…</th></tr></thead><tbody>
+<tr><td>Next <strong>greater</strong> element to the right</td><td>decreasing</td><td><code>top &lt; x</code></td><td><code>x</code></td></tr>
+<tr><td>Next <strong>smaller</strong> element to the right</td><td>increasing</td><td><code>top &gt; x</code></td><td><code>x</code></td></tr>
+<tr><td>Previous greater / smaller to the left</td><td>same stacks</td><td>after popping, look at the <strong>new top</strong></td><td>the item below</td></tr>
+</tbody></table></div>
+<p>Tip: store <strong>indexes</strong> in the stack (not values) so you can compute distances.</p>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>4. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Valid Parentheses (LeetCode 20, Easy; v2 list)</h3>
+<p><strong>Task.</strong> A string has only <code>()[]{}</code>. Is every bracket closed by the right kind, in the right order? <code>"()[]{}"</code> → true; <code>"(]"</code> → false; <code>"([)]"</code> → false; <code>"{[]}"</code> → true.</p>
+<p><strong>Thinking.</strong> An opening bracket means <em>"I owe the world a matching closer"</em>. Push it. A closing bracket must match <strong>the most recent unpaid opener</strong>, which is the stack's top. If the top is not the matching opener (or the stack is empty), the string is invalid. At the end the stack must be empty, otherwise some opener was never closed.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["Read next character c"] --&gt; B{"Is c an opener?"}
+    B --&gt;|Yes| C["push c"]
+    B --&gt;|No| D{"Stack empty or top does not match c?"}
+    D --&gt;|Yes| E["return false"]
+    D --&gt;|No| F["pop"]
+    C --&gt; G{"More characters?"}
+    F --&gt; G
+    G --&gt;|Yes| A
+    G --&gt;|No| H{"Stack empty?"}
+    H --&gt;|Yes| I["return true"]
+    H --&gt;|No| E</pre></figure>
+<p><strong>Trace.</strong> <code>"{[]}"</code></p>
+<div class="table-wrap"><table id="tbl-2" class="trace"><thead><tr><th>char</th><th>action</th><th>stack</th></tr></thead><tbody>
+<tr><td><code>{</code></td><td>push</td><td><code>{</code></td></tr>
+<tr><td><code>[</code></td><td>push</td><td><code>{ [</code></td></tr>
+<tr><td><code>]</code></td><td>top is <code>[</code>: match, pop</td><td><code>{</code></td></tr>
+<tr><td><code>}</code></td><td>top is <code>{</code>: match, pop</td><td>empty → <strong>true</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p1" data-anim="validParens" data-code="code-1" data-flow="fig-4"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts"><code class="language-ts">function isValid(s: string): boolean {
+  const closerToOpener = new Map&lt;string, string&gt;([
+    [")", "("],
+    ["]", "["],
+    ["}", "{"],
+  ]);
+  const stack: string[] = [];
+  for (const ch of s) {
+    const opener = closerToOpener.get(ch);
+    if (opener === undefined) stack.push(ch); // it is an opening bracket
+    else if (stack.pop() !== opener) return false; // wrong match, or nothing to match (undefined)
+  }
+  return stack.length === 0; // anything left over was never closed
+}
+console.log(isValid("()[]{}")); // true
+console.log(isValid("(]")); // false
+console.log(isValid("([)]")); // false
+console.log(isValid("{[]}")); // true
+console.log(isValid("(")); // false
+console.log(isValid("")); // true</code></pre>
+<pre data-lang="go"><code class="language-go">func isValid(s string) bool {
+	closerToOpener := map[byte]byte{')': '(', ']': '[', '}': '{'}
+	stack := []byte{}
+	for i := 0; i &lt; len(s); i++ {
+		ch := s[i]
+		if opener, isCloser := closerToOpener[ch]; isCloser {
+			if len(stack) == 0 || stack[len(stack)-1] != opener {
+				return false // nothing to match, or the wrong kind
+			}
+			stack = stack[:len(stack)-1] // pop
+		} else {
+			stack = append(stack, ch) // push the opener
+		}
+	}
+	return len(stack) == 0 // anything left over was never closed
+}
+
+func exampleIsValid() {
+	fmt.Println(isValid("()[]{}")) // true
+	fmt.Println(isValid("(]"))     // false
+	fmt.Println(isValid("([)]"))   // false
+	fmt.Println(isValid("{[]}"))   // true
+	fmt.Println(isValid("("))      // false
+	fmt.Println(isValid(""))       // true
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(n)</code>.</p>
+<p><strong>Quick rejects.</strong> If <code>s.length</code> is odd, it cannot be valid. A related follow-up: <em>Longest Valid Parentheses (LeetCode 32)</em>: a stack of indexes.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Min Stack (LeetCode 155, Medium; v2 list)</h3>
+<p><strong>Task.</strong> Design a stack with <code>push</code>, <code>pop</code>, <code>top</code>, and <code>getMin</code>, <strong>all <code>O(1)</code></strong>.</p>
+<p><strong>The trap.</strong> If you keep one variable <code>min</code>, what happens after you pop the minimum? You would have to rescan to find the next-smallest, which is <code>O(n)</code>.</p>
+<p><strong>Idea.</strong> Each stack entry remembers <strong>the minimum of everything at or below it</strong>. Then <code>getMin</code> is just the top's remembered minimum, and popping automatically restores the earlier minimum.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    subgraph S["Stack entries (value, minimum so far)"]
+        T["top:    (1, min 1)"]
+        M["middle: (5, min 2)"]
+        B["bottom: (2, min 2)"]
+    end
+    T --&gt;|"pop"| R["new top: (5, min 2)&lt;br/&gt;getMin is now 2 again"]</pre></figure>
+<div class="stage" id="st-p2" data-anim="minStack" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">class MinStack {
+  private items: { value: number; min: number }[] = []; // each entry knows the min at or below it
+
+  push(value: number): void {
+    const min = this.items.length === 0 ? value : Math.min(value, this.getMin());
+    this.items.push({ value, min });
+  }
+  pop(): void {
+    this.items.pop();
+  }
+  top(): number {
+    return this.items[this.items.length - 1].value;
+  }
+  getMin(): number {
+    return this.items[this.items.length - 1].min;
+  }
+}
+const minStack = new MinStack();
+minStack.push(2);
+minStack.push(5);
+minStack.push(1);
+console.log(minStack.getMin()); // 1
+minStack.pop();
+console.log(minStack.top(), minStack.getMin()); // 5 2</code></pre>
+<pre data-lang="go"><code class="language-go">type minEntry struct{ value, min int }
+
+type MinStack struct{ items []minEntry }
+
+func (s *MinStack) Push(value int) {
+	min := value
+	if len(s.items) &gt; 0 &amp;&amp; s.items[len(s.items)-1].min &lt; value {
+		min = s.items[len(s.items)-1].min
+	}
+	s.items = append(s.items, minEntry{value, min})
+}
+func (s *MinStack) Pop()        { s.items = s.items[:len(s.items)-1] }
+func (s *MinStack) Top() int    { return s.items[len(s.items)-1].value }
+func (s *MinStack) GetMin() int { return s.items[len(s.items)-1].min }
+
+func exampleMinStack() {
+	s := &amp;MinStack{}
+	s.Push(2)
+	s.Push(5)
+	s.Push(1)
+	fmt.Println(s.GetMin()) // 1
+	s.Pop()
+	fmt.Println(s.Top(), s.GetMin()) // 5 2
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Every operation <code>O(1)</code>; space <code>O(n)</code> (one extra number per item).</p>
+<p><strong>Follow-up.</strong> <em>"Use <code>O(1)</code> extra space (no second number per entry)?"</em> Store the <strong>difference</strong> <code>value − min</code> and update the min cleverly; mention it exists, and that the pair approach is easier to get right. <em>"Max stack?"</em> Same idea. <em>"Pop the max (LeetCode 716)?"</em> Harder: needs a heap or a linked list with a sorted structure.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Evaluate Reverse Polish Notation (LeetCode 150, Medium)</h3>
+<p><strong>Task.</strong> Evaluate an expression in postfix notation, where operators come <strong>after</strong> their operands. <code>["2","1","+","3","*"]</code> means <code>(2 + 1) × 3</code> = <code>9</code>. Division truncates toward zero.</p>
+<p><strong>Thinking.</strong> Read left to right. A <strong>number</strong>: push it. An <strong>operator</strong>: pop the two most recent numbers (the <em>second</em> popped is the <strong>left</strong> operand), apply, push the result. At the end, one number remains. Postfix is designed so a stack alone is enough, with no brackets or precedence rules.</p>
+<p><strong>Trace.</strong> <code>["4","13","5","/","+"]</code> means <code>4 + (13 / 5)</code></p>
+<div class="table-wrap"><table id="tbl-3" class="trace"><thead><tr><th>token</th><th>action</th><th>stack</th></tr></thead><tbody>
+<tr><td><code>4</code></td><td>push</td><td><code>4</code></td></tr>
+<tr><td><code>13</code></td><td>push</td><td><code>4 13</code></td></tr>
+<tr><td><code>5</code></td><td>push</td><td><code>4 13 5</code></td></tr>
+<tr><td><code>/</code></td><td>pop 5, pop 13 → 13 / 5 = 2 (truncated), push</td><td><code>4 2</code></td></tr>
+<tr><td><code>+</code></td><td>pop 2, pop 4 → 4 + 2 = 6, push</td><td><code>6</code></td></tr>
+</tbody></table></div>
+<p><strong>Order trap.</strong> For <code>-</code> and <code>/</code>, the first popped value is the <em>right</em> operand. Compute <code>second OP first</code>.</p>
+<div class="stage" id="st-p3" data-anim="evalRPN" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function evalRPN(tokens: string[]): number {
+  const stack: number[] = [];
+  for (const token of tokens) {
+    if (token === "+" || token === "-" || token === "*" || token === "/") {
+      const right = stack.pop()!; // the most recent number is the RIGHT operand
+      const left = stack.pop()!;
+      if (token === "+") stack.push(left + right);
+      else if (token === "-") stack.push(left - right);
+      else if (token === "*") stack.push(left * right);
+      else stack.push(Math.trunc(left / right)); // truncate toward zero
+    } else {
+      stack.push(Number(token));
+    }
+  }
+  return stack[0];
+}
+console.log(evalRPN(["2", "1", "+", "3", "*"])); // 9
+console.log(evalRPN(["4", "13", "5", "/", "+"])); // 6
+console.log(evalRPN(["10", "6", "9", "3", "+", "-11", "*", "/", "*", "17", "+", "5", "+"])); // 22</code></pre>
+<pre data-lang="go"><code class="language-go">func evalRPN(tokens []string) int {
+	stack := []int{}
+	for _, token := range tokens {
+		switch token {
+		case "+", "-", "*", "/":
+			right := stack[len(stack)-1] // the most recent number is the RIGHT operand
+			left := stack[len(stack)-2]
+			stack = stack[:len(stack)-2]
+			switch token {
+			case "+":
+				stack = append(stack, left+right)
+			case "-":
+				stack = append(stack, left-right)
+			case "*":
+				stack = append(stack, left*right)
+			default:
+				stack = append(stack, left/right) // Go integer division truncates toward zero
+			}
+		default:
+			n, _ := strconv.Atoi(token)
+			stack = append(stack, n)
+		}
+	}
+	return stack[0]
+}
+
+func exampleEvalRPN() {
+	fmt.Println(evalRPN([]string{"2", "1", "+", "3", "*"}))                                                   // 9
+	fmt.Println(evalRPN([]string{"4", "13", "5", "/", "+"}))                                                  // 6
+	fmt.Println(evalRPN([]string{"10", "6", "9", "3", "+", "-11", "*", "/", "*", "17", "+", "5", "+"})) // 22
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(n)</code>.</p>
+<p><strong>Link.</strong> Turning a normal expression like <code>(2+1)*3</code> into postfix is the <strong>shunting-yard algorithm</strong>: also a stack (of operators).</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Daily Temperatures (LeetCode 739, Medium; v2 list)</h3>
+<p><strong>Task.</strong> For each day, how many days until a <strong>warmer</strong> temperature? <code>[73, 74, 75, 71, 69, 72, 76, 73]</code> → <code>[1, 1, 4, 2, 1, 1, 0, 0]</code> (<code>0</code> if none).</p>
+<p><strong>Brute force.</strong> For each day, scan forward: <code>O(n²)</code>.</p>
+<p><strong>Monotonic stack idea.</strong> Keep a stack of <strong>indexes of days that are still waiting</strong> for a warmer day. Their temperatures are <strong>non-increasing</strong> from bottom to top (if a warmer day came, they would already have been answered). When day <code>i</code> arrives, it is warmer than every waiting day whose temperature is lower: <strong>pop them and answer them</strong> with <code>i − thatDay</code>. Then push <code>i</code> to wait.</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["Day i with temperature t"] --&gt; B{"Stack non-empty and&lt;br/&gt;temp of top day &lt; t ?"}
+    B --&gt;|Yes| C["pop day j&lt;br/&gt;answer[j] = i - j"]
+    C --&gt; B
+    B --&gt;|No| D["push i  (it now waits)"]</pre></figure>
+<p><strong>Trace.</strong> <code>[73, 74, 75, 71, 69, 72, 76, 73]</code> (stack holds indexes; I show temperatures in parentheses)</p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>i</th><th>temp</th><th>pops (answers set)</th><th>stack after</th></tr></thead><tbody>
+<tr><td>0</td><td>73</td><td></td><td><code>0(73)</code></td></tr>
+<tr><td>1</td><td>74</td><td>pop 0: ans[0] = 1</td><td><code>1(74)</code></td></tr>
+<tr><td>2</td><td>75</td><td>pop 1: ans[1] = 1</td><td><code>2(75)</code></td></tr>
+<tr><td>3</td><td>71</td><td></td><td><code>2(75) 3(71)</code></td></tr>
+<tr><td>4</td><td>69</td><td></td><td><code>2 3 4(69)</code></td></tr>
+<tr><td>5</td><td>72</td><td>pop 4: ans[4] = 1; pop 3: ans[3] = 2</td><td><code>2(75) 5(72)</code></td></tr>
+<tr><td>6</td><td>76</td><td>pop 5: ans[5] = 1; pop 2: ans[2] = 4</td><td><code>6(76)</code></td></tr>
+<tr><td>7</td><td>73</td><td></td><td><code>6(76) 7(73)</code></td></tr>
+</tbody></table></div>
+<p>Days 6 and 7 remain on the stack: they keep answer <code>0</code>.</p>
+<div class="stage" id="st-p4" data-anim="dailyTemps" data-code="code-4" data-flow="fig-6"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function dailyTemperatures(temps: number[]): number[] {
+  const answer = new Array&lt;number&gt;(temps.length).fill(0); // 0 means "no warmer day"
+  const waiting: number[] = []; // indexes of days still waiting for a warmer day
+  for (let i = 0; i &lt; temps.length; i++) {
+    while (waiting.length &gt; 0 &amp;&amp; temps[waiting[waiting.length - 1]] &lt; temps[i]) {
+      const day = waiting.pop()!;
+      answer[day] = i - day; // today is the first warmer day for `day`
+    }
+    waiting.push(i);
+  }
+  return answer;
+}
+console.log(dailyTemperatures([73, 74, 75, 71, 69, 72, 76, 73])); // [ 1, 1, 4, 2, 1, 1, 0, 0 ]
+console.log(dailyTemperatures([30, 40, 50, 60])); // [ 1, 1, 1, 0 ]
+console.log(dailyTemperatures([30, 20, 10])); // [ 0, 0, 0 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func dailyTemperatures(temps []int) []int {
+	answer := make([]int, len(temps)) // 0 means "no warmer day"
+	waiting := []int{}                // indexes of days still waiting for a warmer day
+	for i, t := range temps {
+		for len(waiting) &gt; 0 &amp;&amp; temps[waiting[len(waiting)-1]] &lt; t {
+			day := waiting[len(waiting)-1]
+			waiting = waiting[:len(waiting)-1]
+			answer[day] = i - day // today is the first warmer day for `day`
+		}
+		waiting = append(waiting, i)
+	}
+	return answer
+}
+
+func exampleDailyTemperatures() {
+	fmt.Println(dailyTemperatures([]int{73, 74, 75, 71, 69, 72, 76, 73})) // [1 1 4 2 1 1 0 0]
+	fmt.Println(dailyTemperatures([]int{30, 40, 50, 60}))                 // [1 1 1 0]
+	fmt.Println(dailyTemperatures([]int{30, 20, 10}))                     // [0 0 0]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code> (each index pushed once, popped once), space <code>O(n)</code>.</p>
+<p><strong>Same skeleton, other questions:</strong> Next Greater Element I and II (LeetCode 496, 503: for the circular version, loop <code>2n</code> times with <code>i % n</code>), Online Stock Span (LeetCode 901), Next Smaller Element.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Decode String, the explicit-stack version (LeetCode 394, Medium; v2 list)</h3>
+<p>File 10 solved this with recursion. Interviewers often ask for the <strong>iterative</strong> version to avoid deep call stacks. This is exactly "how a recursion becomes a loop": the recursion's pending work moves onto <em>your</em> stack.</p>
+<p><strong>Idea.</strong> Keep two things per open bracket: the <strong>text built so far</strong> and the <strong>repeat count</strong> that applies to the bracket we are entering.</p>
+<ul>
+<li>On a <strong>digit</strong>: build <code>count</code>.</li>
+<li>On <code>[</code>: <strong>push</strong> the current text and count onto the stack, then start fresh (<code>text = ""</code>, <code>count = 0</code>).</li>
+<li>On a <strong>letter</strong>: append to <code>text</code>.</li>
+<li>On <code>]</code>: <strong>pop</strong> the saved text and count; the new text is <code>savedText + text × savedCount</code>.</li>
+</ul>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["Read char c"] --&gt; B{"c is a digit"}
+    B --&gt;|Yes| C["count = count * 10 + digit"]
+    B --&gt;|No| D{"c is '['"}
+    D --&gt;|Yes| E["push (text, count) ; text = '' ; count = 0"]
+    D --&gt;|No| F{"c is ']'"}
+    F --&gt;|Yes| G["pop (prevText, k) ; text = prevText + text repeated k times"]
+    F --&gt;|No| H["text += c"]</pre></figure>
+<p><strong>Trace.</strong> <code>"3[a2[c]]"</code></p>
+<div class="table-wrap"><table id="tbl-5" class="trace"><thead><tr><th>char</th><th>action</th><th>text</th><th>count</th><th>stack</th></tr></thead><tbody>
+<tr><td><code>3</code></td><td>count = 3</td><td>""</td><td>3</td><td></td></tr>
+<tr><td><code>[</code></td><td>push ("", 3), reset</td><td>""</td><td>0</td><td>("",3)</td></tr>
+<tr><td><code>a</code></td><td>append</td><td>"a"</td><td>0</td><td>("",3)</td></tr>
+<tr><td><code>2</code></td><td>count = 2</td><td>"a"</td><td>2</td><td>("",3)</td></tr>
+<tr><td><code>[</code></td><td>push ("a", 2), reset</td><td>""</td><td>0</td><td>("",3) ("a",2)</td></tr>
+<tr><td><code>c</code></td><td>append</td><td>"c"</td><td>0</td><td>("",3) ("a",2)</td></tr>
+<tr><td><code>]</code></td><td>pop ("a", 2): "a" + "cc"</td><td>"acc"</td><td>0</td><td>("",3)</td></tr>
+<tr><td><code>]</code></td><td>pop ("", 3): "" + "accaccacc"</td><td>"accaccacc"</td><td>0</td><td></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p5" data-anim="decodeIter" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function decodeStringIterative(s: string): string {
+  const stack: { text: string; count: number }[] = [];
+  let text = "";
+  let count = 0;
+  for (const ch of s) {
+    if (ch &gt;= "0" &amp;&amp; ch &lt;= "9") {
+      count = count * 10 + Number(ch);
+    } else if (ch === "[") {
+      stack.push({ text, count }); // remember what we had before this bracket
+      text = "";
+      count = 0;
+    } else if (ch === "]") {
+      const saved = stack.pop()!;
+      text = saved.text + text.repeat(saved.count);
+    } else {
+      text += ch;
+    }
+  }
+  return text;
+}
+console.log(decodeStringIterative("3[a2[c]]")); // accaccacc
+console.log(decodeStringIterative("2[abc]3[cd]ef")); // abcabccdcdcdef
+console.log(decodeStringIterative("abc")); // abc</code></pre>
+<pre data-lang="go"><code class="language-go">func decodeStringIterative(s string) string {
+	type frame struct {
+		text  string
+		count int
+	}
+	stack := []frame{}
+	text := ""
+	count := 0
+	for i := 0; i &lt; len(s); i++ {
+		ch := s[i]
+		switch {
+		case ch &gt;= '0' &amp;&amp; ch &lt;= '9':
+			count = count*10 + int(ch-'0')
+		case ch == '[':
+			stack = append(stack, frame{text, count}) // remember what we had before this bracket
+			text, count = "", 0
+		case ch == ']':
+			saved := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			text = saved.text + strings.Repeat(text, saved.count)
+		default:
+			text += string(ch)
+		}
+	}
+	return text
+}
+
+func exampleDecodeStringIterative() {
+	fmt.Println(decodeStringIterative("3[a2[c]]"))      // accaccacc
+	fmt.Println(decodeStringIterative("2[abc]3[cd]ef")) // abcabccdcdcdef
+	fmt.Println(decodeStringIterative("abc"))           // abc
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(output length)</code>-ish, space <code>O(nesting depth + text)</code>. No call-stack limit.</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · Largest Rectangle in Histogram (LeetCode 84, Hard)</h3>
+<p><strong>Task.</strong> A histogram has bars of width 1 and heights <code>h[i]</code>. Find the area of the largest rectangle that fits inside it. <code>[2, 1, 5, 6, 2, 3]</code> → <code>10</code> (the bars <code>5, 6</code>, height 5, width 2).</p>
+<p><strong>Brute force.</strong> For each pair of bars compute the min height between them: <code>O(n²)</code> or <code>O(n³)</code>.</p>
+<p><strong>The key reframe.</strong> Any rectangle's height is limited by its <strong>shortest bar</strong>. So ask, <em>for each bar <code>i</code>, treating it as the shortest bar of the rectangle, how far can the rectangle stretch left and right?</em> It stretches until it meets a bar <strong>shorter</strong> than <code>h[i]</code> on each side:</p>
+<ul>
+<li>left boundary = the nearest bar to the left that is <strong>shorter</strong> than <code>h[i]</code>,</li>
+<li>right boundary = the nearest bar to the right that is <strong>shorter</strong> than <code>h[i]</code>.</li>
+</ul>
+<p>Area for bar <code>i</code> = <code>h[i] × (right − left − 1)</code>, where <code>left</code> and <code>right</code> are the indexes of those shorter bars (use <code>−1</code> and <code>n</code> if none).</p>
+<p>"Nearest smaller on each side" is exactly the monotonic stack problem. Use a stack of indexes with <strong>increasing</strong> heights. When a bar <strong>shorter</strong> than the top arrives, the top has just found its <strong>right boundary</strong> (the new bar), and its <strong>left boundary</strong> is the item just below it on the stack (which is shorter, by the stack's order). So we can compute the top's rectangle at the moment we pop it.</p>
+<figure class="diagram" id="fig-8"><pre class="mermaid-src">flowchart TD
+    A["Bar i with height cur&lt;br/&gt;(use cur = 0 after the last bar to flush the stack)"] --&gt; B{"Stack non-empty and&lt;br/&gt;top bar is &gt;= cur ?"}
+    B --&gt;|Yes| C["pop the top bar: its height is h"]
+    C --&gt; D["right boundary = i&lt;br/&gt;left boundary = new top of stack (or -1)"]
+    D --&gt; E["width = i - left - 1&lt;br/&gt;area = h * width ; update best"]
+    E --&gt; B
+    B --&gt;|No| F["push i"]</pre></figure>
+<p><strong>Trace.</strong> <code>[2, 1, 5, 6, 2, 3]</code> (stack holds indexes; heights in parentheses)</p>
+<div class="table-wrap"><table id="tbl-6" class="trace"><thead><tr><th>i</th><th>cur</th><th>Pops (area = height × width)</th><th>stack after</th></tr></thead><tbody>
+<tr><td>0</td><td>2</td><td></td><td><code>0(2)</code></td></tr>
+<tr><td>1</td><td>1</td><td>pop 0 (h=2): left=−1, width=1−(−1)−1=1, area 2</td><td><code>1(1)</code></td></tr>
+<tr><td>2</td><td>5</td><td></td><td><code>1(1) 2(5)</code></td></tr>
+<tr><td>3</td><td>6</td><td></td><td><code>1 2 3(6)</code></td></tr>
+<tr><td>4</td><td>2</td><td>pop 3 (h=6): left=2, width=4−2−1=1, area 6. pop 2 (h=5): left=1, width=4−1−1=2, area <strong>10</strong></td><td><code>1(1) 4(2)</code></td></tr>
+<tr><td>5</td><td>3</td><td></td><td><code>1 4 5(3)</code></td></tr>
+<tr><td>6 (end, cur=0)</td><td>0</td><td>pop 5 (h=3): left=4, width=6−4−1=1, area 3. pop 4 (h=2): left=1, width=6−1−1=4, area 8. pop 1 (h=1): left=−1, width=6−(−1)−1=6, area 6</td><td>empty</td></tr>
+</tbody></table></div>
+<p>Best = <strong>10</strong>.</p>
+<div class="stage" id="st-p6" data-anim="histogram" data-code="code-6" data-flow="fig-8"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function largestRectangleArea(heights: number[]): number {
+  const stack: number[] = []; // indexes of bars with increasing heights
+  let best = 0;
+  for (let i = 0; i &lt;= heights.length; i++) {
+    const cur = i === heights.length ? 0 : heights[i]; // a final height 0 flushes the stack
+    while (stack.length &gt; 0 &amp;&amp; heights[stack[stack.length - 1]] &gt;= cur) {
+      const height = heights[stack.pop()!];
+      const left = stack.length &gt; 0 ? stack[stack.length - 1] : -1; // nearest shorter bar on the left
+      best = Math.max(best, height * (i - left - 1)); // i is the nearest shorter on the right
+    }
+    stack.push(i);
+  }
+  return best;
+}
+console.log(largestRectangleArea([2, 1, 5, 6, 2, 3])); // 10
+console.log(largestRectangleArea([2, 4])); // 4
+console.log(largestRectangleArea([2, 2, 2])); // 6
+console.log(largestRectangleArea([])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func largestRectangleArea(heights []int) int {
+	stack := []int{} // indexes of bars with increasing heights
+	best := 0
+	for i := 0; i &lt;= len(heights); i++ {
+		cur := 0 // a final height 0 flushes the stack
+		if i &lt; len(heights) {
+			cur = heights[i]
+		}
+		for len(stack) &gt; 0 &amp;&amp; heights[stack[len(stack)-1]] &gt;= cur {
+			height := heights[stack[len(stack)-1]]
+			stack = stack[:len(stack)-1]
+			left := -1 // nearest shorter bar on the left
+			if len(stack) &gt; 0 {
+				left = stack[len(stack)-1]
+			}
+			best = max(best, height*(i-left-1)) // i is the nearest shorter on the right
+		}
+		stack = append(stack, i)
+	}
+	return best
+}
+
+func exampleLargestRectangleArea() {
+	fmt.Println(largestRectangleArea([]int{2, 1, 5, 6, 2, 3})) // 10
+	fmt.Println(largestRectangleArea([]int{2, 4}))              // 4
+	fmt.Println(largestRectangleArea([]int{2, 2, 2}))           // 6
+	fmt.Println(largestRectangleArea([]int{}))                  // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(n)</code>.</p>
+<p><strong>Why <code>&gt;=</code> and not <code>&gt;</code>:</strong> popping on equal heights is fine. The earlier equal bar gets a too-narrow rectangle, but the <em>later</em> equal bar (pushed after) gets the correct, wider one, so the maximum is still found, and duplicates need no special handling.</p>
+<p><strong>Related problems:</strong> Maximal Rectangle in a binary matrix (LeetCode 85: run this on each row's "histogram of consecutive 1s"), and Trapping Rain Water (LeetCode 42) also has a monotonic-stack solution besides the two-pointer one in file 05: a <em>decreasing</em> stack, where each pop fills a "valley" between the new bar and the bar below it.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Popping from an empty stack</strong> (<code>pop()</code> returns <code>undefined</code> in JavaScript; a panic in Go). Check <code>length &gt; 0</code> first.</li>
+<li><strong>Storing values instead of indexes</strong> in a monotonic stack, then being unable to compute distances.</li>
+<li><strong>Wrong operand order</strong> for <code>-</code> and <code>/</code> in postfix evaluation.</li>
+<li><strong>Forgetting to check that the stack is empty at the end</strong> (Valid Parentheses with leftover openers).</li>
+<li><strong>Wrong comparison direction</strong> (<code>&lt;</code> vs <code>&gt;</code>): write the property of the stack in words before coding ("heights increase from bottom to top").</li>
+<li><strong>Forgetting the sentinel/flush step</strong> (the <code>cur = 0</code> trick) so the bars left on the stack are never evaluated.</li>
+<li><strong>Using <code>array.shift()</code> as a "stack pop from the front"</strong>: that is a queue, and it is <code>O(n)</code> in JavaScript.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Why a stack for brackets</h3>
+<p>Explain why a stack (not a queue) is right for matching brackets, using the string <code>"([{}])"</code>.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>In <code>"([{}])"</code> the <code>{</code> is opened last, so it must be closed first; then <code>[</code>, then <code>(</code>. Closing happens in reverse order of opening: last in, first out. A queue would try to close <code>(</code> first and fail.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Daily Temperatures on [5, 4, 3, 6]</h3>
+<p>Run the Daily Temperatures stack on <code>[5, 4, 3, 6]</code> by hand. What is the stack after each step?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>i=0: stack [0]. i=1: 4 &lt; 5, stack [0, 1]. i=2: stack [0, 1, 2]. i=3: 6 pops 2 (answer 1), pops 1 (answer 2), pops 0 (answer 3), then stack [3]. Answer <code>[3, 2, 1, 0]</code>. Try it in Problem 4's animation.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Next Greater Element II (circular)</h3>
+<p><em>Next Greater Element II</em> (LeetCode 503, circular array): what small change to the loop do you need?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Loop <code>i</code> from 0 to <code>2n − 1</code> and use <code>nums[i % n]</code>. Only push indexes during the first lap (<code>i &lt; n</code>). The second lap lets items near the end find a greater element at the start.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Remove K Digits</h3>
+<p><em>Remove K Digits</em> (LeetCode 402): which stack order (increasing or decreasing) lets you drop the largest leading digits?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Keep an <strong>increasing</strong> stack of digits. When a smaller digit arrives and removals remain, pop the bigger digits before it, because a smaller digit earlier always gives a smaller number. Remove any leftover k from the end, and strip leading zeros.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Trapping Rain Water with a stack</h3>
+<p>Trapping Rain Water with a monotonic stack: when a taller bar arrives and you pop a bar, which three bars define the water pocket?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Keep a decreasing stack of bar indexes. When a taller bar arrives, pop the bottom bar: the three bars are the popped bar (the floor), the new top of the stack (the left wall) and the current bar (the right wall). Water = (min(left, right) − floor) × (distance between the walls − 1).</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="stack13"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/13.js"></script>
+</body>
+</html>

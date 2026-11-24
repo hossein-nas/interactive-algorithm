@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="29" data-pattern="Everything">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>29 Pattern chooser, mock interviews and the v2 map | Algorithm guide</title>
+<meta name="description" content="A clickable pattern chooser, a which-pattern drill, three timed mock interviews with animated solutions, and a searchable map from the v2 guides to this one.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 29</span><span>Putting it together</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Pattern chooser, mock interviews and the v2 map</h1>
+<p class="sub">Pick the tool, rehearse under a clock, and know where everything lives.</p>
+<blockquote><p>This is the closing file. It does three jobs: (1) a <strong>decision guide</strong> that turns the clues in a problem into the right pattern and file, (2) <strong>three full mock-interview walkthroughs</strong> on problems that are <em>not</em> solved elsewhere in this guide, so you can test whether the patterns transfer, and (3) a <strong>map</strong> showing where every v2 topic and every one of v2's 30 LeetCode questions now lives in v3.</p></blockquote>
+<div class="glance"><div><b>Use the chooser</b><p>Answer a few questions about a problem and it names the pattern and the lesson.</p></div><div><b>Rehearse</b><p>Three mocks with phase timers: restate, examples, brute force, pattern, code, test.</p></div><div><b>Find anything</b><p>Search the v2 map by LeetCode number, topic or v2 file.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="part-1-the-pattern-chooser">
+<h2>Part 1 · The pattern chooser</h2>
+<h3 id="1-1-read-the-constraints-first-they-name-the-algorithm">1.1 Read the constraints first: they name the algorithm</h3>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>If the input size <code>n</code> is…</th><th>You probably need…</th><th>Typical tools</th></tr></thead><tbody>
+<tr><td>≤ 10–12</td><td><code>O(n!)</code> is acceptable</td><td>permutations, backtracking</td></tr>
+<tr><td>≤ 20–25</td><td><code>O(2ⁿ)</code> or <code>O(2ⁿ · n)</code></td><td>subsets, bitmask DP, backtracking with pruning</td></tr>
+<tr><td>≤ 500</td><td><code>O(n³)</code></td><td>Floyd–Warshall, interval DP</td></tr>
+<tr><td>≤ 5,000</td><td><code>O(n²)</code></td><td>2D DP, nested loops</td></tr>
+<tr><td>≤ 10⁵ to 10⁶</td><td><code>O(n log n)</code> or <code>O(n)</code></td><td>sorting, heaps, two pointers, sliding window, hash maps, BFS/DFS</td></tr>
+<tr><td>≤ 10⁹ or "very large"</td><td><code>O(log n)</code> or <code>O(1)</code></td><td>binary search on the answer, math, bit tricks</td></tr>
+</tbody></table></div>
+<h3 id="1-2-clue-pattern">1.2 Clue → pattern</h3>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Clue in the problem</th><th>Pattern</th><th>File</th></tr></thead><tbody>
+<tr><td>"Have I seen…", count, group, find a pair in an <strong>unsorted</strong> array</td><td>Hash map / set</td><td><a href="04-hash-tables-map-set.html">04</a></td></tr>
+<tr><td><strong>Sorted</strong> array, pair/triplet, in-place cleanup, palindrome</td><td>Two pointers</td><td><a href="05-two-pointers.html">05</a></td></tr>
+<tr><td>Longest / shortest <strong>contiguous</strong> part, "at most K", fixed-size windows</td><td>Sliding window</td><td><a href="06-sliding-window.html">06</a></td></tr>
+<tr><td>Many <strong>range sums</strong>, subarray sum equals K, "except self", range updates</td><td>Prefix sums / difference array</td><td><a href="07-prefix-sums.html">07</a></td></tr>
+<tr><td>Sorted data, "first/last position", <strong>"minimum X such that it works"</strong></td><td>Binary search (on the array or on the answer)</td><td><a href="08-binary-search.html">08</a></td></tr>
+<tr><td>"Sort by a custom rule", "k-th largest", count inversions, divide the problem</td><td>Sorting / divide and conquer / quickselect</td><td><a href="09-sorting-and-divide-and-conquer.html">09</a></td></tr>
+<tr><td>Nested data, self-similar structure</td><td>Recursion</td><td><a href="10-recursion-and-call-stack.html">10</a></td></tr>
+<tr><td>"Generate <strong>all</strong>…", try choices with undo</td><td>Backtracking</td><td><a href="11-backtracking.html">11</a></td></tr>
+<tr><td>Rewiring pointers, middle, cycle, merge lists</td><td>Linked list tools</td><td><a href="12-linked-lists.html">12</a></td></tr>
+<tr><td>Matching pairs, <strong>next greater/smaller</strong>, histogram, "undo"</td><td>Stack / monotonic stack</td><td><a href="13-stacks-and-monotonic-stack.html">13</a></td></tr>
+<tr><td>Recent events, <strong>window max/min</strong>, FIFO</td><td>Queue / monotonic deque</td><td><a href="14-queues-and-monotonic-deque.html">14</a></td></tr>
+<tr><td>Tree input: depth, paths, ancestors, BST rules</td><td>Tree recursion / traversals</td><td><a href="15-trees-and-bst.html">15</a></td></tr>
+<tr><td>Ordered map, why balance, range queries on sorted data</td><td>Balanced trees (concepts)</td><td><a href="16-balanced-trees.html">16</a></td></tr>
+<tr><td>Top K, repeated min/max, merge K sorted, scheduling, running median</td><td>Heap</td><td><a href="17-heaps-and-priority-queues.html">17</a></td></tr>
+<tr><td>Prefix queries, dictionary, autocomplete, word grid search</td><td>Trie</td><td><a href="18-tries.html">18</a></td></tr>
+<tr><td>Connections, grids, "fewest steps", components, flood fill</td><td>Graph BFS/DFS</td><td><a href="19-graphs-bfs-dfs-and-grids.html">19</a></td></tr>
+<tr><td>Prerequisites, ordering, cycle in a directed graph</td><td>Topological sort</td><td><a href="20-topological-sort.html">20</a></td></tr>
+<tr><td>Groups that merge, "is there a cycle" (undirected), dynamic connectivity</td><td>Union-find</td><td><a href="21-union-find.html">21</a></td></tr>
+<tr><td>Weighted shortest path; negative weights; "at most K edges"</td><td>Dijkstra / Bellman-Ford</td><td><a href="22-shortest-paths-dijkstra-bellman-ford.html">22</a></td></tr>
+<tr><td>Local choice looks safe: intervals by end time, furthest reach</td><td>Greedy</td><td><a href="23-greedy-and-np-complete.html">23</a></td></tr>
+<tr><td>"All combinations of…" and <code>n</code> is big</td><td>NP-hard: approximate, or bitmask DP if small</td><td><a href="23-greedy-and-np-complete.html">23</a></td></tr>
+<tr><td>Merge / insert / overlap / rooms / skyline</td><td>Intervals and sweep line</td><td><a href="24-intervals.html">24</a></td></tr>
+<tr><td>min / max / count / feasible over choices, repeating sub-situations (1 index)</td><td>DP, one dimension</td><td><a href="25-dp-one-dimensional.html">25</a></td></tr>
+<tr><td>Two strings, a grid, items + capacity, ranges</td><td>DP, two dimensions</td><td><a href="26-dp-two-dimensional.html">26</a></td></tr>
+<tr><td>Appears twice except one, powers of two, subsets as masks, max XOR</td><td>Bit manipulation</td><td><a href="27-bit-manipulation.html">27</a></td></tr>
+<tr><td>Nearest neighbors, similarity, recommendations</td><td>k-NN, LSH</td><td><a href="28-knn-and-where-to-go-next.html">28</a></td></tr>
+</tbody></table></div>
+<h3 id="1-3-the-master-decision-flow">1.3 The master decision flow</h3>
+<div class="chooser" data-chooser></div>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart TD
+    A["Read the problem and the constraints"] --&gt; B{"Input is a tree?"}
+    B --&gt;|Yes| T["Tree recursion (15). BST: use ordering."]
+    B --&gt;|No| C{"Input is a linked list?"}
+    C --&gt;|Yes| L["Linked list tools (12)"]
+    C --&gt;|No| D{"Graph, grid, or implicit state space?"}
+    D --&gt;|Yes| G{"What is asked?"}
+    G --&gt;|"fewest steps, all moves equal"| G1["BFS (19)"]
+    G --&gt;|"weighted cheapest path"| G2["Dijkstra / Bellman-Ford (22)"]
+    G --&gt;|"order with prerequisites"| G3["Topological sort (20)"]
+    G --&gt;|"groups, merging, cycles"| G4["Union-find (21) or DFS"]
+    G --&gt;|"regions, reachability"| G5["DFS / flood fill (19)"]
+    D --&gt;|No| E{"Asks to generate ALL answers?"}
+    E --&gt;|Yes| BT["Backtracking (11)"]
+    E --&gt;|No| F{"Contiguous subarray / substring?"}
+    F --&gt;|Yes| F1{"Negatives or arbitrary rule?"}
+    F1 --&gt;|"positives, grow/shrink rule"| W["Sliding window (06)"]
+    F1 --&gt;|"sum equals K, negatives allowed"| PS["Prefix sums + map (07)"]
+    F --&gt;|No| H{"Sorted, or answer is a threshold?"}
+    H --&gt;|Yes| BS["Binary search (08) / two pointers (05)"]
+    H --&gt;|No| I{"Min / max / count over choices with overlap?"}
+    I --&gt;|Yes| DP["Dynamic programming (25, 26) or greedy (23)"]
+    I --&gt;|No| J{"Need top K, min/max repeatedly, or stream median?"}
+    J --&gt;|Yes| HP["Heap (17)"]
+    J --&gt;|No| K{"Next greater, matching, undo?"}
+    K --&gt;|Yes| ST["Stack (13)"]
+    K --&gt;|No| HM["Hash map (04), sorting (09), or intervals (24)"]</pre></figure>
+<h3 id="1-4-twelve-confusable-pairs-and-how-to-decide">1.4 Twelve "confusable pairs" and how to decide</h3>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Pair</th><th>Decision rule</th></tr></thead><tbody>
+<tr><td>Two pointers vs. hash map</td><td>Sorted (or sortable without needing indexes) → two pointers (<code>O(1)</code> space). Unsorted, need indexes → hash map.</td></tr>
+<tr><td>Sliding window vs. prefix sums</td><td>Positives and a monotone rule → window. Negatives, or "sum equals K" → prefix sums + map.</td></tr>
+<tr><td>BFS vs. DFS</td><td>Fewest steps / layers → BFS. Reachability, components, backtracking, deep exploration → DFS.</td></tr>
+<tr><td>BFS vs. Dijkstra</td><td>Equal edge costs → BFS. Different costs → Dijkstra.</td></tr>
+<tr><td>Dijkstra vs. Bellman-Ford</td><td>Non-negative → Dijkstra. Negative weights, or "at most K edges" → Bellman-Ford.</td></tr>
+<tr><td>Recursion vs. DP</td><td>Same sub-call repeated with the same arguments → add a cache (DP).</td></tr>
+<tr><td>Greedy vs. DP</td><td>Can you prove the local choice safe (exchange argument)? Yes → greedy. If a tiny counterexample exists → DP.</td></tr>
+<tr><td>Backtracking vs. DP</td><td>Must <strong>list</strong> every answer → backtracking. Only a <strong>count / best / yes-no</strong> → DP.</td></tr>
+<tr><td>Heap vs. sorting</td><td>Need only the top K, or items keep arriving → heap. Need the full order once → sort.</td></tr>
+<tr><td>Heap vs. quickselect</td><td>Streaming or small K → heap. One-shot, single k-th value → quickselect <code>O(n)</code>.</td></tr>
+<tr><td>Stack vs. queue</td><td>Newest first (nesting, undo, next greater) → stack. Oldest first (levels, fairness) → queue.</td></tr>
+<tr><td>Union-find vs. DFS</td><td>Edges arrive over time, or "does this edge close a cycle" (undirected) → union-find. Fixed graph, one question → DFS/BFS.</td></tr>
+</tbody></table></div>
+<div class="quiz" data-quiz="drill29"></div>
+<h3 id="1-5-complexity-cheat-sheet">1.5 Complexity cheat sheet</h3>
+<p><strong>Data structures (average case unless noted):</strong></p>
+<div class="table-wrap"><table id="tbl-4"><thead><tr><th>Structure</th><th>Access</th><th>Search</th><th>Insert</th><th>Delete</th><th>Notes</th></tr></thead><tbody>
+<tr><td>Array / slice</td><td><code>O(1)</code></td><td><code>O(n)</code></td><td><code>O(n)</code> (<code>O(1)</code> at the end, amortized)</td><td><code>O(n)</code></td><td></td></tr>
+<tr><td>Linked list</td><td><code>O(n)</code></td><td><code>O(n)</code></td><td><code>O(1)</code> at a known node</td><td><code>O(1)</code> at a known node</td><td></td></tr>
+<tr><td>Stack / queue / deque</td><td>—</td><td>—</td><td><code>O(1)</code></td><td><code>O(1)</code></td><td>JS queue: use a head index, not <code>shift()</code></td></tr>
+<tr><td>Hash map / set</td><td>—</td><td><code>O(1)</code></td><td><code>O(1)</code></td><td><code>O(1)</code></td><td>worst <code>O(n)</code></td></tr>
+<tr><td>Sorted array</td><td><code>O(1)</code></td><td><code>O(log n)</code></td><td><code>O(n)</code></td><td><code>O(n)</code></td><td>binary search</td></tr>
+<tr><td>BST (unbalanced)</td><td>—</td><td><code>O(h)</code></td><td><code>O(h)</code></td><td><code>O(h)</code></td><td><code>h</code> up to <code>n</code></td></tr>
+<tr><td>Balanced BST (AVL, red-black)</td><td>—</td><td><code>O(log n)</code></td><td><code>O(log n)</code></td><td><code>O(log n)</code></td><td>ordered iteration, range queries</td></tr>
+<tr><td>Heap</td><td>—</td><td><code>O(n)</code></td><td><code>O(log n)</code></td><td><code>O(log n)</code> (top)</td><td>peek <code>O(1)</code>, build <code>O(n)</code></td></tr>
+<tr><td>Trie</td><td>—</td><td><code>O(L)</code></td><td><code>O(L)</code></td><td><code>O(L)</code></td><td><code>L</code> = word length</td></tr>
+<tr><td>Union-find</td><td>—</td><td><code>O(α(n))</code></td><td><code>O(α(n))</code></td><td>—</td><td>effectively constant</td></tr>
+</tbody></table></div>
+<p><strong>Algorithms:</strong></p>
+<div class="table-wrap"><table id="tbl-5"><thead><tr><th>Algorithm</th><th>Time</th><th>Space</th></tr></thead><tbody>
+<tr><td>Binary search</td><td><code>O(log n)</code></td><td><code>O(1)</code></td></tr>
+<tr><td>Merge sort</td><td><code>O(n log n)</code></td><td><code>O(n)</code></td></tr>
+<tr><td>Quicksort</td><td><code>O(n log n)</code> avg, <code>O(n²)</code> worst</td><td><code>O(log n)</code></td></tr>
+<tr><td>Quickselect</td><td><code>O(n)</code> avg</td><td><code>O(1)</code></td></tr>
+<tr><td>BFS / DFS</td><td><code>O(V + E)</code></td><td><code>O(V)</code></td></tr>
+<tr><td>Topological sort</td><td><code>O(V + E)</code></td><td><code>O(V)</code></td></tr>
+<tr><td>Dijkstra (heap)</td><td><code>O((V + E) log V)</code></td><td><code>O(V)</code></td></tr>
+<tr><td>Bellman-Ford</td><td><code>O(V · E)</code></td><td><code>O(V)</code></td></tr>
+<tr><td>Floyd-Warshall</td><td><code>O(V³)</code></td><td><code>O(V²)</code></td></tr>
+<tr><td>Union-find ops</td><td><code>O(α(n))</code> each</td><td><code>O(n)</code></td></tr>
+<tr><td>Kruskal MST</td><td><code>O(E log E)</code></td><td><code>O(V)</code></td></tr>
+<tr><td>1D DP (typical)</td><td><code>O(n)</code> to <code>O(n · k)</code></td><td><code>O(n)</code> or <code>O(1)</code> rolling</td></tr>
+<tr><td>2D DP (typical)</td><td><code>O(m · n)</code></td><td><code>O(m · n)</code> or <code>O(n)</code> rolling</td></tr>
+<tr><td>Subsets / backtracking</td><td><code>O(2ⁿ · n)</code></td><td><code>O(n)</code></td></tr>
+<tr><td>Permutations</td><td><code>O(n! · n)</code></td><td><code>O(n)</code></td></tr>
+</tbody></table></div>
+<h3 id="1-6-the-last-hour-checklist">1.6 The last-hour checklist</h3>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart LR
+    A["Restate + clarify"] --&gt; B["Example + edge cases"]
+    B --&gt; C["Brute force + its cost"]
+    C --&gt; D["Name the pattern, define variables"]
+    D --&gt; E["Code while narrating"]
+    E --&gt; F["Test: example, edge, tricky branch"]
+    F --&gt; G["State time and space with reasons"]</pre></figure>
+</section>
+<section class="sec" id="part-2-three-mock-interviews">
+<h2>Part 2 · Three mock interviews</h2>
+<p>Each mock is a problem <strong>not solved elsewhere</strong> in this guide. Cover the "Interviewer says" lines, try it yourself for the suggested time, then compare. Timing assumes a 35 to 45 minute round.</p>
+<h3 id="mock-1-find-all-anagrams-in-a-string-leetcode-438-medium-tar">Mock 1 · Find All Anagrams in a String (LeetCode 438, Medium) · target 25 minutes</h3>
+<p><strong>Interviewer says:</strong> <em>"Given two strings <code>s</code> and <code>p</code>, return the starting indexes of all substrings of <code>s</code> that are anagrams of <code>p</code>. For <code>s = "cbaebabacd"</code>, <code>p = "abc"</code>, return <code>[0, 6]</code>."</em></p>
+<h4>Candidate's thinking, step by step</h4>
+<p>Run this mock against the clock. Read the problem above, press Start, and talk out loud through each phase.</p>
+<div class="round-timer" data-note="25 minutes in total. When a phase runs out, say what you would do with more time and move on." data-phases='[["Restate and clarify", 3, "Say the task back; ask about letters, sizes, overlaps"], ["Examples", 2, "Work cbaebabacd / abc by hand"], ["Brute force", 3, "Name it and its cost"], ["Pattern and design", 4, "Fixed window, need[], missing"], ["Code", 8, "Write it cleanly, narrating"], ["Test", 5, "Trace the example and the edge cases"]]'></div>
+<div class="table-wrap"><table id="tbl-6"><thead><tr><th>Time</th><th>Step</th><th>What the candidate says</th></tr></thead><tbody>
+<tr><td>0:00</td><td>Restate</td><td>"So I look for windows of <code>s</code> with exactly the same letters as <code>p</code>, in any order, and return where each window starts."</td></tr>
+<tr><td>0:01</td><td>Clarify</td><td>"Are the strings lowercase letters only? Can <code>p</code> be longer than <code>s</code>? (then the answer is empty.) Do overlapping matches count, such as in <code>abab</code> with <code>ab</code>? I'll assume yes."</td></tr>
+<tr><td>0:03</td><td>Example</td><td>"For <code>cbaebabacd</code> and <code>abc</code>: the window <code>cba</code> at 0 works; <code>bac</code> at 6 works. Answer <code>[0, 6]</code>."</td></tr>
+<tr><td>0:05</td><td>Brute force</td><td>"Check every window of length <code>|p|</code> by sorting or counting its letters: <code>O(n · m)</code> or <code>O(n · m log m)</code>. The slow part is recounting a window from scratch each time."</td></tr>
+<tr><td>0:08</td><td>Pattern</td><td>"Windows of a <strong>fixed length</strong> <code>m = |p|</code> that slide one step at a time: a <strong>fixed sliding window</strong>. When the window moves, one letter enters and one leaves, so I update counts in <code>O(1)</code> instead of recounting."</td></tr>
+<tr><td>0:10</td><td>Design</td><td>"I keep <code>need[26]</code> = how many of each letter <code>p</code> still requires and <code>missing</code> = how many required letters are still absent from the window. Adding a letter that I still need reduces <code>missing</code>; removing one that I needed brings it back. When <code>missing == 0</code> and the window has length <code>m</code>, it is an anagram."</td></tr>
+</tbody></table></div>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    A["for each right index r"] --&gt; B["add s[r]: if need[s[r]] &gt; 0 then missing--; need[s[r]]--"]
+    B --&gt; C{"window longer than m?"}
+    C --&gt;|Yes| D["remove s[r-m]: need[ch]++; if need[ch] &gt; 0 then missing++"]
+    C --&gt;|No| E["keep"]
+    D --&gt; F{"r &gt;= m-1 and missing == 0?"}
+    E --&gt; F
+    F --&gt;|Yes| G["record start = r - m + 1"]
+    F --&gt;|No| A
+    G --&gt; A</pre></figure>
+<p><strong>Trace</strong> on <code>s = "cbaebabacd"</code>, <code>p = "abc"</code> (so <code>m = 3</code>, <code>need = {a:1, b:1, c:1}</code>, <code>missing = 3</code>):</p>
+<div class="table-wrap"><table id="tbl-7"><thead><tr><th>r</th><th>letter added</th><th>letter dropped (once the window would exceed 3)</th><th><code>missing</code> after both</th><th>window <code>s[r-2..r]</code></th><th>match?</th></tr></thead><tbody>
+<tr><td>0</td><td>c (fills a gap)</td><td></td><td>2</td><td><code>c</code></td><td></td></tr>
+<tr><td>1</td><td>b (fills a gap)</td><td></td><td>1</td><td><code>cb</code></td><td></td></tr>
+<tr><td>2</td><td>a (fills a gap)</td><td></td><td>0</td><td><code>cba</code></td><td><strong>yes, start 0</strong></td></tr>
+<tr><td>3</td><td>e (not needed)</td><td>c (a needed letter is lost)</td><td>1</td><td><code>bae</code></td><td>no</td></tr>
+<tr><td>4</td><td>b (surplus)</td><td>b (surplus leaves)</td><td>1</td><td><code>aeb</code></td><td>no</td></tr>
+<tr><td>5</td><td>a (surplus)</td><td>a (surplus leaves)</td><td>1</td><td><code>eba</code></td><td>no</td></tr>
+<tr><td>6</td><td>b (surplus)</td><td>e</td><td>1</td><td><code>bab</code></td><td>no</td></tr>
+<tr><td>7</td><td>a (surplus)</td><td>b</td><td>1</td><td><code>aba</code></td><td>no</td></tr>
+<tr><td>8</td><td>c (fills the gap)</td><td>a (surplus leaves)</td><td>0</td><td><code>bac</code></td><td><strong>yes, start 6</strong></td></tr>
+<tr><td>9</td><td>d (not needed)</td><td>b (a needed letter is lost)</td><td>1</td><td><code>acd</code></td><td>no</td></tr>
+</tbody></table></div>
+<p>Result <code>[0, 6]</code> ✔.</p>
+<div class="stage" id="st-m1" data-anim="anagrams" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts"><code class="language-ts">function findAnagrams(s: string, p: string): number[] {
+  const m = p.length;
+  const result: number[] = [];
+  if (m &gt; s.length) return result;
+  const need = new Array&lt;number&gt;(26).fill(0);
+  for (let i = 0; i &lt; m; i++) need[p.charCodeAt(i) - 97]++;
+  let missing = m; // how many required letters are still absent from the window
+  for (let r = 0; r &lt; s.length; r++) {
+    const add = s.charCodeAt(r) - 97;
+    if (need[add] &gt; 0) missing--; // this letter fills a real gap
+    need[add]--; // may go negative: a surplus
+    if (r &gt;= m) { // the window is now m + 1 long: drop the oldest letter
+      const drop = s.charCodeAt(r - m) - 97;
+      need[drop]++;
+      if (need[drop] &gt; 0) missing++; // we just lost a needed letter
+    }
+    if (r &gt;= m - 1 &amp;&amp; missing === 0) result.push(r - m + 1); // a full window with nothing missing
+  }
+  return result;
+}
+console.log(findAnagrams("cbaebabacd", "abc")); // [ 0, 6 ]
+console.log(findAnagrams("abab", "ab")); // [ 0, 1, 2 ]
+console.log(findAnagrams("a", "ab")); // []
+console.log(findAnagrams("aaaaa", "aa")); // [ 0, 1, 2, 3 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func findAnagrams(s, p string) []int {
+	m := len(p)
+	result := []int{}
+	if m &gt; len(s) {
+		return result
+	}
+	var need [26]int
+	for i := 0; i &lt; m; i++ {
+		need[p[i]-'a']++
+	}
+	missing := m // how many required letters are still absent from the window
+	for r := 0; r &lt; len(s); r++ {
+		add := s[r] - 'a'
+		if need[add] &gt; 0 {
+			missing-- // this letter fills a real gap
+		}
+		need[add]-- // may go negative: a surplus
+		if r &gt;= m { // the window is now m + 1 long: drop the oldest letter
+			drop := s[r-m] - 'a'
+			need[drop]++
+			if need[drop] &gt; 0 {
+				missing++ // we just lost a needed letter
+			}
+		}
+		if r &gt;= m-1 &amp;&amp; missing == 0 {
+			result = append(result, r-m+1) // a full window with nothing missing
+		}
+	}
+	return result
+}
+
+func exampleFindAnagrams() {
+	fmt.Println(findAnagrams("cbaebabacd", "abc")) // [0 6]
+	fmt.Println(findAnagrams("abab", "ab"))        // [0 1 2]
+	fmt.Println(findAnagrams("a", "ab"))           // []
+	fmt.Println(findAnagrams("aaaaa", "aa"))       // [0 1 2 3]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n + m)</code>, space <code>O(1)</code> (26 counters).</p>
+<p><strong>Follow-ups the interviewer may ask, with strong answers.</strong></p>
+<ul>
+<li><em>"What if the alphabet is Unicode?"</em> Replace the 26-array with a hash map and <strong>delete keys at zero</strong> (file 06); the logic is identical.</li>
+<li><em>"What if <code>s</code> is a stream?"</em> The window state is just counts, so it works online.</li>
+<li><em>"Why not compare the two count arrays each step?"</em> That is <code>O(26)</code> per step: still linear, but the <code>missing</code> counter makes each step truly <code>O(1)</code>.</li>
+<li><em>"How is this different from Minimum Window Substring?"</em> That window has a variable length (shrink while valid); this one is fixed at <code>m</code>.</li>
+</ul>
+<h3 id="mock-2-evaluate-division-leetcode-399-medium-target-35-minut">Mock 2 · Evaluate Division (LeetCode 399, Medium) · target 35 minutes</h3>
+<p><strong>Interviewer says:</strong> <em>"You are given equations like <code>a / b = 2.0</code> and <code>b / c = 3.0</code>, and queries like <code>a / c = ?</code>. Return the answers, or <code>-1.0</code> when an answer cannot be determined. Equations: <code>[[a,b],[b,c]]</code>, values <code>[2.0, 3.0]</code>, queries <code>[[a,c],[b,a],[a,e],[a,a],[x,x]]</code> → <code>[6.0, 0.5, -1.0, 1.0, -1.0]</code>."</em></p>
+<h4>Candidate's thinking</h4>
+<p>Run this mock against the clock. Read the problem above, press Start, and talk out loud through each phase.</p>
+<div class="round-timer" data-note="35 minutes in total." data-phases='[["Restate and clarify", 4, "Unknown variables? Zero values? a/a?"], ["Model it", 6, "Variables are nodes; ratios are weighted edges"], ["Design", 5, "DFS multiplying ratios; or weighted union-find"], ["Code", 12, "Build the graph, then one search per query"], ["Test", 8, "a/c, b/a, a/e, a/a, x/x"]]'></div>
+<div class="table-wrap"><table id="tbl-8"><thead><tr><th>Time</th><th>Step</th><th>What the candidate says</th></tr></thead><tbody>
+<tr><td>0:00</td><td>Restate</td><td>"Each equation relates two variables by a ratio. A query asks for a ratio that may follow by chaining equations, like <code>a/c = (a/b)·(b/c)</code>."</td></tr>
+<tr><td>0:03</td><td>Clarify</td><td>"What if a variable never appears in any equation? Return <code>-1</code>. What about <code>a / a</code>? If <code>a</code> appears, it is <code>1</code>; if it never appeared, <code>-1</code> (that's why <code>x/x</code> is <code>-1</code>). Is division by zero possible? I'll assume values are positive."</td></tr>
+<tr><td>0:06</td><td><strong>See the graph</strong></td><td>"Variables are <strong>nodes</strong>. An equation <code>a / b = 2</code> is an <strong>edge <code>a → b</code> with weight 2</strong>, and also an edge <strong><code>b → a</code> with weight <code>1/2</code></strong>. Then <code>a / c</code> is the <strong>product of the weights along any path</strong> from <code>a</code> to <code>c</code>."</td></tr>
+<tr><td>0:09</td><td>Choose</td><td>"I need to know whether a path exists and its product: a graph search from the numerator to the denominator, multiplying as I go. DFS or BFS both work. Or union-find with weights, which is faster for many queries but fiddlier. I'll do DFS first."</td></tr>
+<tr><td>0:12</td><td>Edge cases</td><td>"If either variable is unknown: <code>-1</code>. If numerator equals denominator and known: <code>1</code>. Use a visited set so cycles do not loop forever."</td></tr>
+</tbody></table></div>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart LR
+    A["a"] --&gt;|"2.0"| B["b"]
+    B --&gt;|"0.5"| A
+    B --&gt;|"3.0"| C["c"]
+    C --&gt;|"0.333"| B
+    Q["query a / c"] --&gt; P["path a to b to c: 2.0 x 3.0 = 6.0"]</pre></figure>
+<p><strong>Walk through <code>[a, c]</code>:</strong> from <code>a</code>, edge to <code>b</code> (×2), from <code>b</code> edge to <code>c</code> (×3): product <code>6</code>. For <code>[b, a]</code>: edge <code>b → a</code> with weight <code>0.5</code>. For <code>[a, e]</code>: <code>e</code> is not in the graph, so <code>-1</code>.</p>
+<div class="stage" id="st-m2" data-anim="division" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function calcEquation(equations: string[][], values: number[], queries: string[][]): number[] {
+  // adjacency: variable -&gt; (neighbor -&gt; ratio  variable / neighbor)
+  const graph = new Map&lt;string, Map&lt;string, number&gt;&gt;();
+  const link = (a: string, b: string, ratio: number): void =&gt; {
+    if (!graph.has(a)) graph.set(a, new Map());
+    graph.get(a)!.set(b, ratio);
+  };
+  equations.forEach(([a, b], i) =&gt; {
+    link(a, b, values[i]); // a / b = value
+    link(b, a, 1 / values[i]); // b / a = 1 / value
+  });
+
+  function evaluate(src: string, dst: string): number {
+    if (!graph.has(src) || !graph.has(dst)) return -1; // an unknown variable
+    if (src === dst) return 1;
+    const visited = new Set&lt;string&gt;([src]);
+    const stack: [string, number][] = [[src, 1]]; // [node, product of ratios from src to node]
+    while (stack.length &gt; 0) {
+      const [node, product] = stack.pop()!;
+      for (const [next, ratio] of graph.get(node)!) {
+        if (next === dst) return product * ratio; // found a path: multiply the last step
+        if (!visited.has(next)) {
+          visited.add(next);
+          stack.push([next, product * ratio]);
+        }
+      }
+    }
+    return -1; // no path: not determinable
+  }
+  return queries.map(([a, b]) =&gt; evaluate(a, b));
+}
+const eq = [["a", "b"], ["b", "c"]];
+const vals = [2.0, 3.0];
+console.log(calcEquation(eq, vals, [["a", "c"], ["b", "a"], ["a", "e"], ["a", "a"], ["x", "x"]])); // [ 6, 0.5, -1, 1, -1 ]
+console.log(calcEquation([["a", "b"], ["c", "d"]], [1.5, 2.5], [["a", "c"], ["c", "d"]])); // [ -1, 2.5 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func calcEquation(equations [][]string, values []float64, queries [][]string) []float64 {
+	// adjacency: variable -&gt; (neighbor -&gt; ratio  variable / neighbor)
+	graph := make(map[string]map[string]float64)
+	link := func(a, b string, ratio float64) {
+		if graph[a] == nil {
+			graph[a] = make(map[string]float64)
+		}
+		graph[a][b] = ratio
+	}
+	for i, eq := range equations {
+		link(eq[0], eq[1], values[i])   // a / b = value
+		link(eq[1], eq[0], 1/values[i]) // b / a = 1 / value
+	}
+
+	evaluate := func(src, dst string) float64 {
+		if graph[src] == nil || graph[dst] == nil {
+			return -1 // an unknown variable
+		}
+		if src == dst {
+			return 1
+		}
+		type entry struct {
+			node    string
+			product float64 // product of ratios from src to node
+		}
+		visited := map[string]bool{src: true}
+		stack := []entry{{src, 1}}
+		for len(stack) &gt; 0 {
+			cur := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			for next, ratio := range graph[cur.node] {
+				if next == dst {
+					return cur.product * ratio // found a path: multiply the last step
+				}
+				if !visited[next] {
+					visited[next] = true
+					stack = append(stack, entry{next, cur.product * ratio})
+				}
+			}
+		}
+		return -1 // no path: not determinable
+	}
+
+	answers := make([]float64, len(queries))
+	for i, q := range queries {
+		answers[i] = evaluate(q[0], q[1])
+	}
+	return answers
+}
+
+func exampleCalcEquation() {
+	eq := [][]string{{"a", "b"}, {"b", "c"}}
+	vals := []float64{2.0, 3.0}
+	fmt.Println(calcEquation(eq, vals, [][]string{{"a", "c"}, {"b", "a"}, {"a", "e"}, {"a", "a"}, {"x", "x"}})) // [6 0.5 -1 1 -1]
+	fmt.Println(calcEquation([][]string{{"a", "b"}, {"c", "d"}}, []float64{1.5, 2.5}, [][]string{{"a", "c"}, {"c", "d"}})) // [-1 2.5]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Building: <code>O(E)</code>. Each query: <code>O(V + E)</code> in the worst case. Total <code>O(E + Q · (V + E))</code>.</p>
+<p><strong>Follow-ups, with strong answers.</strong></p>
+<ul>
+<li><em>"Many queries?"</em> Use <strong>weighted union-find</strong>: each node stores <code>weightToParent</code> (its ratio to its root). <code>find</code> with path compression multiplies the ratios along the way. Queries become <code>O(α(n))</code> after one <code>O(E α)</code> build. Or run <strong>Floyd-Warshall</strong> over the variables if there are few of them (<code>O(V³)</code>).</li>
+<li><em>"What if there are contradictory equations?"</em> The problem guarantees none; otherwise you could detect a cycle whose product is not 1.</li>
+<li><em>"Floating-point error?"</em> Multiplication chains accumulate rounding error; mention it, and note that LeetCode accepts a small tolerance.</li>
+</ul>
+<h3 id="mock-3-longest-valid-parentheses-leetcode-32-hard-target-40-">Mock 3 · Longest Valid Parentheses (LeetCode 32, Hard) · target 40 minutes</h3>
+<p><strong>Interviewer says:</strong> <em>"Given a string of only <code>(</code> and <code>)</code>, return the length of the longest <strong>valid (well-formed) parentheses substring</strong>. <code>"(()"</code> → <code>2</code>. <code>")()())"</code> → <code>4</code>. <code>""</code> → <code>0</code>."</em></p>
+<h4>Candidate's thinking</h4>
+<p>Run this mock against the clock. Read the problem above, press Start, and talk out loud through each phase.</p>
+<div class="round-timer" data-note="40 minutes in total." data-phases='[["Restate and clarify", 4, "Substring, not subsequence; empty string?"], ["Brute force", 5, "Check every substring: O(n\u00b3) or O(n\u00b2)"], ["Insight", 8, "A stack of indexes, or two counting passes"], ["Code", 13, "Write the stack version"], ["Test", 10, "Trace )()()) and (() out loud"]]'></div>
+<div class="table-wrap"><table id="tbl-9"><thead><tr><th>Time</th><th>Step</th><th>What the candidate says</th></tr></thead><tbody>
+<tr><td>0:00</td><td>Restate</td><td>"Find the longest <strong>contiguous</strong> stretch where every <code>(</code> is matched by a later <code>)</code> in proper nesting."</td></tr>
+<tr><td>0:03</td><td>Brute force</td><td>"Check every substring with the counter-based validity test: <code>O(n²)</code> (or <code>O(n³)</code> if I rescan)."</td></tr>
+<tr><td>0:07</td><td>Pattern hints</td><td>"Matching brackets point to a <strong>stack</strong> (file 13). The question is what to push so I can measure lengths."</td></tr>
+<tr><td>0:10</td><td>Key idea</td><td>"Push <strong>indexes</strong>, not characters. Keep at the bottom the index of the <strong>last position that could not be matched</strong> (start with <code>-1</code>). For <code>(</code>, push its index. For <code>)</code>, <strong>pop</strong>: if the stack is now empty, this <code>)</code> is unmatched, so push its index as the new base; otherwise the valid stretch ends here and starts just after the new top: its length is <code>i − stack.top</code>."</td></tr>
+</tbody></table></div>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["stack = [-1], best = 0"] --&gt; B["for each index i"]
+    B --&gt; C{"s[i] is '(' ?"}
+    C --&gt;|Yes| D["push i"]
+    C --&gt;|No| E["pop"]
+    E --&gt; F{"stack empty?"}
+    F --&gt;|Yes| G["push i  (new base: unmatched ')')"]
+    F --&gt;|No| H["best = max(best, i - stack.top)"]
+    D --&gt; B
+    G --&gt; B
+    H --&gt; B</pre></figure>
+<p><strong>Trace</strong> on <code>")()())"</code>:</p>
+<div class="table-wrap"><table id="tbl-10" class="trace"><thead><tr><th>i</th><th>char</th><th>stack before</th><th>action</th><th>stack after</th><th>best</th></tr></thead><tbody>
+<tr><td>start</td><td></td><td></td><td></td><td><code>[-1]</code></td><td>0</td></tr>
+<tr><td>0</td><td><code>)</code></td><td><code>[-1]</code></td><td>pop → empty → push 0</td><td><code>[0]</code></td><td>0</td></tr>
+<tr><td>1</td><td><code>(</code></td><td><code>[0]</code></td><td>push 1</td><td><code>[0, 1]</code></td><td>0</td></tr>
+<tr><td>2</td><td><code>)</code></td><td><code>[0, 1]</code></td><td>pop 1 → top is 0: length 2 − 0 = 2</td><td><code>[0]</code></td><td>2</td></tr>
+<tr><td>3</td><td><code>(</code></td><td><code>[0]</code></td><td>push 3</td><td><code>[0, 3]</code></td><td>2</td></tr>
+<tr><td>4</td><td><code>)</code></td><td><code>[0, 3]</code></td><td>pop 3 → top is 0: length 4 − 0 = 4</td><td><code>[0]</code></td><td><strong>4</strong></td></tr>
+<tr><td>5</td><td><code>)</code></td><td><code>[0]</code></td><td>pop 0 → empty → push 5</td><td><code>[5]</code></td><td>4</td></tr>
+</tbody></table></div>
+<p><strong>The follow-up: <code>O(1)</code> space.</strong> Scan <strong>twice</strong> with two counters.</p>
+<ul>
+<li><strong>Left to right:</strong> count <code>open</code> and <code>close</code>. When they are equal, the substring is valid: <code>best = max(best, 2 · close)</code>. If <code>close &gt; open</code>, reset both to 0 (too many closers can never be repaired by what follows).</li>
+<li><strong>Right to left:</strong> do the mirror image (reset when <code>open &gt; close</code>). The second pass catches cases like <code>"(()"</code> where there are surplus openers on the left.</li>
+</ul>
+<div class="stage" id="st-m3" data-anim="parens,parens2" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts" data-caption="stack of indexes, and the O(1)-space two-pass version"><code class="language-ts">function longestValidParentheses(s: string): number {
+  const stack: number[] = [-1]; // the index just before the current valid stretch
+  let best = 0;
+  for (let i = 0; i &lt; s.length; i++) {
+    if (s[i] === "(") {
+      stack.push(i);
+    } else {
+      stack.pop();
+      if (stack.length === 0) stack.push(i); // an unmatched ')' becomes the new base
+      else best = Math.max(best, i - stack[stack.length - 1]); // length of the valid stretch ending here
+    }
+  }
+  return best;
+}
+
+function longestValidParenthesesTwoPass(s: string): number {
+  let best = 0;
+  let open = 0, close = 0;
+  for (let i = 0; i &lt; s.length; i++) { // left to right
+    if (s[i] === "(") open++;
+    else close++;
+    if (open === close) best = Math.max(best, 2 * close);
+    else if (close &gt; open) open = close = 0; // too many ')': start over
+  }
+  open = close = 0;
+  for (let i = s.length - 1; i &gt;= 0; i--) { // right to left
+    if (s[i] === "(") open++;
+    else close++;
+    if (open === close) best = Math.max(best, 2 * open);
+    else if (open &gt; close) open = close = 0; // too many '(': start over
+  }
+  return best;
+}
+
+for (const input of ["(()", ")()())", "", "()(())", "()(()"]) {
+  console.log(JSON.stringify(input), longestValidParentheses(input), longestValidParenthesesTwoPass(input));
+}
+// "(()" 2 2 | ")()())" 4 4 | "" 0 0 | "()(())" 6 6 | "()(()" 2 2</code></pre>
+<pre data-lang="go" data-caption="stack of indexes, and the O(1)-space two-pass version"><code class="language-go">func longestValidParentheses(s string) int {
+	stack := []int{-1} // the index just before the current valid stretch
+	best := 0
+	for i := 0; i &lt; len(s); i++ {
+		if s[i] == '(' {
+			stack = append(stack, i)
+		} else {
+			stack = stack[:len(stack)-1]
+			if len(stack) == 0 {
+				stack = append(stack, i) // an unmatched ')' becomes the new base
+			} else {
+				best = max(best, i-stack[len(stack)-1]) // length of the valid stretch ending here
+			}
+		}
+	}
+	return best
+}
+
+func longestValidParenthesesTwoPass(s string) int {
+	best := 0
+	open, close := 0, 0
+	for i := 0; i &lt; len(s); i++ { // left to right
+		if s[i] == '(' {
+			open++
+		} else {
+			close++
+		}
+		if open == close {
+			best = max(best, 2*close)
+		} else if close &gt; open {
+			open, close = 0, 0 // too many ')': start over
+		}
+	}
+	open, close = 0, 0
+	for i := len(s) - 1; i &gt;= 0; i-- { // right to left
+		if s[i] == '(' {
+			open++
+		} else {
+			close++
+		}
+		if open == close {
+			best = max(best, 2*open)
+		} else if open &gt; close {
+			open, close = 0, 0 // too many '(': start over
+		}
+	}
+	return best
+}
+
+func exampleLongestValidParentheses() {
+	for _, input := range []string{"(()", ")()())", "", "()(())", "()(()"} {
+		fmt.Printf("%q %d %d\n", input, longestValidParentheses(input), longestValidParenthesesTwoPass(input))
+	}
+	// "(()" 2 2 | ")()())" 4 4 | "" 0 0 | "()(())" 6 6 | "()(()" 2 2
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Stack version: time <code>O(n)</code>, space <code>O(n)</code>. Two-pass version: time <code>O(n)</code>, space <code>O(1)</code>.</p>
+<p><strong>Follow-ups, with strong answers.</strong></p>
+<ul>
+<li><em>"Can you do it with DP?"</em> Yes: <code>dp[i]</code> = length of the longest valid substring <strong>ending at</strong> <code>i</code>. If <code>s[i] == ')'</code> and <code>s[i−1] == '('</code>, <code>dp[i] = dp[i−2] + 2</code>; if <code>s[i−1] == ')'</code> and the character before the block that ends at <code>i−1</code> is <code>(</code>, then <code>dp[i] = dp[i−1] + 2 + dp[i − dp[i−1] − 2]</code>. <code>O(n)</code> time and space.</li>
+<li><em>"Why does the two-pass version need the reverse pass?"</em> For <code>"(()"</code> the left-to-right scan ends with <code>open = 2</code>, <code>close = 1</code> and never sees them equal. The right-to-left pass finds <code>close = 1, open = 1</code> at the right place and reports 2.</li>
+<li><em>"What if other bracket types appear?"</em> The counters no longer work; use the stack with indexes (and a type check on pop).</li>
+</ul>
+<h3 id="how-these-mocks-are-graded-what-interviewers-actually-score">How these mocks are graded (what interviewers actually score)</h3>
+<div class="table-wrap"><table id="tbl-11"><thead><tr><th>Dimension</th><th>Strong</th><th>Weak</th></tr></thead><tbody>
+<tr><td><strong>Problem solving</strong></td><td>Brute force first, then a named pattern with a reason</td><td>Jumps to code; stuck with no fallback</td></tr>
+<tr><td><strong>Communication</strong></td><td>Narrates, defines variables, invites feedback</td><td>Silent; mumbles; defensive</td></tr>
+<tr><td><strong>Code quality</strong></td><td>Clear names, base cases, no duplication</td><td>Cryptic names; patchwork fixes</td></tr>
+<tr><td><strong>Verification</strong></td><td>Traces an example and an edge case; finds own bug</td><td>"Done" without running anything</td></tr>
+<tr><td><strong>Analysis</strong></td><td>States time and space with the reason, plus a trade-off</td><td>Wrong or no complexity</td></tr>
+<tr><td><strong>Adaptability</strong></td><td>Handles follow-ups calmly (Unicode, stream, <code>O(1)</code> space)</td><td>Freezes when constraints change</td></tr>
+</tbody></table></div>
+</section>
+<section class="sec" id="part-3-where-v2-went-the-complete-map">
+<h2>Part 3 · Where v2 went: the complete map</h2>
+<p>Everything from <code>Algorithm v2/</code> now lives in v3 in a <strong>more detailed</strong> form. Use this table to find any v2 item.</p>
+<div class="v2-search" data-v2search></div>
+<h3 id="v2-guides-v3-files">v2 guides → v3 files</h3>
+<div class="table-wrap"><table id="tbl-12"><thead><tr><th>v2 file</th><th>Topic</th><th>Now in v3</th></tr></thead><tbody>
+<tr><td><code>00 algorithm-live-coding-guide.md</code></td><td>How to approach a question; the ten patterns</td><td><a href="00-start-here-and-study-plan.html">00 start here</a>, <a href="01-interview-process.html">01 interview process</a>, and Part 1 of this file</td></tr>
+<tr><td><code>01 two-pointers-deep-guide.md</code></td><td>Two pointers</td><td><a href="05-two-pointers.html">05</a></td></tr>
+<tr><td><code>02 sliding-window-deep-guide.md</code></td><td>Sliding window</td><td><a href="06-sliding-window.html">06</a></td></tr>
+<tr><td><code>04 binary-search-deep-guide.md</code></td><td>Binary search</td><td><a href="08-binary-search.html">08</a></td></tr>
+<tr><td><code>05 graphs-bfs-dfs-deep-guide.md</code></td><td>Graphs</td><td><a href="19-graphs-bfs-dfs-and-grids.html">19</a>, <a href="20-topological-sort.html">20</a></td></tr>
+<tr><td><code>06 dynamic-programming-deep-guide.md</code></td><td>Dynamic programming</td><td><a href="25-dp-one-dimensional.html">25</a>, <a href="26-dp-two-dimensional.html">26</a></td></tr>
+<tr><td><code>07 heap-priority-queue-deep-guide.md</code></td><td>Heaps</td><td><a href="17-heaps-and-priority-queues.html">17</a></td></tr>
+<tr><td><code>08 stacks-deep-guide.md</code></td><td>Stacks</td><td><a href="13-stacks-and-monotonic-stack.html">13</a></td></tr>
+<tr><td><code>09 remaining-algorithm-topics-guide.md</code></td><td>Map/Set, prefix sums, trees</td><td><a href="04-hash-tables-map-set.html">04</a>, <a href="07-prefix-sums.html">07</a>, <a href="15-trees-and-bst.html">15</a></td></tr>
+<tr><td><code>10 30-leetcode-questions-and-typescript-answers.md</code></td><td>30 practice questions</td><td>the table below</td></tr>
+</tbody></table></div>
+<h3 id="v2-s-worked-questions-q1-q21-v3">v2's worked questions (Q1–Q21) → v3</h3>
+<div class="table-wrap"><table id="tbl-13"><thead><tr><th>v2 question</th><th>Topic</th><th>v3 location</th></tr></thead><tbody>
+<tr><td>Q1 Kth largest element</td><td>Heap</td><td><a href="17-heaps-and-priority-queues.html">17 · Problem 1</a> (and quickselect in <a href="09-sorting-and-divide-and-conquer.html">09 · Problem 4</a>)</td></tr>
+<tr><td>Q2 Merge K sorted arrays</td><td>Heap</td><td><a href="17-heaps-and-priority-queues.html">17 · Problem 3</a></td></tr>
+<tr><td>Q3 Minimum meeting rooms</td><td>Heap</td><td><a href="17-heaps-and-priority-queues.html">17 · Problem 5</a> and <a href="24-intervals.html">24 · Problem 5</a></td></tr>
+<tr><td>Q4 Number of islands</td><td>Graph</td><td><a href="19-graphs-bfs-dfs-and-grids.html">19 · Problem 2</a></td></tr>
+<tr><td>Q5 Shortest path, unweighted</td><td>Graph</td><td><a href="19-graphs-bfs-dfs-and-grids.html">19 · Problem 1</a></td></tr>
+<tr><td>Q6 Course schedule / cycle</td><td>Graph</td><td><a href="20-topological-sort.html">20 · Problem 1</a></td></tr>
+<tr><td>Q7 Minimum coins</td><td>DP</td><td><a href="25-dp-one-dimensional.html">25 · Problem 3</a></td></tr>
+<tr><td>Q8 House robber</td><td>DP</td><td><a href="25-dp-one-dimensional.html">25 · Problem 2</a></td></tr>
+<tr><td>Q9 Longest increasing subsequence</td><td>DP</td><td><a href="25-dp-one-dimensional.html">25 · Problem 4</a></td></tr>
+<tr><td>Q10 Valid parentheses</td><td>Stack</td><td><a href="13-stacks-and-monotonic-stack.html">13 · Problem 1</a></td></tr>
+<tr><td>Q11 Daily temperatures</td><td>Stack</td><td><a href="13-stacks-and-monotonic-stack.html">13 · Problem 4</a></td></tr>
+<tr><td>Q12 Min stack</td><td>Stack</td><td><a href="13-stacks-and-monotonic-stack.html">13 · Problem 2</a></td></tr>
+<tr><td>Q13 First occurrence in a sorted array</td><td>Binary search</td><td><a href="08-binary-search.html">08 · Problem 2</a></td></tr>
+<tr><td>Q14 Search a rotated sorted array</td><td>Binary search</td><td><a href="08-binary-search.html">08 · Problem 3</a></td></tr>
+<tr><td>Q15 Minimum ship capacity within D days</td><td>Binary search</td><td><a href="08-binary-search.html">08 · Problem 5</a></td></tr>
+<tr><td>Q16 Pair sum in a sorted array</td><td>Two pointers</td><td><a href="05-two-pointers.html">05 · Problem 1</a></td></tr>
+<tr><td>Q17 Three Sum</td><td>Two pointers</td><td><a href="05-two-pointers.html">05 · Problem 4</a></td></tr>
+<tr><td>Q18 Remove duplicates from a sorted array</td><td>Two pointers</td><td><a href="05-two-pointers.html">05 · Problem 2</a></td></tr>
+<tr><td>Q19 Longest substring without repeating characters</td><td>Sliding window</td><td><a href="06-sliding-window.html">06 · Problem 2</a></td></tr>
+<tr><td>Q20 Minimum-size subarray sum</td><td>Sliding window</td><td><a href="06-sliding-window.html">06 · Problem 3</a></td></tr>
+<tr><td>Q21 Longest substring with at most K distinct characters</td><td>Sliding window</td><td><a href="06-sliding-window.html">06 · Problem 4</a></td></tr>
+</tbody></table></div>
+<h3 id="v2-s-30-leetcode-questions-v3">v2's 30 LeetCode questions → v3</h3>
+<div class="table-wrap"><table id="tbl-14"><thead><tr><th>#</th><th>LeetCode</th><th>Title</th><th>Difficulty</th><th>v3 location</th></tr></thead><tbody>
+<tr><td>1</td><td>206</td><td>Reverse Linked List</td><td>Easy</td><td><a href="12-linked-lists.html">12 · Problem 1</a></td></tr>
+<tr><td>2</td><td>242</td><td>Valid Anagram</td><td>Easy</td><td><a href="04-hash-tables-map-set.html">04 · Problem 2</a></td></tr>
+<tr><td>3</td><td>303</td><td>Range Sum Query, Immutable</td><td>Easy</td><td><a href="07-prefix-sums.html">07 · Problem 1</a></td></tr>
+<tr><td>4</td><td>104</td><td>Maximum Depth of Binary Tree</td><td>Easy</td><td><a href="15-trees-and-bst.html">15 · Problem 1</a></td></tr>
+<tr><td>5</td><td>226</td><td>Invert Binary Tree</td><td>Easy</td><td><a href="15-trees-and-bst.html">15 · Problem 1</a></td></tr>
+<tr><td>6</td><td>338</td><td>Counting Bits</td><td>Easy</td><td><a href="27-bit-manipulation.html">27 · Problem 2</a></td></tr>
+<tr><td>7</td><td>94</td><td>Binary Tree Inorder Traversal</td><td>Easy</td><td><a href="15-trees-and-bst.html">15 · Problem 2</a></td></tr>
+<tr><td>8</td><td>118</td><td>Pascal's Triangle</td><td>Easy</td><td><a href="10-recursion-and-call-stack.html">10 · Problem 3</a></td></tr>
+<tr><td>9</td><td>344</td><td>Reverse String</td><td>Easy</td><td><a href="05-two-pointers.html">05 · §4 templates</a></td></tr>
+<tr><td>10</td><td>349</td><td>Intersection of Two Arrays</td><td>Easy</td><td><a href="04-hash-tables-map-set.html">04 · Problem 4</a></td></tr>
+<tr><td>11</td><td>49</td><td>Group Anagrams</td><td>Medium</td><td><a href="04-hash-tables-map-set.html">04 · Problem 3</a></td></tr>
+<tr><td>12</td><td>102</td><td>Binary Tree Level Order Traversal</td><td>Medium</td><td><a href="15-trees-and-bst.html">15 · Problem 3</a></td></tr>
+<tr><td>13</td><td>215</td><td>Kth Largest Element in an Array</td><td>Medium</td><td><a href="09-sorting-and-divide-and-conquer.html">09 · Problem 4</a>, <a href="17-heaps-and-priority-queues.html">17 · Problem 1</a></td></tr>
+<tr><td>14</td><td>230</td><td>Kth Smallest Element in a BST</td><td>Medium</td><td><a href="15-trees-and-bst.html">15 · Problem 4</a></td></tr>
+<tr><td>15</td><td>238</td><td>Product of Array Except Self</td><td>Medium</td><td><a href="07-prefix-sums.html">07 · Problem 2</a></td></tr>
+<tr><td>16</td><td>22</td><td>Generate Parentheses</td><td>Medium</td><td><a href="11-backtracking.html">11 · Problem 4</a></td></tr>
+<tr><td>17</td><td>39</td><td>Combination Sum</td><td>Medium</td><td><a href="11-backtracking.html">11 · Problem 3</a></td></tr>
+<tr><td>18</td><td>78</td><td>Subsets</td><td>Medium</td><td><a href="11-backtracking.html">11 · Problem 1</a>, bitmask version in <a href="27-bit-manipulation.html">27 · Problem 5</a></td></tr>
+<tr><td>19</td><td>208</td><td>Implement Trie (Prefix Tree)</td><td>Medium</td><td><a href="18-tries.html">18 · Problem 1</a></td></tr>
+<tr><td>20</td><td>75</td><td>Sort Colors</td><td>Medium</td><td><a href="05-two-pointers.html">05 · Problem 3</a></td></tr>
+<tr><td>21</td><td>105</td><td>Construct Binary Tree from Preorder and Inorder Traversal</td><td>Medium</td><td><a href="15-trees-and-bst.html">15 · Problem 6</a></td></tr>
+<tr><td>22</td><td>236</td><td>Lowest Common Ancestor of a Binary Tree</td><td>Medium</td><td><a href="15-trees-and-bst.html">15 · Problem 5</a></td></tr>
+<tr><td>23</td><td>200</td><td>Number of Islands</td><td>Medium</td><td><a href="19-graphs-bfs-dfs-and-grids.html">19 · Problem 2</a></td></tr>
+<tr><td>24</td><td>133</td><td>Clone Graph</td><td>Medium</td><td><a href="19-graphs-bfs-dfs-and-grids.html">19 · Problem 3</a></td></tr>
+<tr><td>25</td><td>347</td><td>Top K Frequent Elements</td><td>Medium</td><td><a href="17-heaps-and-priority-queues.html">17 · Problem 2</a></td></tr>
+<tr><td>26</td><td>378</td><td>Kth Smallest Element in a Sorted Matrix</td><td>Medium</td><td><a href="17-heaps-and-priority-queues.html">17 · Problem 4</a></td></tr>
+<tr><td>27</td><td>394</td><td>Decode String</td><td>Medium</td><td><a href="10-recursion-and-call-stack.html">10 · Problem 5</a> (recursive), <a href="13-stacks-and-monotonic-stack.html">13 · Problem 5</a> (stack)</td></tr>
+<tr><td>28</td><td>42</td><td>Trapping Rain Water</td><td>Hard</td><td><a href="05-two-pointers.html">05 · Problem 6</a> (two pointers); the stack method is described in <a href="13-stacks-and-monotonic-stack.html">13</a></td></tr>
+<tr><td>29</td><td>51</td><td>N-Queens</td><td>Hard</td><td><a href="11-backtracking.html">11 · Problem 5</a></td></tr>
+<tr><td>30</td><td>52</td><td>N-Queens II</td><td>Hard</td><td><a href="11-backtracking.html">11 · Problem 5</a></td></tr>
+</tbody></table></div>
+</section>
+<section class="sec" id="part-4-what-next-practice-lists-by-topic">
+<h2>Part 4 · "What next?" practice lists by topic</h2>
+<p>Solve these <strong>without</strong> looking at solutions. Each is a good second problem for its topic. (LeetCode numbers.)</p>
+<div class="table-wrap"><table id="tbl-15"><thead><tr><th>Topic</th><th>Next problems</th></tr></thead><tbody>
+<tr><td>Hash map</td><td>1 Two Sum, 128 Longest Consecutive Sequence, 560 Subarray Sum Equals K, 146 LRU Cache, 380 Insert Delete GetRandom O(1)</td></tr>
+<tr><td>Two pointers</td><td>11 Container With Most Water, 15 3Sum, 125 Valid Palindrome, 283 Move Zeroes, 88 Merge Sorted Array</td></tr>
+<tr><td>Sliding window</td><td>3, 76, 424, 438, 567 Permutation in String, 904 Fruit Into Baskets, 239 Sliding Window Maximum</td></tr>
+<tr><td>Prefix sums</td><td>523 Continuous Subarray Sum, 525 Contiguous Array, 724 Find Pivot Index, 974 Subarray Sums Divisible by K, 1109</td></tr>
+<tr><td>Binary search</td><td>33, 34, 153 Find Minimum in Rotated Array, 162 Find Peak Element, 875 Koko, 410 Split Array Largest Sum, 4</td></tr>
+<tr><td>Sorting / D&amp;C</td><td>912, 148 Sort List, 179 Largest Number, 315 Count of Smaller Numbers After Self, 215</td></tr>
+<tr><td>Recursion / backtracking</td><td>46, 47, 51, 79 Word Search, 93 Restore IP Addresses, 131 Palindrome Partitioning, 17 Letter Combinations</td></tr>
+<tr><td>Linked list</td><td>21, 141, 142, 19, 2, 143, 25 Reverse Nodes in k-Group, 23 Merge k Sorted Lists, 138 Copy List with Random Pointer</td></tr>
+<tr><td>Stack / monotonic</td><td>20, 155, 739, 84, 150, 394, 496, 503, 901 Online Stock Span, 402 Remove K Digits</td></tr>
+<tr><td>Queue / deque</td><td>239, 622, 232, 862, 933, 1438 Longest Subarray With Limit</td></tr>
+<tr><td>Trees</td><td>98, 102, 103, 124, 236, 297 Serialize and Deserialize, 543 Diameter, 572 Subtree of Another Tree</td></tr>
+<tr><td>Heap</td><td>215, 347, 295, 23, 253, 973, 1046 Last Stone Weight, 621 Task Scheduler</td></tr>
+<tr><td>Trie</td><td>208, 211, 212, 648, 1268 Search Suggestions System, 421</td></tr>
+<tr><td>Graphs</td><td>200, 133, 994, 127, 417, 130 Surrounded Regions, 785 Is Graph Bipartite, 752 Open the Lock</td></tr>
+<tr><td>Topological sort</td><td>207, 210, 269, 310, 1136, 444 Sequence Reconstruction</td></tr>
+<tr><td>Union-find</td><td>323, 684, 261, 721, 305, 547 Number of Provinces, 990, 1319</td></tr>
+<tr><td>Shortest paths</td><td>743, 1631, 787, 1514 Path With Maximum Probability, 778 Swim in Rising Water, 847</td></tr>
+<tr><td>Greedy / intervals</td><td>55, 45, 134, 763, 621, 435, 452, 56, 57, 986, 253, 218</td></tr>
+<tr><td>DP 1D</td><td>70, 198, 213 House Robber II, 322, 518, 300, 139, 91 Decode Ways, 53, 152</td></tr>
+<tr><td>DP 2D</td><td>62, 63 Unique Paths II, 64, 416, 1143, 72, 516, 10, 44 Wildcard Matching, 312 Burst Balloons</td></tr>
+<tr><td>Bits</td><td>191, 338, 136, 268, 260, 371, 190 Reverse Bits, 461 Hamming Distance, 421</td></tr>
+</tbody></table></div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="final29"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/timer.js"></script>
+<script src="../assets/js/viz/graph.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/29.js"></script>
+</body>
+</html>

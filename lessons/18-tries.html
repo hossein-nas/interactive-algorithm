@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="18" data-pattern="Trie">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>18 Tries | Algorithm guide</title>
+<meta name="description" content="Tries animated: inserting and searching, longest common prefix, replacing words with roots, wildcard search, and Word Search II on a board.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 18</span><span>Data structures</span><span class="stars" title="Fairly likely in interviews">★★</span></div>
+<h1>Tries</h1>
+<p class="sub">Words that share a beginning share a path.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em> does not teach tries, but chapter 5 (hash tables) and chapter 7 (trees) are the two ideas this structure combines. The book's Huffman tree and "inverted index" ideas (chapter 13) are close relatives. This file covers v2 question #19 (Implement Trie) and four more.</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>Many words and prefix questions: autocomplete, "starts with", a dictionary searched on a board.</p></div><div><b>How it works</b><p>Each node is one letter; a path from the root spells a prefix; a flag marks where a word ends.</p></div><div><b>What it costs</b><p><code>O(L)</code> per insert or lookup for a word of length L, whatever the number of words.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>When you type <code>ca</code> into a search box and it suggests <code>cat</code>, <code>car</code>, and <code>card</code>, something is finding "all words that start with <code>ca</code>" very quickly. A hash map is bad at this: it can answer "is <code>cat</code> a word?" but cannot answer "which words start with <code>ca</code>?" without scanning everything.</p>
+<p>A <strong>trie</strong> (pronounced "try", from re*trie*val) is a tree where <strong>each step down is one letter</strong>. Words that share a beginning <em>share a path</em>. Walking letter by letter from the root spells out a word.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart TD
+    R["(root)"] --&gt; T["t"]
+    R --&gt; I["i"]
+    T --&gt; TO["o *"]
+    T --&gt; TE["e"]
+    TE --&gt; TEA["a *"]
+    TE --&gt; TEN["n *"]
+    I --&gt; IN["n *"]
+    IN --&gt; INN["n *"]</pre></figure>
+<p>This trie stores the words <code>to</code>, <code>tea</code>, <code>ten</code>, <code>in</code>, and <code>inn</code>. A star <code>*</code> marks a node where <strong>a word ends</strong>. That mark matters: <code>in</code> is a word, and so is <code>inn</code>, but <code>te</code> is only a prefix, not a word.</p>
+<h3 id="what-a-node-holds">What a node holds</h3>
+<ul>
+<li>a way to find the <strong>child for each letter</strong> (a map or an array of 26 slots),</li>
+<li>a flag <strong>"a word ends here"</strong> (or the word itself).</li>
+</ul>
+<h3 id="the-cost">The cost</h3>
+<p>For a word of length <code>L</code>:</p>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Operation</th><th>Time</th><th>Note</th></tr></thead><tbody>
+<tr><td>Insert</td><td><code>O(L)</code></td><td>independent of how many words are stored</td></tr>
+<tr><td>Search a whole word</td><td><code>O(L)</code></td><td></td></tr>
+<tr><td>Check a prefix (<code>startsWith</code>)</td><td><code>O(L)</code></td><td>the headline feature</td></tr>
+<tr><td>Space</td><td>up to <code>O(total letters)</code></td><td>shared prefixes save space; but each node has overhead</td></tr>
+</tbody></table></div>
+<p>A hash set also does word lookup in <code>O(L)</code> (you must hash the whole word), but it can <strong>not</strong> answer prefix questions, and it can not list all words with a given prefix.</p>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>2. How to recognize it</h2>
+<ul>
+<li>"Does any word <strong>start with</strong> this prefix?", "autocomplete", "type-ahead", "search suggestions".</li>
+<li>"<strong>Longest common prefix</strong> of many strings."</li>
+<li>"Dictionary of words and you must check many strings or a grid against it" (Word Search II).</li>
+<li>"Wildcard matching with <code>.</code>" over a fixed dictionary.</li>
+<li>"XOR maximum of two numbers": a trie over <strong>bits</strong> (the same idea with a 2-way branch).</li>
+<li>You would otherwise compare each query against every word.</li>
+</ul>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    A["Many strings, questions about their beginnings?"] --&gt;|Yes| B["Trie"]
+    A --&gt;|"Only exact membership"| C["Hash set is simpler"]
+    A --&gt;|"One string, find a pattern inside it"| D["Sliding window / KMP / hashing"]</pre></figure>
+</section>
+<section class="sec" id="the-basic-trie">
+<h2>3. The basic trie</h2>
+<div class="stage" id="st-basic" data-anim="trieOps" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="a trie with a Map of children"><code class="language-ts">class TrieNode {
+  children = new Map&lt;string, TrieNode&gt;();
+  isWord = false; // a word ends at this node
+}
+
+class Trie {
+  private root = new TrieNode();
+
+  insert(word: string): void {
+    let node = this.root;
+    for (const ch of word) {
+      if (!node.children.has(ch)) node.children.set(ch, new TrieNode());
+      node = node.children.get(ch)!; // step down one letter
+    }
+    node.isWord = true;
+  }
+
+  // Walk the letters of `text`; returns the node reached, or null if the path breaks.
+  private walk(text: string): TrieNode | null {
+    let node = this.root;
+    for (const ch of text) {
+      const next = node.children.get(ch);
+      if (next === undefined) return null;
+      node = next;
+    }
+    return node;
+  }
+
+  search(word: string): boolean {
+    return this.walk(word)?.isWord === true;
+  }
+
+  startsWith(prefix: string): boolean {
+    return this.walk(prefix) !== null;
+  }
+}
+
+const basicTrie = new Trie();
+for (const w of ["to", "tea", "ten", "in", "inn"]) basicTrie.insert(w);
+console.log(basicTrie.search("tea"), basicTrie.search("te")); // true false  ("te" is only a prefix)
+console.log(basicTrie.startsWith("te"), basicTrie.startsWith("x")); // true false
+console.log(basicTrie.search("inn"), basicTrie.search("innn")); // true false</code></pre>
+<pre data-lang="go" data-caption="a trie with a fixed array of 26 children"><code class="language-go">type TrieNode struct {
+	children [26]*TrieNode // one slot per letter a..z
+	isWord   bool          // a word ends at this node
+}
+
+type Trie struct{ root *TrieNode }
+
+func NewTrie() *Trie { return &amp;Trie{root: &amp;TrieNode{}} }
+
+func (t *Trie) Insert(word string) {
+	node := t.root
+	for i := 0; i &lt; len(word); i++ {
+		idx := word[i] - 'a'
+		if node.children[idx] == nil {
+			node.children[idx] = &amp;TrieNode{}
+		}
+		node = node.children[idx] // step down one letter
+	}
+	node.isWord = true
+}
+
+// walk follows the letters of text; it returns nil if the path breaks.
+func (t *Trie) walk(text string) *TrieNode {
+	node := t.root
+	for i := 0; i &lt; len(text); i++ {
+		node = node.children[text[i]-'a']
+		if node == nil {
+			return nil
+		}
+	}
+	return node
+}
+
+func (t *Trie) Search(word string) bool {
+	node := t.walk(word)
+	return node != nil &amp;&amp; node.isWord
+}
+
+func (t *Trie) StartsWith(prefix string) bool { return t.walk(prefix) != nil }
+
+func exampleBasicTrie() {
+	trie := NewTrie()
+	for _, w := range []string{"to", "tea", "ten", "in", "inn"} {
+		trie.Insert(w)
+	}
+	fmt.Println(trie.Search("tea"), trie.Search("te"))     // true false
+	fmt.Println(trie.StartsWith("te"), trie.StartsWith("x")) // true false
+	fmt.Println(trie.Search("inn"), trie.Search("innn"))   // true false
+}</code></pre>
+</div>
+<p><strong>Map vs. array of 26.</strong> An array gives the fastest step (a direct index) but wastes memory when nodes have few children, and only works for a known alphabet. A map (or <code>map[rune]*Node</code> in Go) handles any characters and uses memory proportional to the children present. Ask which letters are allowed.</p>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>4. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Implement Trie (Prefix Tree) (LeetCode 208, Medium; v2 list)</h3>
+<p>This is exactly the class above: <code>insert</code>, <code>search</code>, <code>startsWith</code>. In an interview, write <code>insert</code>, then notice that <code>search</code> and <code>startsWith</code> are the <strong>same walk</strong> and differ only in the final check (<code>isWord</code> vs. "the path exists"). Factor out the shared <code>walk</code> helper (as shown) to show clean thinking.</p>
+<p><strong>Trace</strong> of <code>insert("tea")</code> then <code>insert("ten")</code>:</p>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Action</th><th>Trie after</th></tr></thead><tbody>
+<tr><td>insert <code>tea</code></td><td>root → t → e → a (mark <code>a</code> as a word end)</td></tr>
+<tr><td>insert <code>ten</code></td><td>root → t → e: <strong>reuse</strong> <code>t</code>, <code>e</code>; add a new child <code>n</code> under <code>e</code> (mark word end)</td></tr>
+</tbody></table></div>
+<p><strong>Complexity.</strong> <code>insert</code>/<code>search</code>/<code>startsWith</code> all <code>O(L)</code>. Space <code>O(total characters)</code> in the worst case.</p>
+<p><strong>Follow-ups.</strong> <em>"Delete a word"</em>: walk down, unmark <code>isWord</code>, then on the way back <strong>remove nodes that have no children and are not word ends</strong>. <em>"Count words with a given prefix"</em>: store a <code>passCount</code> in each node (increment while inserting).</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Longest Common Prefix (LeetCode 14, Easy)</h3>
+<p><strong>Task.</strong> Find the longest string that is a prefix of <strong>all</strong> strings. <code>["flower", "flow", "flight"]</code> → <code>"fl"</code>.</p>
+<p><strong>Simple solutions first</strong> (say them): compare column by column (<code>O(total characters)</code>, no trie needed), or sort and compare only the first and last. A trie is the "design" answer when the same set is queried repeatedly.</p>
+<p><strong>Trie idea.</strong> Insert all words. Then walk down from the root <strong>while the current node has exactly one child and is not the end of a word</strong>. The letters walked are the common prefix. A node with two or more children means the words diverge there; a word end means one word is a prefix of the others.</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    R["(root)"] --&gt; F["f"]
+    F --&gt; L["l"]
+    L --&gt; O["o"]
+    L --&gt; I["i"]
+    O --&gt; W["w *"]
+    W --&gt; E["e"]
+    I --&gt; G["g"]</pre></figure>
+<p>The walk goes <code>f</code> (one child) → <code>l</code> (<strong>two</strong> children: <code>o</code> and <code>i</code>) → stop. The common prefix is <code>fl</code>.</p>
+<div class="stage" id="st-p2" data-anim="lcp" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function longestCommonPrefixTrie(words: string[]): string {
+  if (words.length === 0) return "";
+  const root = new TrieNode();
+  for (const w of words) {
+    if (w === "") return "";
+    let node = root;
+    for (const ch of w) {
+      if (!node.children.has(ch)) node.children.set(ch, new TrieNode());
+      node = node.children.get(ch)!;
+    }
+    node.isWord = true;
+  }
+  // Walk down while there is exactly one way forward and no word ends here.
+  let node = root;
+  let prefix = "";
+  while (node.children.size === 1 &amp;&amp; !node.isWord) {
+    const [letter, next] = [...node.children][0];
+    prefix += letter;
+    node = next;
+  }
+  return prefix;
+}
+console.log(longestCommonPrefixTrie(["flower", "flow", "flight"])); // fl
+console.log(JSON.stringify(longestCommonPrefixTrie(["dog", "racecar", "car"]))); // ""
+console.log(longestCommonPrefixTrie(["same", "same"])); // same
+console.log(longestCommonPrefixTrie(["ab", "abc"])); // ab</code></pre>
+<pre data-lang="go"><code class="language-go">func longestCommonPrefixTrie(words []string) string {
+	if len(words) == 0 {
+		return ""
+	}
+	root := &amp;TrieNode{}
+	for _, w := range words {
+		if w == "" {
+			return ""
+		}
+		node := root
+		for i := 0; i &lt; len(w); i++ {
+			idx := w[i] - 'a'
+			if node.children[idx] == nil {
+				node.children[idx] = &amp;TrieNode{}
+			}
+			node = node.children[idx]
+		}
+		node.isWord = true
+	}
+	// Walk down while there is exactly one way forward and no word ends here.
+	var sb strings.Builder
+	node := root
+	for !node.isWord {
+		count, only := 0, -1
+		for i, child := range node.children {
+			if child != nil {
+				count++
+				only = i
+			}
+		}
+		if count != 1 {
+			break
+		}
+		sb.WriteByte(byte('a' + only))
+		node = node.children[only]
+	}
+	return sb.String()
+}
+
+func exampleLongestCommonPrefixTrie() {
+	fmt.Println(longestCommonPrefixTrie([]string{"flower", "flow", "flight"})) // fl
+	fmt.Printf("%q\n", longestCommonPrefixTrie([]string{"dog", "racecar", "car"})) // ""
+	fmt.Println(longestCommonPrefixTrie([]string{"same", "same"}))             // same
+	fmt.Println(longestCommonPrefixTrie([]string{"ab", "abc"}))                // ab
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(total characters)</code>, space <code>O(total characters)</code>.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Replace Words (LeetCode 648, Medium)</h3>
+<p><strong>Task.</strong> A dictionary has <strong>roots</strong> (like <code>cat</code>, <code>bat</code>, <code>rat</code>). Replace every word in a sentence with the <strong>shortest root</strong> that is its prefix (keep the word if no root matches). <code>"the cattle was rattled by the battery"</code> → <code>"the cat was rat by the bat"</code>.</p>
+<p><strong>Idea.</strong> Put the roots into a trie. For each word, walk it through the trie; the <strong>first</strong> time you reach a node marked as a word end, stop: that is the shortest root. If the path breaks first, keep the whole word.</p>
+<p><strong>Trace</strong> for <code>cattle</code> with roots <code>cat</code>, <code>bat</code>, <code>rat</code>:</p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Letter</th><th>Node reached</th><th>Word end?</th></tr></thead><tbody>
+<tr><td>c</td><td>c</td><td>no</td></tr>
+<tr><td>a</td><td>ca</td><td>no</td></tr>
+<tr><td>t</td><td>cat</td><td><strong>yes: replace <code>cattle</code> with <code>cat</code></strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p3" data-anim="replaceWords" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function replaceWords(roots: string[], sentence: string): string {
+  const root = new TrieNode();
+  for (const r of roots) {
+    let node = root;
+    for (const ch of r) {
+      if (!node.children.has(ch)) node.children.set(ch, new TrieNode());
+      node = node.children.get(ch)!;
+    }
+    node.isWord = true;
+  }
+  const shortestRoot = (word: string): string =&gt; {
+    let node = root;
+    for (let i = 0; i &lt; word.length; i++) {
+      const next = node.children.get(word[i]);
+      if (next === undefined) return word; // no root matches: keep the word
+      node = next;
+      if (node.isWord) return word.slice(0, i + 1); // the first word end is the shortest root
+    }
+    return word;
+  };
+  return sentence.split(" ").map(shortestRoot).join(" ");
+}
+console.log(replaceWords(["cat", "bat", "rat"], "the cattle was rattled by the battery")); // the cat was rat by the bat
+console.log(replaceWords(["a", "b", "c"], "aadsfasf absbs bbab cadsfafs")); // a a b c</code></pre>
+<pre data-lang="go"><code class="language-go">func replaceWords(roots []string, sentence string) string {
+	root := &amp;TrieNode{}
+	for _, r := range roots {
+		node := root
+		for i := 0; i &lt; len(r); i++ {
+			idx := r[i] - 'a'
+			if node.children[idx] == nil {
+				node.children[idx] = &amp;TrieNode{}
+			}
+			node = node.children[idx]
+		}
+		node.isWord = true
+	}
+	shortestRoot := func(word string) string {
+		node := root
+		for i := 0; i &lt; len(word); i++ {
+			node = node.children[word[i]-'a']
+			if node == nil {
+				return word // no root matches: keep the word
+			}
+			if node.isWord {
+				return word[:i+1] // the first word end is the shortest root
+			}
+		}
+		return word
+	}
+	words := strings.Fields(sentence)
+	for i, w := range words {
+		words[i] = shortestRoot(w)
+	}
+	return strings.Join(words, " ")
+}
+
+func exampleReplaceWords() {
+	fmt.Println(replaceWords([]string{"cat", "bat", "rat"}, "the cattle was rattled by the battery")) // the cat was rat by the bat
+	fmt.Println(replaceWords([]string{"a", "b", "c"}, "aadsfasf absbs bbab cadsfafs"))              // a a b c
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(total characters of roots + sentence)</code>, space <code>O(total characters of roots)</code>.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Design Add and Search Words with Wildcards (LeetCode 211, Medium)</h3>
+<p><strong>Task.</strong> <code>addWord(word)</code> stores a word; <code>search(pattern)</code> returns whether any stored word matches the pattern, where <code>.</code> matches <strong>any one letter</strong>. After adding <code>bad</code>, <code>dad</code>, <code>mad</code>: <code>search("pad")</code> false, <code>search("bad")</code> true, <code>search(".ad")</code> true, <code>search("b..")</code> true.</p>
+<p><strong>Idea.</strong> A normal letter follows the <strong>one</strong> matching child. A <code>.</code> could be <strong>any</strong> child, so we must <strong>try all of them</strong>: that is a small DFS (backtracking) over the trie.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["search(pattern, position i, node)"] --&gt; B{"i == pattern length?"}
+    B --&gt;|Yes| C["return node.isWord"]
+    B --&gt;|No| D{"pattern[i] is a dot?"}
+    D --&gt;|Yes| E["try every child: any success returns true"]
+    D --&gt;|No| F["follow the one matching child (or return false)"]
+    E --&gt; A
+    F --&gt; A</pre></figure>
+<div class="stage" id="st-p4" data-anim="wildcard" data-code="code-4" data-flow="fig-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">class WordDictionary {
+  private root = new TrieNode();
+
+  addWord(word: string): void {
+    let node = this.root;
+    for (const ch of word) {
+      if (!node.children.has(ch)) node.children.set(ch, new TrieNode());
+      node = node.children.get(ch)!;
+    }
+    node.isWord = true;
+  }
+
+  search(pattern: string): boolean {
+    const dfs = (node: TrieNode, i: number): boolean =&gt; {
+      if (i === pattern.length) return node.isWord;
+      const ch = pattern[i];
+      if (ch === ".") {
+        for (const child of node.children.values()) if (dfs(child, i + 1)) return true; // try every letter
+        return false;
+      }
+      const next = node.children.get(ch);
+      return next !== undefined &amp;&amp; dfs(next, i + 1);
+    };
+    return dfs(this.root, 0);
+  }
+}
+const dict = new WordDictionary();
+["bad", "dad", "mad"].forEach((w) =&gt; dict.addWord(w));
+console.log(dict.search("pad"), dict.search("bad"), dict.search(".ad"), dict.search("b..")); // false true true true
+console.log(dict.search("b."), dict.search("...")); // false true</code></pre>
+<pre data-lang="go"><code class="language-go">type WordDictionary struct{ root *TrieNode }
+
+func NewWordDictionary() *WordDictionary { return &amp;WordDictionary{root: &amp;TrieNode{}} }
+
+func (d *WordDictionary) AddWord(word string) {
+	node := d.root
+	for i := 0; i &lt; len(word); i++ {
+		idx := word[i] - 'a'
+		if node.children[idx] == nil {
+			node.children[idx] = &amp;TrieNode{}
+		}
+		node = node.children[idx]
+	}
+	node.isWord = true
+}
+
+func (d *WordDictionary) Search(pattern string) bool {
+	var dfs func(node *TrieNode, i int) bool
+	dfs = func(node *TrieNode, i int) bool {
+		if i == len(pattern) {
+			return node.isWord
+		}
+		if pattern[i] == '.' {
+			for _, child := range node.children {
+				if child != nil &amp;&amp; dfs(child, i+1) {
+					return true // try every letter
+				}
+			}
+			return false
+		}
+		next := node.children[pattern[i]-'a']
+		return next != nil &amp;&amp; dfs(next, i+1)
+	}
+	return dfs(d.root, 0)
+}
+
+func exampleWordDictionary() {
+	dict := NewWordDictionary()
+	for _, w := range []string{"bad", "dad", "mad"} {
+		dict.AddWord(w)
+	}
+	fmt.Println(dict.Search("pad"), dict.Search("bad"), dict.Search(".ad"), dict.Search("b..")) // false true true true
+	fmt.Println(dict.Search("b."), dict.Search("..."))                                       // false true
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> <code>addWord</code> <code>O(L)</code>. <code>search</code> is <code>O(L)</code> without dots; in the worst case with many dots it can touch <code>O(26^dots · L)</code> nodes, though it is limited by the trie size.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Word Search II (LeetCode 212, Hard)</h3>
+<p><strong>Task.</strong> Given a grid of letters and a list of words, return <strong>all words that can be formed</strong> by walking through adjacent cells (up/down/left/right), using each cell <strong>at most once per word</strong>. Example board:</p>
+<pre class="plain"><code class="language-text">o a a n
+e t a e
+i h k r
+i f l v</code></pre>
+<p>words <code>["oath", "pea", "eat", "rain"]</code> → <code>["eat", "oath"]</code>.</p>
+<p><strong>Why it is hard.</strong> The simple approach is: for every word run the "Word Search I" DFS from every cell. With many words that is <code>words × cells × 4^L</code>, far too slow.</p>
+<p><strong>The trie insight.</strong> Search for <strong>all words at once</strong>. Put every word in a trie. Then run <strong>one DFS from each cell</strong>, walking the grid <em>and the trie together</em>:</p>
+<ul>
+<li>Move to a neighbor cell only if the trie has a child for that cell's letter. If not, <strong>prune the whole branch immediately</strong>.</li>
+<li>When the trie node you reach marks a word, you found it.</li>
+</ul>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["For every cell (r, c) as a start"] --&gt; B["dfs(r, c, trieNode)"]
+    B --&gt; C{"does the trie node have a child for board[r][c]?"}
+    C --&gt;|No| D["stop: no word continues this way"]
+    C --&gt;|Yes| E["step to that child"]
+    E --&gt; F{"does this node end a word?"}
+    F --&gt;|Yes| G["record the word (and clear it so it is not added twice)"]
+    F --&gt;|No| H["continue"]
+    G --&gt; H
+    H --&gt; I["mark the cell visited, try the 4 neighbors, then unmark it (backtrack)"]</pre></figure>
+<p><strong>Two optimizations that matter:</strong></p>
+<ol>
+<li><strong>Store the whole word at the end node</strong> (instead of a boolean), so you can record it without rebuilding it from the path.</li>
+<li><strong>Clear the word once found</strong> (so duplicates are not returned), and optionally <strong>delete trie branches that no longer lead to any word</strong> so later searches skip them.</li>
+</ol>
+<div class="stage" id="st-p5" data-anim="wordSearch2" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">class WordNode {
+  children = new Map&lt;string, WordNode&gt;();
+  word: string | null = null; // the full word, if one ends here
+}
+
+function findWords(board: string[][], words: string[]): string[] {
+  const root = new WordNode();
+  for (const w of words) {
+    let node = root;
+    for (const ch of w) {
+      if (!node.children.has(ch)) node.children.set(ch, new WordNode());
+      node = node.children.get(ch)!;
+    }
+    node.word = w;
+  }
+  const found: string[] = [];
+  const rows = board.length, cols = board[0].length;
+
+  function dfs(r: number, c: number, parent: WordNode): void {
+    const ch = board[r][c];
+    const node = parent.children.get(ch);
+    if (node === undefined) return; // no word continues with this letter: prune
+    if (node.word !== null) {
+      found.push(node.word);
+      node.word = null; // do not report the same word twice
+    }
+    board[r][c] = "#"; // mark visited
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nr = r + dr, nc = c + dc;
+      if (nr &gt;= 0 &amp;&amp; nr &lt; rows &amp;&amp; nc &gt;= 0 &amp;&amp; nc &lt; cols &amp;&amp; board[nr][nc] !== "#") dfs(nr, nc, node);
+    }
+    board[r][c] = ch; // un-mark (backtrack)
+    if (node.children.size === 0 &amp;&amp; node.word === null) parent.children.delete(ch); // prune dead branch
+  }
+
+  for (let r = 0; r &lt; rows; r++) for (let c = 0; c &lt; cols; c++) dfs(r, c, root);
+  return found.sort();
+}
+const boardII = [
+  ["o", "a", "a", "n"],
+  ["e", "t", "a", "e"],
+  ["i", "h", "k", "r"],
+  ["i", "f", "l", "v"],
+];
+console.log(findWords(boardII, ["oath", "pea", "eat", "rain"])); // [ 'eat', 'oath' ]
+console.log(findWords([["a", "b"], ["c", "d"]], ["abcb"])); // []
+console.log(findWords([["a"]], ["a"])); // [ 'a' ]</code></pre>
+<pre data-lang="go"><code class="language-go">type wordNode struct {
+	children [26]*wordNode
+	word     string // the full word, if one ends here ("" means none)
+	kids     int    // how many children exist (for pruning)
+}
+
+func findWords(board [][]byte, words []string) []string {
+	root := &amp;wordNode{}
+	for _, w := range words {
+		node := root
+		for i := 0; i &lt; len(w); i++ {
+			idx := w[i] - 'a'
+			if node.children[idx] == nil {
+				node.children[idx] = &amp;wordNode{}
+				node.kids++
+			}
+			node = node.children[idx]
+		}
+		node.word = w
+	}
+	found := []string{}
+	rows, cols := len(board), len(board[0])
+	dirs := [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
+
+	var dfs func(r, c int, parent *wordNode)
+	dfs = func(r, c int, parent *wordNode) {
+		ch := board[r][c]
+		node := parent.children[ch-'a']
+		if node == nil {
+			return // no word continues with this letter: prune
+		}
+		if node.word != "" {
+			found = append(found, node.word)
+			node.word = "" // do not report the same word twice
+		}
+		board[r][c] = '#' // mark visited
+		for _, d := range dirs {
+			nr, nc := r+d[0], c+d[1]
+			if nr &gt;= 0 &amp;&amp; nr &lt; rows &amp;&amp; nc &gt;= 0 &amp;&amp; nc &lt; cols &amp;&amp; board[nr][nc] != '#' {
+				dfs(nr, nc, node)
+			}
+		}
+		board[r][c] = ch // un-mark (backtrack)
+		if node.kids == 0 &amp;&amp; node.word == "" {
+			parent.children[ch-'a'] = nil // prune dead branch
+			parent.kids--
+		}
+	}
+
+	for r := 0; r &lt; rows; r++ {
+		for c := 0; c &lt; cols; c++ {
+			dfs(r, c, root)
+		}
+	}
+	sort.Strings(found)
+	return found
+}
+
+func exampleFindWords() {
+	board := [][]byte{
+		[]byte("oaan"),
+		[]byte("etae"),
+		[]byte("ihkr"),
+		[]byte("iflv"),
+	}
+	fmt.Println(findWords(board, []string{"oath", "pea", "eat", "rain"})) // [eat oath]
+	fmt.Println(findWords([][]byte{[]byte("ab"), []byte("cd")}, []string{"abcb"})) // []
+	fmt.Println(findWords([][]byte{[]byte("a")}, []string{"a"}))                  // [a]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time roughly <code>O(cells × 4 · 3^(L−1))</code> in the worst case (L = longest word), but the trie prunes most of it. Space <code>O(total characters in words)</code>.</p>
+<p><strong>Walk-through of why pruning is so powerful.</strong> Starting at cell <code>o</code>: the trie has root children <code>o, p, e, r</code>, so <code>o</code> is allowed. Next the walk tries neighbors <code>a</code>, <code>e</code>, ...: only <code>a</code> continues the path <code>oa...</code>, and later <code>t</code>, <code>h</code>: spelling <code>oath</code>. Branches like <code>oe...</code> die at once because no word starts with <code>oe</code>.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Forgetting the "word ends here" flag</strong>, so every prefix looks like a word (<code>search("te")</code> wrongly true).</li>
+<li><strong>Confusing <code>search</code> and <code>startsWith</code>.</strong></li>
+<li><strong>Using an array of 26</strong> when characters may be uppercase, digits, or Unicode.</li>
+<li><strong>Using a trie where a hash set would do</strong> (only exact membership).</li>
+<li><strong>In Word Search II: not marking cells visited</strong>, or forgetting to un-mark (backtrack) afterwards.</li>
+<li><strong>Returning duplicate words</strong> (clear the stored word after finding it).</li>
+<li><strong>Recursing from the whole word</strong> instead of the trie, which brings back the slow per-word search.</li>
+<li><strong>Large memory</strong>: a trie over many long random strings can take far more memory than a plain list. Mention compressed tries (radix trees) if asked.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Draw a small trie</h3>
+<p>Draw the trie for <code>["car", "card", "care", "cat"]</code>. Mark word ends. How many nodes (excluding the root)?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><code>c → a</code>, then <code>a</code> has children <code>r</code> and <code>t</code>; <code>r</code> has children <code>d</code> and <code>e</code>. Word ends: <code>r</code> (car), <code>d</code> (card), <code>e</code> (care), <code>t</code> (cat). <strong>6 nodes</strong> besides the root, against 14 letters in the four words. Run the second preset of the first animation.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Prefix queries</h3>
+<p>Why does a trie answer "all words starting with <code>ca</code>" faster than a hash set? What does it return after walking <code>c</code>, <code>a</code>?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>A hash set can only test whole words, so it must scan every word to find those starting with <code>ca</code>. A trie walks <code>c</code>, <code>a</code> in two steps and returns the <strong>node</strong> for that prefix; every word below it starts with <code>ca</code>, so a DFS from there lists them in time proportional to the output.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Search Suggestions System</h3>
+<p><em>Search Suggestions System</em> (LeetCode 1268): after each typed letter, return up to 3 lexicographically smallest words with that prefix. What do you store at each node, or do you sort + binary search instead?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Either store at each trie node a list of up to 3 smallest words that pass through it (insert words in sorted order and append while the list has fewer than 3), or skip the trie: <strong>sort the products</strong>, and for each typed prefix binary-search the first word ≥ prefix and take up to 3 that still start with it. Both are about <code>O(n log n + typed · log n)</code>; the sort + binary search one is shorter to write.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Maximum XOR</h3>
+<p><em>Maximum XOR of Two Numbers in an Array</em> (LeetCode 421): what is the "alphabet" of this trie?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The alphabet is <strong>bits</strong>: insert every number as its 31 or 32 bits from the highest down, so each node has at most two children (0 and 1). For each number, walk the trie preferring the child with the <em>opposite</em> bit at each level; that greedily builds the largest XOR. <code>O(n · 32)</code>.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Set versus trie memory</h3>
+<p>Compare memory: 100,000 English words in a <code>Set&lt;string&gt;</code> vs. a trie. When does the trie win?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>A set stores each word once plus hashing overhead: about the total number of letters. A trie stores one node per <em>distinct prefix</em>, and each node carries a map or a 26-slot array, which costs far more than a letter. The trie wins on memory only when words share long prefixes (dictionaries, URLs, IP routes); with random strings it is much bigger. It wins on <em>speed</em> for prefix queries either way. Compressed tries (radix trees) merge single-child chains to cut memory.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="trie18"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/18.js"></script>
+</body>
+</html>

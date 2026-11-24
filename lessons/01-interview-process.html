@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="01" data-pattern="Interview routine">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>01 The interview process | Algorithm guide</title>
+<meta name="description" content="The seven-step interview routine, edge cases, debugging aloud and a 45-minute practice timer.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 01</span><span>Foundations</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>The interview process</h1>
+<p class="sub">How to think, talk and test out loud, with a routine that keeps you calm.</p>
+
+<div class="glance"><div><b>The routine</b><p>Restate, clarify, example, brute force, improve, code, test and analyze.</p></div><div><b>The split</b><p>Only about a third of a 45-minute round is typing code.</p></div><div><b>When stuck</b><p>Shrink the problem, draw it, say your best guess, and ask for a hint.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<p>A coding interview is <strong>not</strong> a quiz where the only thing that counts is the final code. The interviewer is trying to answer one question: <em>"Would I enjoy solving a hard problem next to this person?"</em> They learn that from how you handle the unknown: how you ask questions, how you break a problem apart, how you react when you get stuck, and how you check your own work.</p>
+<p>This file gives you a repeatable routine. You do not need to be a genius if you have a routine, because a routine keeps you calm when your brain wants to panic.</p>
+<blockquote><p><strong>How to read this file:</strong> read it once now, then come back to it before every mock interview. The later topic files (two pointers, graphs, DP, …) all assume you follow this routine.</p></blockquote>
+<section class="sec" id="the-whole-interview-on-one-page">
+<h2>1. The whole interview on one page</h2>
+<p>Most coding rounds are 45 minutes. Here is a realistic split of that time. The exact numbers are not important; the <em>shape</em> is.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">gantt
+    title A typical 45-minute coding round
+    dateFormat  mm
+    axisFormat  %M min
+    section Understand
+    Read, restate, ask questions       :a1, 00, 5m
+    section Plan
+    Brute force + better idea + trace  :a2, after a1, 8m
+    section Build
+    Write the code                     :a3, after a2, 17m
+    section Check
+    Test by hand, fix bugs             :a4, after a3, 8m
+    section Wrap up
+    Complexity + follow-ups            :a5, after a4, 7m</pre></figure>
+<p>Notice that <strong>only about a third of the time is typing code</strong>. Candidates who start typing in minute one usually run out of time, because they have to rewrite everything when they discover a misunderstanding in minute 20.</p>
+<p>Practice the shape with a real clock. Pick any problem, start the timer, and move on when each phase runs out.</p>
+<div class="round-timer" data-phases='[["Understand", 5, "Read, restate, ask questions"], ["Plan", 8, "Brute force, a better idea, a quick trace"], ["Build", 17, "Write the code while narrating"], ["Check", 8, "Test by hand and fix bugs"], ["Wrap up", 7, "Complexity and follow-ups"]]'></div>
+</section>
+<section class="sec" id="the-seven-step-routine-memorize-this">
+<h2>2. The seven-step routine (memorize this)</h2>
+<figure class="diagram" id="fig-2"><script type="application/json" class="walk">[{"n": ["A"], "say": "Restate: one or two sentences in your own words. It catches the one interview in five lost to solving a slightly different problem."}, {"n": ["B"], "say": "Clarify: size, order, duplicates, negatives, empty input, output form, no-answer value, mutation, memory. Only the questions that could change the algorithm."}, {"n": ["C"], "say": "Example: a tiny case solved by hand, out loud, then a tricky one. Watching yourself solve it often reveals the pattern."}, {"n": ["D"], "say": "Brute force: say the slow way and its cost. Its repeated work points to the fix."}, {"n": ["E"], "say": "Improve: name the pattern and say what every variable means. If the idea does not work, step back to the brute force."}, {"n": ["F"], "say": "Code: skeleton first, clear names, empty case at the top, narrate in short phrases."}, {"n": ["G"], "say": "Test and analyze: trace the example, an edge case and the tricky branch, then state Big O with the reason. A bug sends you back to the code."}]</script><pre class="mermaid-src">flowchart TD
+    A["1. RESTATE&lt;br/&gt;Say the problem in your own words"] --&gt; B["2. CLARIFY&lt;br/&gt;Ask about input, output, limits, edge cases"]
+    B --&gt; C["3. EXAMPLE&lt;br/&gt;Make a tiny example and solve it by hand"]
+    C --&gt; D["4. BRUTE FORCE&lt;br/&gt;Describe the simple slow way and its cost"]
+    D --&gt; E["5. IMPROVE&lt;br/&gt;Name the pattern; say what each variable means"]
+    E --&gt; F["6. CODE&lt;br/&gt;Write clean code while narrating"]
+    F --&gt; G["7. TEST AND ANALYZE&lt;br/&gt;Walk through examples, then state Big O"]
+    G --&gt;|bug found| F
+    E --&gt;|idea does not work| D</pre></figure>
+<p>Let's walk through each step in plain English.</p>
+<h3 id="step-1-restate">Step 1 · Restate</h3>
+<p>Say the problem back in your own words, in one or two sentences.</p>
+<blockquote><p>"So I get a list of numbers and a target, and I need to return the positions of two numbers that add up to the target. Is that right?"</p></blockquote>
+<p><strong>Why this matters:</strong> about one in five interview "failures" is simply solving a slightly different problem than the one asked. Restating costs ten seconds and catches that.</p>
+<h3 id="step-2-clarify">Step 2 · Clarify</h3>
+<p>Ask the questions that could <em>change your algorithm</em>. Do not ask random questions just to look careful. Good clarifying questions are specific. Use this checklist:</p>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Ask about</th><th>Example question</th><th>Why it can change your solution</th></tr></thead><tbody>
+<tr><td><strong>Size</strong></td><td>"Roughly how big can the input be?"</td><td>20 items allows brute force; 10⁶ items demands about <code>O(n log n)</code> or better.</td></tr>
+<tr><td><strong>Order</strong></td><td>"Is the array sorted?"</td><td>Sorted data unlocks binary search and two pointers.</td></tr>
+<tr><td><strong>Duplicates</strong></td><td>"Can values repeat?"</td><td>Changes how you use sets, how you skip repeats, and what "unique" means.</td></tr>
+<tr><td><strong>Negative numbers</strong></td><td>"Can values be negative or zero?"</td><td>Breaks sliding windows that assume the sum only grows.</td></tr>
+<tr><td><strong>Empty input</strong></td><td>"What if the list is empty?"</td><td>Decides what you return and whether you need a guard.</td></tr>
+<tr><td><strong>Output form</strong></td><td>"Return the values, the indexes, or just a yes/no?"</td><td>A Map of indexes vs. a Set of values.</td></tr>
+<tr><td><strong>No answer</strong></td><td>"What do I return if there is no valid answer?"</td><td><code>-1</code>, <code>null</code>, <code>[]</code>, or an error.</td></tr>
+<tr><td><strong>Mutation</strong></td><td>"May I change the input in place?"</td><td>Allows <code>O(1)</code> extra memory tricks; otherwise copy first.</td></tr>
+<tr><td><strong>Memory</strong></td><td>"Is extra memory allowed?"</td><td>Sometimes the whole point is to use <code>O(1)</code> space.</td></tr>
+</tbody></table></div>
+<p>If the interviewer says "you decide", <strong>say your assumption out loud</strong> and move on: "I'll assume the numbers are integers, can be negative, and there is exactly one answer. I'll note where that matters."</p>
+<h3 id="step-3-example">Step 3 · Example</h3>
+<p>Make a <strong>tiny</strong> example (3–6 items) and solve it by hand, <em>out loud</em>. Then make a second example that is tricky (duplicates, empty, one item, all the same).</p>
+<p>The small example does two jobs. First, it proves you understand the task. Second, it often <strong>reveals the pattern</strong>. When you watch yourself solving it by hand, you notice what your own brain does ("I keep a running total", "I look at the biggest remaining item"), and that is the algorithm.</p>
+<h3 id="step-4-brute-force">Step 4 · Brute force</h3>
+<p>Always state the simple, slow solution first, even if it is embarrassing. Say its cost.</p>
+<blockquote><p>"The brute-force way is to try every pair, which is two nested loops, so <code>O(n²)</code> time and <code>O(1)</code> space. For a million items that is far too slow, so let me look for something better."</p></blockquote>
+<p>Why bother? Three reasons:</p>
+<ol>
+<li>It shows you <em>can</em> solve the problem. You are never stuck with nothing.</li>
+<li>It gives the interviewer a baseline to compare your better idea against.</li>
+<li>The slowness of brute force <strong>points to the fix</strong>. Ask: <em>"What work am I repeating?"</em> Repeated work is what hash maps, sorting, prefix sums, and DP exist to remove.</li>
+</ol>
+<h3 id="step-5-improve-and-name-the-pattern">Step 5 · Improve and name the pattern</h3>
+<p>Now pick the pattern. The topic files in this book each have a "How to recognize it" section. In the meantime, here is the two-minute decision guide:</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    S["Read the problem"] --&gt; Q1{"Is the input sorted,&lt;br/&gt;or can I sort it?"}
+    Q1 --&gt;|Yes| Q2{"Looking for a pair, a boundary,&lt;br/&gt;or a first/last position?"}
+    Q2 --&gt;|Pair or in-place cleanup| TP["Two pointers"]
+    Q2 --&gt;|Boundary or threshold| BS["Binary search"]
+    Q1 --&gt;|No| Q3{"Contiguous stretch of an array&lt;br/&gt;or string?"}
+    Q3 --&gt;|Longest, shortest, or counting| SW["Sliding window or prefix sums"]
+    Q3 --&gt;|No| Q4{"Need to remember what&lt;br/&gt;I have seen?"}
+    Q4 --&gt;|Yes| HM["Hash map or set"]
+    Q4 --&gt;|No| Q5{"Items connected to other items?&lt;br/&gt;grid, dependencies, network"}
+    Q5 --&gt;|Yes| GR["Graph: BFS, DFS, topological sort,&lt;br/&gt;union-find, Dijkstra"]
+    Q5 --&gt;|No| Q6{"Try all choices, with undo?"}
+    Q6 --&gt;|Yes| BT["Backtracking"]
+    Q6 --&gt;|No| Q7{"Same sub-question repeats,&lt;br/&gt;asking min, max, or count?"}
+    Q7 --&gt;|Yes| DP["Dynamic programming or greedy"]
+    Q7 --&gt;|No| OT["Stack, heap, tree recursion,&lt;br/&gt;or math. See the pattern chooser in file 29"]</pre></figure>
+<div class="quiz" data-quiz="chooser01"></div>
+<p>Then <strong>say what every variable means</strong> before you write it. For example: "<code>left</code> is the start of my window, <code>right</code> is the end, and <code>seen</code> maps each character to its last index." If you cannot say what a variable means in one sentence, the code is going to be buggy.</p>
+<h3 id="step-6-code">Step 6 · Code</h3>
+<p>Rules for writing code in an interview:</p>
+<ul>
+<li><strong>Narrate in short phrases.</strong> "I'm creating a map from value to index." Silence makes interviewers nervous.</li>
+<li><strong>Use clear names.</strong> <code>left</code>, <code>right</code>, <code>windowSum</code>, <code>bestLength</code> beat <code>i</code>, <code>j</code>, <code>s</code>, <code>m</code> for anything non-trivial.</li>
+<li><strong>Write the skeleton first.</strong> Function signature, the loop, the return. Fill in the middle.</li>
+<li><strong>Handle the empty/base case at the top.</strong> This is cheap insurance.</li>
+<li><strong>Do not optimize while writing.</strong> Get a correct version first; mention improvements afterwards.</li>
+<li><strong>If you are unsure of a library function,</strong> say so: "I would use the built-in sort here; I'll assume it sorts numerically." Interviewers care about ideas, not memorizing APIs.</li>
+</ul>
+<h3 id="step-7-test-and-analyze">Step 7 · Test and analyze</h3>
+<p>Never say "I'm done" right after typing. <strong>Run your code by hand</strong> on:</p>
+<ol>
+<li>The small example from Step 3.</li>
+<li>An <strong>edge case</strong> (see the checklist below).</li>
+<li>A case that exercises <strong>the tricky branch</strong>: the line you were least sure about.</li>
+</ol>
+<p>Then state the complexity (see Section 5).</p>
+<div class="quiz" data-quiz="routine01"></div>
+</section>
+<section class="sec" id="the-edge-case-checklist">
+<h2>3. The edge-case checklist</h2>
+<p>Run through this list <em>before</em> you finish. Most bugs hide here.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">mindmap
+  root((Edge cases))
+    Size
+      empty
+      one item
+      two items
+      very large
+    Values
+      all the same
+      duplicates
+      negatives
+      zero
+      min and max integers
+    Order
+      already sorted
+      reverse sorted
+      random
+    Structure
+      single node tree
+      tree that is a chain
+      graph with a cycle
+      disconnected graph
+      self loop
+    Answer
+      no valid answer
+      many valid answers
+      answer at the first position
+      answer at the last position</pre></figure>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Data type</th><th>Edge cases to try</th></tr></thead><tbody>
+<tr><td>Array</td><td><code>[]</code>, <code>[x]</code>, all equal, already sorted, sorted descending, negatives, a single huge value</td></tr>
+<tr><td>String</td><td><code>""</code>, one character, all the same character, upper vs lower case, spaces</td></tr>
+<tr><td>Number</td><td><code>0</code>, <code>1</code>, negative, the largest allowed value (overflow?)</td></tr>
+<tr><td>Linked list</td><td><code>null</code>, one node, two nodes, a cycle</td></tr>
+<tr><td>Tree</td><td><code>null</code>, a single node, a left-only chain, a right-only chain</td></tr>
+<tr><td>Graph</td><td>no edges, a single node, disconnected pieces, a cycle, duplicate edges</td></tr>
+<tr><td>Grid</td><td><code>0×0</code>, <code>1×1</code>, a single row, a single column, everything blocked</td></tr>
+</tbody></table></div>
+<div class="quiz" data-quiz="edge01"></div>
+</section>
+<section class="sec" id="debugging-when-your-code-is-wrong-it-will-be">
+<h2>4. Debugging when your code is wrong (it will be)</h2>
+<p>Everybody's first version has a bug. What the interviewer watches is <strong>how you find it</strong>.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart LR
+    A["Wrong output"] --&gt; B["Do NOT change code randomly"]
+    B --&gt; C["Pick the smallest input that fails"]
+    C --&gt; D["Trace the variables line by line"]
+    D --&gt; E{"First line where reality&lt;br/&gt;differs from expectation?"}
+    E --&gt; F["Fix that one thing"]
+    F --&gt; G["Re-run the same input,&lt;br/&gt;then the earlier ones"]</pre></figure>
+<p>A calm way to say this to the interviewer: <em>"The output is wrong for <code>[3,3]</code>. Let me trace it. After the first loop <code>left</code> is 0 and <code>right</code> is 1… and here, I expected the map to hold 3, but it overwrote the index. That's the bug."</em></p>
+<p><strong>Common bug families, in rough order of how often they occur:</strong></p>
+<ol>
+<li><strong>Off by one.</strong> <code>&lt;</code> vs <code>&lt;=</code>, <code>n</code> vs <code>n-1</code>, whether the end of a range is inclusive.</li>
+<li><strong>Wrong initial value.</strong> Starting a maximum at <code>0</code> when all numbers can be negative; starting a minimum at <code>0</code> instead of <code>Infinity</code>.</li>
+<li><strong>Forgetting to update a variable</strong> in one branch.</li>
+<li><strong>Mutating while iterating.</strong> Removing items from a list you are looping over.</li>
+<li><strong>Aliasing.</strong> Two names pointing at the same array (very common when saving a result in backtracking, see file 11).</li>
+<li><strong>Infinite loop.</strong> A pointer that never moves in some branch.</li>
+<li><strong>Not handling the base case</strong> in recursion.</li>
+</ol>
+</section>
+<section class="sec" id="complexity-how-to-say-it">
+<h2>5. Complexity: how to say it</h2>
+<p>Say time and space at the end, in plain words, with the reason.</p>
+<blockquote><p>"This is <code>O(n)</code> time, because each element enters the window once and leaves once. It uses <code>O(k)</code> extra space for the map, where <code>k</code> is the number of distinct characters."</p></blockquote>
+<p>Three habits:</p>
+<ul>
+<li><strong>Give the reason</strong>, not only the symbol. "Because of the nested loops" is a reason. "Because I said so" is not.</li>
+<li><strong>Name your variables.</strong> If you have a matrix, say <code>O(rows × cols)</code>, not <code>O(n²)</code>.</li>
+<li><strong>Mention the trade-off.</strong> "I trade <code>O(n)</code> memory for <code>O(n)</code> time. If memory mattered, I could sort first and use two pointers."</li>
+</ul>
+<p>File 02 covers Big O in depth.</p>
+</section>
+<section class="sec" id="what-to-do-when-you-are-stuck">
+<h2>6. What to do when you are stuck</h2>
+<p>Being stuck is normal. The interviewer expects it. What matters is that you have a <strong>procedure</strong> for it.</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["Stuck"] --&gt; B["Say: 'Let me step back.'"]
+    B --&gt; C["Solve a smaller or simpler version"]
+    C --&gt; D["Draw the example. Where does the structure show up?"]
+    D --&gt; E["What information is being recomputed?"]
+    E --&gt; F["Which pattern recognizes this clue?"]
+    F --&gt; G["Say your best guess and ask for a hint"]</pre></figure>
+<p>Concrete tricks:</p>
+<ul>
+<li><strong>Shrink the problem.</strong> What if the array had only 2 items? Only 3? What changes?</li>
+<li><strong>Change the input.</strong> What if it were sorted? What if there were no duplicates? Solve that, then remove the assumption.</li>
+<li><strong>Draw it.</strong> Arrays as boxes, trees as circles, a grid as a table. Pictures reveal what formulas hide.</li>
+<li><strong>Work backwards.</strong> What would the very last step of the answer look like?</li>
+<li><strong>Think about the data structure you wish you had.</strong> "If only I could look up a number instantly…" → hash map. "If only I could always grab the smallest item…" → heap.</li>
+<li><strong>Ask for a hint without shame.</strong> "I see two directions: A and B. I lean toward A because… Does that sound reasonable?" Interviewers <em>like</em> collaboration. A hint taken gracefully is better than ten minutes of silence.</li>
+</ul>
+</section>
+<section class="sec" id="a-full-think-aloud-example">
+<h2>7. A full think-aloud example</h2>
+<p>This is how a strong candidate might sound on a classic question. The words in <em>italics</em> are what the candidate says out loud.</p>
+<p><strong>Question:</strong> <em>"Given an array of integers and a target, return the indexes of two numbers that add up to the target."</em></p>
+<ol>
+<li><strong>Restate:</strong> <em>"So I return two positions whose values sum to the target. Can I use the same element twice?"</em> — "No."</li>
+<li><strong>Clarify:</strong> <em>"Is there always exactly one answer? Can numbers be negative? Is the array sorted?"</em> — "One answer, negatives allowed, not sorted."</li>
+<li><strong>Example:</strong> <em>"For <code>[2, 7, 11, 15]</code> and target 9, positions 0 and 1, since 2 + 7 = 9."</em></li>
+<li><strong>Brute force:</strong> <em>"Try every pair: two loops, <code>O(n²)</code> time, <code>O(1)</code> space."</em></li>
+<li><strong>Improve:</strong> <em>"When I look at 7, what I need is 9 − 7 = 2. If I had remembered every earlier number, I could ask 'have I seen 2?' instantly. A hash map from value to index does that. One pass, <code>O(n)</code> time, <code>O(n)</code> space."</em></li>
+<li><strong>Code</strong> (see below), narrating.</li>
+<li><strong>Test:</strong> <em>"<code>[2,7,11,15]</code>, 9: at index 0, need 7, not seen, store 2→0. At index 1, need 2, seen at 0, return <code>[0,1]</code>. Edge: <code>[3,3]</code>, 6 – at index 1, need 3, seen at 0 – correct, because I check before I store. Edge: no answer – I return an empty array."</em></li>
+</ol>
+<p>The code that candidate would write:</p>
+<p>Watch the candidate's words line up with the code. Switch to the brute-force version to see why step 4 comes before step 5.</p>
+<div class="stage" id="st-twosum" data-anim="twoSumThink,twoSumBrute" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="Two Sum, narrated version"><code class="language-ts">function twoSumDemo(nums: number[], target: number): number[] {
+  // seen maps a value to the index where we saw it.
+  const seen = new Map&lt;number, number&gt;();
+  for (let i = 0; i &lt; nums.length; i++) {
+    const need = target - nums[i];
+    const j = seen.get(need);
+    if (j !== undefined) return [j, i]; // found it before storing -&gt; no self-pairing
+    seen.set(nums[i], i);
+  }
+  return []; // the agreed "no answer" value
+}
+
+console.log(twoSumDemo([2, 7, 11, 15], 9)); // [ 0, 1 ]
+console.log(twoSumDemo([3, 3], 6)); // [ 0, 1 ]
+console.log(twoSumDemo([1, 2], 10)); // []</code></pre>
+<pre data-lang="go" data-caption="Two Sum, narrated version"><code class="language-go">func twoSumDemo(nums []int, target int) []int {
+	// seen maps a value to the index where we saw it.
+	seen := make(map[int]int)
+	for i, v := range nums {
+		need := target - v
+		if j, ok := seen[need]; ok {
+			return []int{j, i} // check before storing -&gt; no self-pairing
+		}
+		seen[v] = i
+	}
+	return []int{} // the agreed "no answer" value
+}
+
+func exampleTwoSumDemo() {
+	fmt.Println(twoSumDemo([]int{2, 7, 11, 15}, 9)) // [0 1]
+	fmt.Println(twoSumDemo([]int{3, 3}, 6))         // [0 1]
+	fmt.Println(twoSumDemo([]int{1, 2}, 10))        // []
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="testing-your-own-code-without-a-test-framework">
+<h2>8. Testing your own code without a test framework</h2>
+<p>Interviews rarely have a test framework. Build a tiny helper in the first minute of testing, or just write the calls and the expected answers as comments. Here is a minimal version:</p>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts" data-caption="a tiny table-driven check"><code class="language-ts">type Case&lt;I extends unknown[], O&gt; = { args: I; want: O; name: string };
+
+function runCases&lt;I extends unknown[], O&gt;(fn: (...a: I) =&gt; O, cases: Case&lt;I, O&gt;[]): void {
+  for (const c of cases) {
+    const got = fn(...c.args);
+    const pass = JSON.stringify(got) === JSON.stringify(c.want);
+    console.log(`${pass ? "PASS" : "FAIL"} ${c.name}: got ${JSON.stringify(got)}, want ${JSON.stringify(c.want)}`);
+  }
+}
+
+runCases(twoSumDemo, [
+  { name: "basic", args: [[2, 7, 11, 15], 9], want: [0, 1] },
+  { name: "duplicates", args: [[3, 3], 6], want: [0, 1] },
+  { name: "no answer", args: [[1, 2], 10], want: [] },
+]);
+// PASS basic: got [0,1], want [0,1]
+// PASS duplicates: got [0,1], want [0,1]
+// PASS no answer: got [], want []</code></pre>
+<pre data-lang="go" data-caption="a tiny table-driven check"><code class="language-go">func sameInts(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func exampleRunCases() {
+	cases := []struct {
+		name   string
+		nums   []int
+		target int
+		want   []int
+	}{
+		{"basic", []int{2, 7, 11, 15}, 9, []int{0, 1}},
+		{"duplicates", []int{3, 3}, 6, []int{0, 1}},
+		{"no answer", []int{1, 2}, 10, []int{}},
+	}
+	for _, c := range cases {
+		got := twoSumDemo(c.nums, c.target)
+		status := "PASS"
+		if !sameInts(got, c.want) {
+			status = "FAIL"
+		}
+		fmt.Printf("%s %s: got %v, want %v\n", status, c.name, got, c.want)
+	}
+	// PASS basic: got [0 1], want [0 1]
+	// PASS duplicates: got [0 1], want [0 1]
+	// PASS no answer: got [], want []
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="communication-phrases-that-help">
+<h2>9. Communication phrases that help</h2>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Situation</th><th>Say something like</th></tr></thead><tbody>
+<tr><td>Starting</td><td>"Let me make sure I understand the problem…"</td></tr>
+<tr><td>Thinking</td><td>"I'm considering two approaches: X and Y. Let me compare them."</td></tr>
+<tr><td>Choosing</td><td>"I'll go with X because it is simpler and fast enough for these limits."</td></tr>
+<tr><td>Unsure</td><td>"I'm not certain about this detail; here is my assumption…"</td></tr>
+<tr><td>Found a bug</td><td>"Good, tracing shows the issue is here. The fix is…"</td></tr>
+<tr><td>Finished</td><td>"Let me test with an ordinary case and an edge case, then discuss complexity."</td></tr>
+<tr><td>Out of time</td><td>"If I had more time, I would handle X by doing Y."</td></tr>
+</tbody></table></div>
+</section>
+<section class="sec" id="anti-goals-things-that-make-interviews-go-badly-even-when-th">
+<h2>10. Anti-goals: things that make interviews go badly even when the code works</h2>
+<ul>
+<li><strong>Silent coding.</strong> The interviewer cannot give credit for thinking they cannot hear.</li>
+<li><strong>Defensiveness.</strong> If the interviewer says "what about the empty array?", the right answer is "good catch" and a fix, not an explanation of why it should not happen.</li>
+<li><strong>Memorized answers.</strong> Reciting a solution without explaining why it works is easy to spot. Follow-up questions break it.</li>
+<li><strong>Over-engineering.</strong> No classes, no abstractions, no "what if requirements change" generality until the simple version works.</li>
+<li><strong>Giving up the brute force.</strong> A correct slow solution beats an unfinished clever one.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · The seven steps from memory</h3>
+<p>Close this file. Write the seven steps from memory.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><ol><li>Restate</li><li>Clarify</li><li>Example</li><li>Brute force</li><li>Improve and name the pattern</li><li>Code</li><li>Test and analyze</li></ol><p>If you missed one, walk through the routine diagram above once more, then try again tomorrow.</p></div></details>
+</div>
+<div class="exercise" id="ex2" data-track>
+<h3>2 · Steps 1 to 4 on a fresh problem</h3>
+<p>Pick any problem from any topic file <em>without reading the solution</em>. Spend 5 minutes only on steps 1 to 4 (restate, clarify, example, brute force). Say it out loud or write it down.</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>Set the timer above to the Understand and Plan phases only (13 minutes) and say every step out loud.</p></div></details>
+<details class="reveal"><summary>Self-check list</summary><div class="reveal-body"><p>There is no single answer; check yourself against this list. Did you restate in one sentence? Did you ask at least three questions from the clarify table (size, order, duplicates, empty, output form)? Did you solve a tiny example and a tricky one by hand? Did you state the brute force <em>and</em> its cost, and say what work it repeats? If any is missing, that is the habit to practice next time.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Edge cases for strings and trees</h3>
+<p>List five edge cases for a string problem and five for a binary tree problem.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><strong>String:</strong> the empty string; one character; all the same character; upper vs. lower case; spaces and punctuation; a very long string; non-ASCII characters (accents, emoji).</p><p><strong>Binary tree:</strong> <code>null</code> (empty tree); a single node; a left-only chain; a right-only chain; duplicate values; negative values; a perfect tree; a very deep tree (recursion depth).</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Why check before storing</h3>
+<p>Explain in two sentences why "check the map before storing the current value" avoids pairing a number with itself.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>When you look up <code>target − x</code> before inserting <code>x</code>, the map holds only the numbers before the current index, so any partner it finds is a different element. If you stored first, a number equal to <code>target / 2</code> (like 3 with target 6) would find its own index and pair itself.</p><p>Try it: run the Two Sum animation above on <code>3 3 ; 6</code>.</p></div></details>
+</div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/timer.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/01.js"></script>
+</body>
+</html>

@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="19" data-pattern="BFS / DFS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>19 Graphs: BFS, DFS and grids | Algorithm guide</title>
+<meta name="description" content="Graphs animated: adjacency lists, BFS and DFS side by side, shortest paths with parents, islands, cloning, rotting oranges, Pacific Atlantic and Word Ladder.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 19</span><span>Graphs</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Graphs: BFS, DFS and grids</h1>
+<p class="sub">Ripples or a maze walk: two ways to visit everything once.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 6 (breadth-first search, with the "find a mango seller among your friends" story) and chapter 7's depth-first search. This file keeps those stories, then adds what interviews really use: grids as hidden graphs, multi-source BFS, graphs with implicit edges (Word Ladder), and the visited-set discipline. It replaces v2 file 05 (Number of Islands, shortest path, course schedule) and covers Clone Graph. Course Schedule and cycles continue in file 20.</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>Things connected to things: networks, grids, states and moves, dependencies.</p></div><div><b>The two tools</b><p>BFS (queue) visits by distance, so it finds shortest paths; DFS (stack or recursion) goes deep, good for regions and reachability.</p></div><div><b>The rule</b><p>Keep a visited set and mark nodes when you first see them. Cost <code>O(V + E)</code>.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>A <strong>graph</strong> is a set of <strong>things</strong> (called <strong>nodes</strong> or <strong>vertices</strong>) and <strong>connections</strong> between them (called <strong>edges</strong>). Social networks, road maps, web pages with links, file dependencies, game boards: all are graphs.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    You["You"] --- Alice["Alice"]
+    You --- Bob["Bob"]
+    You --- Claire["Claire"]
+    Bob --- Anuj["Anuj"]
+    Bob --- Peggy["Peggy"]
+    Alice --- Peggy
+    Claire --- Thom["Thom"]
+    Claire --- Jonny["Jonny"]</pre></figure>
+<p><strong>The book's story.</strong> You want to sell your mango farm and need a <strong>mango seller</strong> (a person whose name ends in "m"). You check your friends first. If none is a mango seller, you check <strong>friends of friends</strong>, then their friends, and so on. You always finish <em>everyone one step away</em> before anyone two steps away. That "closest first" order is <strong>breadth-first search (BFS)</strong>, and it uses a <strong>queue</strong>.</p>
+<h3 id="vocabulary">Vocabulary</h3>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Word</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><strong>Node / vertex</strong></td><td>A thing (person, city, cell, word)</td></tr>
+<tr><td><strong>Edge</strong></td><td>A connection between two nodes</td></tr>
+<tr><td><strong>Neighbors / adjacent</strong></td><td>Nodes connected by an edge</td></tr>
+<tr><td><strong>Directed</strong></td><td>An edge has a direction (A → B does not mean B → A), like "follows" or "depends on"</td></tr>
+<tr><td><strong>Undirected</strong></td><td>Edges go both ways, like "friends"</td></tr>
+<tr><td><strong>Weighted</strong></td><td>Each edge has a cost (distance, price); see file 22</td></tr>
+<tr><td><strong>Path</strong></td><td>A sequence of nodes where consecutive ones are connected</td></tr>
+<tr><td><strong>Cycle</strong></td><td>A path that returns to its start</td></tr>
+<tr><td><strong>Connected component</strong></td><td>A group of nodes all reachable from each other</td></tr>
+<tr><td><strong>Degree</strong></td><td>How many edges a node has</td></tr>
+<tr><td><strong>DAG</strong></td><td>Directed acyclic graph (no cycles); see file 20</td></tr>
+</tbody></table></div>
+<h3 id="sizes-v-and-e">Sizes: <code>V</code> and <code>E</code></h3>
+<p><code>V</code> = number of nodes, <code>E</code> = number of edges. Graph algorithms are measured in terms of both. A graph can have up to about <code>V²</code> edges (a "dense" graph) or as few as <code>V − 1</code> for a tree.</p>
+</section>
+<section class="sec" id="how-to-store-a-graph">
+<h2>2. How to store a graph</h2>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    G["Graph with edges: 0-1, 0-2, 1-3, 2-3"] --&gt; L["Adjacency list&lt;br/&gt;0: [1, 2]&lt;br/&gt;1: [0, 3]&lt;br/&gt;2: [0, 3]&lt;br/&gt;3: [1, 2]"]
+    G --&gt; M["Adjacency matrix&lt;br/&gt;4 x 4 table of 0/1&lt;br/&gt;M[i][j] = 1 if edge"]
+    G --&gt; E["Edge list&lt;br/&gt;[[0,1],[0,2],[1,3],[2,3]]"]</pre></figure>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Representation</th><th>Space</th><th>"Is there an edge <code>a–b</code>?"</th><th>"List neighbors of <code>a</code>"</th><th>Best for</th></tr></thead><tbody>
+<tr><td><strong>Adjacency list</strong> (array of lists, or a map)</td><td><code>O(V + E)</code></td><td><code>O(degree)</code></td><td><code>O(degree)</code></td><td>almost everything; sparse graphs</td></tr>
+<tr><td><strong>Adjacency matrix</strong></td><td><code>O(V²)</code></td><td><code>O(1)</code></td><td><code>O(V)</code></td><td>dense graphs, small <code>V</code>, quick edge checks</td></tr>
+<tr><td><strong>Edge list</strong></td><td><code>O(E)</code></td><td><code>O(E)</code></td><td><code>O(E)</code></td><td>input format, sorting edges (Kruskal)</td></tr>
+</tbody></table></div>
+<p><strong>Interview default: adjacency list.</strong> Interview inputs usually arrive as an edge list; the first step is to convert it.</p>
+<div class="stage" id="st-build" data-anim="buildGraph" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="build an adjacency list from edges"><code class="language-ts">function buildGraph(n: number, edges: number[][], directed = false): number[][] {
+  const adj: number[][] = Array.from({ length: n }, () =&gt; []); // separate inner arrays!
+  for (const [a, b] of edges) {
+    adj[a].push(b);
+    if (!directed) adj[b].push(a); // an undirected edge goes both ways
+  }
+  return adj;
+}
+console.log(buildGraph(4, [[0, 1], [0, 2], [1, 3], [2, 3]])); // [ [ 1, 2 ], [ 0, 3 ], [ 0, 3 ], [ 1, 2 ] ]
+console.log(buildGraph(3, [[0, 1], [1, 2]], true)); // [ [ 1 ], [ 2 ], [] ]</code></pre>
+<pre data-lang="go" data-caption="build an adjacency list from edges"><code class="language-go">func buildGraph(n int, edges [][]int, directed bool) [][]int {
+	adj := make([][]int, n) // nil slices are fine to append to
+	for _, e := range edges {
+		a, b := e[0], e[1]
+		adj[a] = append(adj[a], b)
+		if !directed {
+			adj[b] = append(adj[b], a) // an undirected edge goes both ways
+		}
+	}
+	return adj
+}
+
+func exampleBuildGraph() {
+	fmt.Println(buildGraph(4, [][]int{{0, 1}, {0, 2}, {1, 3}, {2, 3}}, false)) // [[1 2] [0 3] [0 3] [1 2]]
+	fmt.Println(buildGraph(3, [][]int{{0, 1}, {1, 2}}, true))                  // [[1] [2] []]
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="the-two-ways-to-explore">
+<h2>3. The two ways to explore</h2>
+<h3 id="bfs-ripples-in-a-pond-queue">BFS: ripples in a pond (queue)</h3>
+<p>Visit the start, then everything 1 step away, then everything 2 steps away, and so on.</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    A["Start: queue = [start], visited = {start}"] --&gt; B{"queue empty?"}
+    B --&gt;|Yes| Z["Done"]
+    B --&gt;|No| C["take the node at the FRONT"]
+    C --&gt; D["for each neighbor not yet visited:&lt;br/&gt;mark visited, add to the BACK"]
+    D --&gt; B</pre></figure>
+<p><strong>Superpower:</strong> in an <strong>unweighted</strong> graph, the first time BFS reaches a node is via a <strong>shortest path</strong> (fewest edges). That is why BFS is the answer to "minimum number of steps/moves/hops".</p>
+<h3 id="dfs-exploring-a-maze-stack-or-recursion">DFS: exploring a maze (stack or recursion)</h3>
+<p>Go as deep as possible down one path; when stuck, back up and try the next branch.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["dfs(node)"] --&gt; B["mark node visited"]
+    B --&gt; C["for each neighbor not visited"]
+    C --&gt; D["dfs(neighbor)"]
+    D --&gt; C</pre></figure>
+<p><strong>Superpower:</strong> simple recursion; great for "is it reachable?", counting components, finding all paths, detecting cycles, and anything involving backtracking.</p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th></th><th>BFS</th><th>DFS</th></tr></thead><tbody>
+<tr><td>Data structure</td><td>queue</td><td>stack / recursion</td></tr>
+<tr><td>Order</td><td>closest first</td><td>deepest first</td></tr>
+<tr><td>Shortest path (unweighted)</td><td><strong>yes</strong></td><td>no</td></tr>
+<tr><td>Memory</td><td>up to the widest layer</td><td>up to the longest path</td></tr>
+<tr><td>Simplest code</td><td>iterative</td><td>recursive</td></tr>
+</tbody></table></div>
+<p>Both take <strong><code>O(V + E)</code></strong> time on an adjacency list: each node is processed once and each edge looked at once (twice if undirected).</p>
+<h3 id="the-visited-set-the-rule-you-must-never-forget">The visited set: the rule you must never forget</h3>
+<p>Without it, in any graph with a cycle (or any undirected graph, since every edge goes both ways), the search bounces back and forth <strong>forever</strong>. Mark a node visited <strong>when you add it to the queue</strong> (BFS) or <strong>when you first enter it</strong> (DFS), not later; otherwise the same node can be queued many times.</p>
+<div class="stage" id="st-trav" data-anim="bfs,dfsRec,dfsIter" data-code="code-2" data-flow="fig-3"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts" data-caption="the BFS and DFS templates"><code class="language-ts">// BFS: returns the nodes in the order they are discovered.
+function bfsOrder(adj: number[][], start: number): number[] {
+  const order: number[] = [];
+  const visited = new Array&lt;boolean&gt;(adj.length).fill(false);
+  const queue: number[] = [start];
+  let head = 0; // index-based queue: O(1) dequeue
+  visited[start] = true; // mark when ENQUEUED, not when dequeued
+  while (head &lt; queue.length) {
+    const node = queue[head++];
+    order.push(node);
+    for (const next of adj[node]) {
+      if (!visited[next]) {
+        visited[next] = true;
+        queue.push(next);
+      }
+    }
+  }
+  return order;
+}
+
+// DFS (recursive).
+function dfsOrder(adj: number[][], start: number): number[] {
+  const order: number[] = [];
+  const visited = new Array&lt;boolean&gt;(adj.length).fill(false);
+  function visit(node: number): void {
+    visited[node] = true;
+    order.push(node);
+    for (const next of adj[node]) if (!visited[next]) visit(next);
+  }
+  visit(start);
+  return order;
+}
+
+// DFS (iterative, with an explicit stack): useful when the graph is deep.
+function dfsIterative(adj: number[][], start: number): number[] {
+  const order: number[] = [];
+  const visited = new Array&lt;boolean&gt;(adj.length).fill(false);
+  const stack: number[] = [start];
+  while (stack.length &gt; 0) {
+    const node = stack.pop()!;
+    if (visited[node]) continue; // may be pushed more than once; skip repeats
+    visited[node] = true;
+    order.push(node);
+    for (let i = adj[node].length - 1; i &gt;= 0; i--) stack.push(adj[node][i]); // reversed: same order as recursion
+  }
+  return order;
+}
+
+const sampleGraph = buildGraph(6, [[0, 1], [0, 2], [1, 3], [2, 3], [3, 4]]); // node 5 is isolated
+console.log(bfsOrder(sampleGraph, 0)); // [ 0, 1, 2, 3, 4 ]
+console.log(dfsOrder(sampleGraph, 0)); // [ 0, 1, 3, 2, 4 ]
+console.log(dfsIterative(sampleGraph, 0)); // [ 0, 1, 3, 2, 4 ]</code></pre>
+<pre data-lang="go" data-caption="the BFS and DFS templates"><code class="language-go">// BFS: returns the nodes in the order they are discovered.
+func bfsOrder(adj [][]int, start int) []int {
+	order := []int{}
+	visited := make([]bool, len(adj))
+	queue := []int{start}
+	visited[start] = true // mark when ENQUEUED, not when dequeued
+	for head := 0; head &lt; len(queue); head++ {
+		node := queue[head]
+		order = append(order, node)
+		for _, next := range adj[node] {
+			if !visited[next] {
+				visited[next] = true
+				queue = append(queue, next)
+			}
+		}
+	}
+	return order
+}
+
+// DFS (recursive).
+func dfsOrder(adj [][]int, start int) []int {
+	order := []int{}
+	visited := make([]bool, len(adj))
+	var visit func(node int)
+	visit = func(node int) {
+		visited[node] = true
+		order = append(order, node)
+		for _, next := range adj[node] {
+			if !visited[next] {
+				visit(next)
+			}
+		}
+	}
+	visit(start)
+	return order
+}
+
+// DFS (iterative, with an explicit stack).
+func dfsIterative(adj [][]int, start int) []int {
+	order := []int{}
+	visited := make([]bool, len(adj))
+	stack := []int{start}
+	for len(stack) &gt; 0 {
+		node := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if visited[node] {
+			continue // may be pushed more than once; skip repeats
+		}
+		visited[node] = true
+		order = append(order, node)
+		for i := len(adj[node]) - 1; i &gt;= 0; i-- {
+			stack = append(stack, adj[node][i]) // reversed: same order as recursion
+		}
+	}
+	return order
+}
+
+func exampleTraversals() {
+	g := buildGraph(6, [][]int{{0, 1}, {0, 2}, {1, 3}, {2, 3}, {3, 4}}, false) // node 5 is isolated
+	fmt.Println(bfsOrder(g, 0))     // [0 1 2 3 4]
+	fmt.Println(dfsOrder(g, 0))     // [0 1 3 2 4]
+	fmt.Println(dfsIterative(g, 0)) // [0 1 3 2 4]
+}</code></pre>
+</div>
+<p><strong>Trace of BFS</strong> on that graph from node <code>0</code>:</p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>Step</th><th>Dequeue</th><th>Neighbors added</th><th>Queue after</th></tr></thead><tbody>
+<tr><td>1</td><td>0</td><td>1, 2</td><td><code>[1, 2]</code></td></tr>
+<tr><td>2</td><td>1</td><td>3 (0 already visited)</td><td><code>[2, 3]</code></td></tr>
+<tr><td>3</td><td>2</td><td>(0, 3 already seen)</td><td><code>[3]</code></td></tr>
+<tr><td>4</td><td>3</td><td>4</td><td><code>[4]</code></td></tr>
+<tr><td>5</td><td>4</td><td></td><td><code>[]</code></td></tr>
+</tbody></table></div>
+<p>Node 5 is never reached because it is in a different <strong>connected component</strong>. To visit <em>everything</em>, loop over all nodes and start a new search from every unvisited one; the number of times you start a new search is the <strong>number of components</strong>.</p>
+</section>
+<section class="sec" id="grids-are-graphs-in-disguise">
+<h2>4. Grids are graphs in disguise</h2>
+<p>A grid of cells is a graph where each cell is a node and its <strong>4 neighbors</strong> (up, down, left, right) are the edges. You never build an adjacency list; you compute neighbors with direction offsets and check <strong>bounds</strong>.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart LR
+    C["Cell (r, c)"] --&gt; U["(r-1, c) up"]
+    C --&gt; D["(r+1, c) down"]
+    C --&gt; L["(r, c-1) left"]
+    C --&gt; R["(r, c+1) right"]</pre></figure>
+<p>The standard trick: a list of four direction pairs <code>[[1,0],[-1,0],[0,1],[0,-1]]</code>, and for each, check <code>0 &lt;= nr &lt; rows</code> and <code>0 &lt;= nc &lt; cols</code> before using a neighbor. (Eight directions for diagonals add <code>[1,1],[1,-1],[-1,1],[-1,-1]</code>.)</p>
+<p><strong>Grid vs. graph questions look alike:</strong> "Number of islands" is "number of connected components". "Shortest path in a maze" is "BFS". "Flood fill" is "DFS from a cell".</p>
+</section>
+<section class="sec" id="how-to-recognize-a-graph-problem">
+<h2>5. How to recognize a graph problem</h2>
+<ul>
+<li>"Connected", "reachable", "network", "friends of friends", "dependencies", "islands", "regions".</li>
+<li>A <strong>grid</strong> and moves between adjacent cells.</li>
+<li>"<strong>Minimum number of steps/moves/operations</strong> to transform X into Y" where each move changes one thing → BFS over a <strong>state graph</strong> (the nodes are <em>states</em>, not given explicitly).</li>
+<li>"Can all courses be finished?" → cycle detection (file 20).</li>
+<li>"Cheapest route" with costs → shortest path with weights (file 22).</li>
+<li>"Groups" that merge together → union-find (file 21).</li>
+</ul>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["Graph-like problem"] --&gt; B{"Need the fewest steps?"}
+    B --&gt;|"Yes, all steps cost the same"| C["BFS"]
+    B --&gt;|"Yes, steps have different costs"| D["Dijkstra (file 22)"]
+    B --&gt;|No| E{"Count or label regions / reachability?"}
+    E --&gt;|Yes| F["DFS or BFS flood fill, or union-find"]
+    E --&gt;|No| G{"Ordering with dependencies?"}
+    G --&gt;|Yes| H["Topological sort (file 20)"]
+    G --&gt;|No| I["Backtracking / DP"]</pre></figure>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>6. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Shortest path in an unweighted graph (v2 question 5; the "mango seller" generalized)</h3>
+<p><strong>Task.</strong> Given an undirected graph and two nodes, return the <strong>shortest path</strong> (the list of nodes) from <code>source</code> to <code>target</code>, or an empty list if unreachable. Edges <code>[[0,1],[0,2],[1,3],[2,3],[3,4]]</code>, <code>source = 0</code>, <code>target = 4</code> → <code>[0, 1, 3, 4]</code>.</p>
+<p><strong>Idea.</strong> BFS from <code>source</code>. To rebuild the route, remember for every node <strong>which node we came from</strong> (<code>parent</code>). When BFS reaches <code>target</code>, follow the parents backward to the source, then reverse.</p>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart LR
+    S["0"] --&gt; A["1"]
+    S --&gt; B["2"]
+    A --&gt; C["3"]
+    B --&gt; C
+    C --&gt; T["4"]</pre></figure>
+<p><strong>Trace.</strong> Queue and parents (<code>parent[x] = who discovered x</code>)</p>
+<div class="table-wrap"><table id="tbl-5"><thead><tr><th>Dequeue</th><th>Discovers</th><th>parent set</th></tr></thead><tbody>
+<tr><td>0</td><td>1, 2</td><td><code>parent[1] = 0</code>, <code>parent[2] = 0</code></td></tr>
+<tr><td>1</td><td>3</td><td><code>parent[3] = 1</code></td></tr>
+<tr><td>2</td><td>(3 already seen)</td><td></td></tr>
+<tr><td>3</td><td>4</td><td><code>parent[4] = 3</code></td></tr>
+</tbody></table></div>
+<p>Walk back from 4: <code>4 ← 3 ← 1 ← 0</code>, reverse → <code>[0, 1, 3, 4]</code>.</p>
+<div class="stage" id="st-p1" data-anim="shortestPath" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function shortestPath(n: number, edges: number[][], source: number, target: number): number[] {
+  const adj = buildGraph(n, edges);
+  const parent = new Array&lt;number&gt;(n).fill(-2); // -2 = not discovered yet; -1 = the source
+  parent[source] = -1;
+  const queue: number[] = [source];
+  for (let head = 0; head &lt; queue.length; head++) {
+    const node = queue[head];
+    if (node === target) break; // BFS reaches the target by a shortest route
+    for (const next of adj[node]) {
+      if (parent[next] === -2) {
+        parent[next] = node; // remember who found it
+        queue.push(next);
+      }
+    }
+  }
+  if (parent[target] === -2) return []; // unreachable
+  const path: number[] = [];
+  for (let at = target; at !== -1; at = parent[at]) path.push(at);
+  return path.reverse();
+}
+const E5 = [[0, 1], [0, 2], [1, 3], [2, 3], [3, 4]];
+console.log(shortestPath(5, E5, 0, 4)); // [ 0, 1, 3, 4 ]
+console.log(shortestPath(6, E5, 0, 5)); // []   (node 5 is isolated)
+console.log(shortestPath(5, E5, 2, 2)); // [ 2 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func shortestPath(n int, edges [][]int, source, target int) []int {
+	adj := buildGraph(n, edges, false)
+	parent := make([]int, n)
+	for i := range parent {
+		parent[i] = -2 // -2 = not discovered yet; -1 = the source
+	}
+	parent[source] = -1
+	queue := []int{source}
+	for head := 0; head &lt; len(queue); head++ {
+		node := queue[head]
+		if node == target {
+			break // BFS reaches the target by a shortest route
+		}
+		for _, next := range adj[node] {
+			if parent[next] == -2 {
+				parent[next] = node // remember who found it
+				queue = append(queue, next)
+			}
+		}
+	}
+	if parent[target] == -2 {
+		return []int{} // unreachable
+	}
+	path := []int{}
+	for at := target; at != -1; at = parent[at] {
+		path = append(path, at)
+	}
+	slices.Reverse(path)
+	return path
+}
+
+func exampleShortestPath() {
+	e5 := [][]int{{0, 1}, {0, 2}, {1, 3}, {2, 3}, {3, 4}}
+	fmt.Println(shortestPath(5, e5, 0, 4)) // [0 1 3 4]
+	fmt.Println(shortestPath(6, e5, 0, 5)) // []   (node 5 is isolated)
+	fmt.Println(shortestPath(5, e5, 2, 2)) // [2]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(V + E)</code>, space <code>O(V)</code>.</p>
+<p><strong>Why BFS and not DFS here?</strong> DFS finds <em>a</em> path, not necessarily the shortest. BFS explores in layers, so the first arrival is the fewest edges.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Number of Islands (LeetCode 200, Medium; v2 Q4)</h3>
+<p><strong>Task.</strong> A grid has <code>"1"</code> for land and <code>"0"</code> for water. Count the islands (groups of land cells connected up/down/left/right).</p>
+<pre class="plain"><code class="language-text">1 1 0 0 0
+1 1 0 0 0
+0 0 1 0 0
+0 0 0 1 1   -&gt; 3 islands</code></pre>
+<p><strong>Idea.</strong> Scan every cell. When you find <strong>unvisited land</strong>, you have found a <strong>new island</strong>: count it, then <strong>flood-fill</strong> (DFS or BFS) from that cell to mark the entire island as visited, so none of its cells is counted again. The number of times you start a flood-fill equals the number of connected components.</p>
+<figure class="diagram" id="fig-8"><pre class="mermaid-src">flowchart TD
+    A["For each cell"] --&gt; B{"land and not yet visited?"}
+    B --&gt;|No| A
+    B --&gt;|Yes| C["islands++"]
+    C --&gt; D["flood fill: mark this cell and all connected land as visited"]
+    D --&gt; A</pre></figure>
+<p><strong>Marking visited.</strong> Either keep a separate <code>visited</code> grid, or (a common trick) <strong>overwrite the cell</strong> (<code>"1"</code> becomes <code>"0"</code> or <code>"#"</code>) as you visit. Overwriting saves memory but modifies the input; say so, or copy first.</p>
+<p><strong>Trace.</strong> The sample grid</p>
+<div class="table-wrap"><table id="tbl-6"><thead><tr><th>Scan finds</th><th>Action</th><th>Count</th></tr></thead><tbody>
+<tr><td>(0,0) land</td><td>flood fill marks the top-left 2×2 block</td><td>1</td></tr>
+<tr><td>(2,2) land</td><td>flood fill marks the single cell</td><td>2</td></tr>
+<tr><td>(3,3) land</td><td>flood fill marks (3,3) and (3,4)</td><td>3</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p2" data-anim="islandsDFS,islandsBFS" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts" data-caption="DFS and BFS versions"><code class="language-ts">const DIRS4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+function numIslandsDFS(grid: string[][]): number {
+  const g = grid.map((row) =&gt; [...row]); // work on a copy so the input stays unchanged
+  const rows = g.length, cols = rows ? g[0].length : 0;
+  function sink(r: number, c: number): void {
+    if (r &lt; 0 || r &gt;= rows || c &lt; 0 || c &gt;= cols || g[r][c] !== "1") return; // out of bounds, water, or seen
+    g[r][c] = "0"; // mark visited by turning it into water
+    for (const [dr, dc] of DIRS4) sink(r + dr, c + dc);
+  }
+  let islands = 0;
+  for (let r = 0; r &lt; rows; r++) {
+    for (let c = 0; c &lt; cols; c++) {
+      if (g[r][c] === "1") {
+        islands++;
+        sink(r, c);
+      }
+    }
+  }
+  return islands;
+}
+
+function numIslandsBFS(grid: string[][]): number {
+  const g = grid.map((row) =&gt; [...row]);
+  const rows = g.length, cols = rows ? g[0].length : 0;
+  let islands = 0;
+  for (let r = 0; r &lt; rows; r++) {
+    for (let c = 0; c &lt; cols; c++) {
+      if (g[r][c] !== "1") continue;
+      islands++;
+      g[r][c] = "0";
+      const queue: [number, number][] = [[r, c]];
+      for (let head = 0; head &lt; queue.length; head++) {
+        const [cr, cc] = queue[head];
+        for (const [dr, dc] of DIRS4) {
+          const nr = cr + dr, nc = cc + dc;
+          if (nr &gt;= 0 &amp;&amp; nr &lt; rows &amp;&amp; nc &gt;= 0 &amp;&amp; nc &lt; cols &amp;&amp; g[nr][nc] === "1") {
+            g[nr][nc] = "0"; // mark when enqueued
+            queue.push([nr, nc]);
+          }
+        }
+      }
+    }
+  }
+  return islands;
+}
+
+const islandGrid = [
+  ["1", "1", "0", "0", "0"],
+  ["1", "1", "0", "0", "0"],
+  ["0", "0", "1", "0", "0"],
+  ["0", "0", "0", "1", "1"],
+];
+console.log(numIslandsDFS(islandGrid), numIslandsBFS(islandGrid)); // 3 3
+console.log(numIslandsDFS([["0"]]), numIslandsDFS([])); // 0 0
+console.log(numIslandsDFS([["1", "0", "1"], ["0", "1", "0"], ["1", "0", "1"]])); // 5  (diagonals do not connect)</code></pre>
+<pre data-lang="go" data-caption="DFS and BFS versions"><code class="language-go">var dirs4 = [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
+
+func copyGrid(grid [][]byte) [][]byte {
+	g := make([][]byte, len(grid))
+	for i := range grid {
+		g[i] = append([]byte(nil), grid[i]...)
+	}
+	return g
+}
+
+func numIslandsDFS(grid [][]byte) int {
+	g := copyGrid(grid) // work on a copy so the input stays unchanged
+	rows := len(g)
+	if rows == 0 {
+		return 0
+	}
+	cols := len(g[0])
+	var sink func(r, c int)
+	sink = func(r, c int) {
+		if r &lt; 0 || r &gt;= rows || c &lt; 0 || c &gt;= cols || g[r][c] != '1' {
+			return // out of bounds, water, or seen
+		}
+		g[r][c] = '0' // mark visited by turning it into water
+		for _, d := range dirs4 {
+			sink(r+d[0], c+d[1])
+		}
+	}
+	islands := 0
+	for r := 0; r &lt; rows; r++ {
+		for c := 0; c &lt; cols; c++ {
+			if g[r][c] == '1' {
+				islands++
+				sink(r, c)
+			}
+		}
+	}
+	return islands
+}
+
+func numIslandsBFS(grid [][]byte) int {
+	g := copyGrid(grid)
+	rows := len(g)
+	if rows == 0 {
+		return 0
+	}
+	cols := len(g[0])
+	islands := 0
+	for r := 0; r &lt; rows; r++ {
+		for c := 0; c &lt; cols; c++ {
+			if g[r][c] != '1' {
+				continue
+			}
+			islands++
+			g[r][c] = '0'
+			queue := [][2]int{{r, c}}
+			for head := 0; head &lt; len(queue); head++ {
+				cur := queue[head]
+				for _, d := range dirs4 {
+					nr, nc := cur[0]+d[0], cur[1]+d[1]
+					if nr &gt;= 0 &amp;&amp; nr &lt; rows &amp;&amp; nc &gt;= 0 &amp;&amp; nc &lt; cols &amp;&amp; g[nr][nc] == '1' {
+						g[nr][nc] = '0' // mark when enqueued
+						queue = append(queue, [2]int{nr, nc})
+					}
+				}
+			}
+		}
+	}
+	return islands
+}
+
+func exampleNumIslands() {
+	islandGrid := [][]byte{[]byte("11000"), []byte("11000"), []byte("00100"), []byte("00011")}
+	fmt.Println(numIslandsDFS(islandGrid), numIslandsBFS(islandGrid)) // 3 3
+	fmt.Println(numIslandsDFS([][]byte{[]byte("0")}), numIslandsDFS(nil)) // 0 0
+	fmt.Println(numIslandsDFS([][]byte{[]byte("101"), []byte("010"), []byte("101")})) // 5
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(rows × cols)</code> (each cell is visited a constant number of times), space <code>O(rows × cols)</code> worst case for the recursion or queue.</p>
+<p><strong>Deep recursion warning.</strong> On a 300×300 all-land grid, the DFS recursion can be 90,000 levels deep and overflow in JavaScript. Offer the BFS or an explicit stack.</p>
+<p><strong>Follow-ups.</strong> <em>Max area of an island (LeetCode 695)</em>: return the size from each flood fill. <em>Number of islands where land can arrive in a stream (LeetCode 305)</em>: union-find (file 21). <em>Count distinct island shapes (LeetCode 694)</em>: record the path as a signature string.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Clone Graph (LeetCode 133, Medium; v2 list)</h3>
+<p><strong>Task.</strong> Make a <strong>deep copy</strong> of a connected undirected graph. Each node has a value and a list of neighbors; the copy must be made of entirely new nodes with the same structure.</p>
+<p><strong>The trap.</strong> Graphs have cycles. If you copy a node, then its neighbors, and one neighbor points back, you would copy forever. And if you copy the same node twice you create two nodes where there should be one.</p>
+<p><strong>Idea.</strong> Keep a map <strong><code>original → copy</code></strong>. When you meet a node:</p>
+<ul>
+<li>If it is already in the map, <strong>return its copy</strong> (this both prevents infinite loops and re-uses nodes).</li>
+<li>Otherwise create the copy, <strong>put it in the map before</strong> copying its neighbors (so cycles find it), then copy each neighbor.</li>
+</ul>
+<figure class="diagram" id="fig-9"><pre class="mermaid-src">flowchart TD
+    A["clone(node)"] --&gt; B{"node already in the map?"}
+    B --&gt;|Yes| C["return map[node]"]
+    B --&gt;|No| D["copy = new node with the same value"]
+    D --&gt; E["map[node] = copy   (BEFORE the neighbors!)"]
+    E --&gt; F["for each neighbor: copy.neighbors.push(clone(neighbor))"]
+    F --&gt; G["return copy"]</pre></figure>
+<p><strong>Order matters:</strong> register the copy in the map <strong>before</strong> recursing into neighbors. Otherwise a cycle (1 → 2 → 1) would re-enter <code>clone(1)</code> and not find it in the map.</p>
+<div class="stage" id="st-p3" data-anim="clone" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">class GraphNode {
+  neighbors: GraphNode[] = [];
+  constructor(public val: number) {}
+}
+
+function cloneGraph(node: GraphNode | null): GraphNode | null {
+  if (node === null) return null;
+  const copies = new Map&lt;GraphNode, GraphNode&gt;(); // original -&gt; copy
+  function clone(original: GraphNode): GraphNode {
+    const existing = copies.get(original);
+    if (existing !== undefined) return existing; // already cloned (also stops cycles)
+    const copy = new GraphNode(original.val);
+    copies.set(original, copy); // register BEFORE visiting neighbors
+    for (const neighbor of original.neighbors) copy.neighbors.push(clone(neighbor));
+    return copy;
+  }
+  return clone(node);
+}
+
+// Build the square 1-2-3-4-1 from the LeetCode example.
+const gn = [1, 2, 3, 4].map((v) =&gt; new GraphNode(v));
+const link = (a: number, b: number): void =&gt; {
+  gn[a - 1].neighbors.push(gn[b - 1]);
+  gn[b - 1].neighbors.push(gn[a - 1]);
+};
+link(1, 2);
+link(2, 3);
+link(3, 4);
+link(4, 1);
+const cloned = cloneGraph(gn[0])!;
+console.log(cloned.val, cloned.neighbors.map((n) =&gt; n.val)); // 1 [ 2, 4 ]
+console.log(cloned !== gn[0], cloned.neighbors[0] !== gn[1]); // true true  (new objects)
+console.log(cloned.neighbors[0].neighbors.map((n) =&gt; n.val)); // [ 1, 3 ]
+console.log(cloned.neighbors[0].neighbors[0] === cloned); // true  (the cycle points back to the SAME copy)
+console.log(cloneGraph(null)); // null</code></pre>
+<pre data-lang="go"><code class="language-go">type GraphNode struct {
+	Val       int
+	Neighbors []*GraphNode
+}
+
+func cloneGraph(node *GraphNode) *GraphNode {
+	if node == nil {
+		return nil
+	}
+	copies := make(map[*GraphNode]*GraphNode) // original -&gt; copy
+	var clone func(original *GraphNode) *GraphNode
+	clone = func(original *GraphNode) *GraphNode {
+		if existing, ok := copies[original]; ok {
+			return existing // already cloned (also stops cycles)
+		}
+		copy := &amp;GraphNode{Val: original.Val}
+		copies[original] = copy // register BEFORE visiting neighbors
+		for _, neighbor := range original.Neighbors {
+			copy.Neighbors = append(copy.Neighbors, clone(neighbor))
+		}
+		return copy
+	}
+	return clone(node)
+}
+
+func exampleCloneGraph() {
+	gn := make([]*GraphNode, 4)
+	for i := range gn {
+		gn[i] = &amp;GraphNode{Val: i + 1}
+	}
+	link := func(a, b int) {
+		gn[a-1].Neighbors = append(gn[a-1].Neighbors, gn[b-1])
+		gn[b-1].Neighbors = append(gn[b-1].Neighbors, gn[a-1])
+	}
+	link(1, 2)
+	link(2, 3)
+	link(3, 4)
+	link(4, 1)
+	cloned := cloneGraph(gn[0])
+	fmt.Println(cloned.Val, cloned.Neighbors[0].Val, cloned.Neighbors[1].Val)  // 1 2 4
+	fmt.Println(cloned != gn[0], cloned.Neighbors[0] != gn[1])                 // true true
+	fmt.Println(cloned.Neighbors[0].Neighbors[0] == cloned)                    // true
+	fmt.Println(cloneGraph(nil) == nil)                                        // true
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(V + E)</code>, space <code>O(V)</code>.</p>
+<p><strong>Same technique</strong> (map from original to copy) clones a <strong>linked list with random pointers</strong> (LeetCode 138) and any structure with shared references.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Rotting Oranges, multi-source BFS (LeetCode 994, Medium)</h3>
+<p><strong>Task.</strong> A grid has <code>0</code> empty, <code>1</code> fresh orange, <code>2</code> rotten orange. Each minute, every fresh orange next to a rotten one becomes rotten. Return the minutes until none is fresh, or <code>−1</code> if some can never rot. <code>[[2,1,1],[1,1,0],[0,1,1]]</code> → <code>4</code>.</p>
+<p><strong>Idea: start BFS from <em>all</em> rotten oranges at once.</strong> Put <strong>every</strong> rotten orange in the queue at time 0. Then process the queue <strong>one whole level at a time</strong>: each level is one minute. This is called <strong>multi-source BFS</strong>: the rot spreads from all sources simultaneously like several ripples.</p>
+<figure class="diagram" id="fig-10"><pre class="mermaid-src">flowchart TD
+    A["Count fresh oranges.&lt;br/&gt;Queue all rotten oranges (minute 0)."] --&gt; B{"queue not empty and fresh &gt; 0?"}
+    B --&gt;|No| Z["answer: fresh == 0 ? minutes : -1"]
+    B --&gt;|Yes| C["minutes++"]
+    C --&gt; D["process exactly the current level:&lt;br/&gt;each fresh neighbor becomes rotten (fresh--), joins the queue"]
+    D --&gt; B</pre></figure>
+<p><strong>Trace.</strong> <code>[[2,1,1],[1,1,0],[0,1,1]]</code></p>
+<div class="table-wrap"><table id="tbl-7"><thead><tr><th>Minute</th><th>Newly rotten cells</th><th>Fresh left</th></tr></thead><tbody>
+<tr><td>0</td><td>start: (0,0)</td><td>6</td></tr>
+<tr><td>1</td><td>(0,1), (1,0)</td><td>4</td></tr>
+<tr><td>2</td><td>(0,2), (1,1)</td><td>2</td></tr>
+<tr><td>3</td><td>(2,1)</td><td>1</td></tr>
+<tr><td>4</td><td>(2,2)</td><td>0 → answer <strong>4</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p4" data-anim="oranges" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function orangesRotting(grid: number[][]): number {
+  const g = grid.map((row) =&gt; [...row]);
+  const rows = g.length, cols = g[0].length;
+  let fresh = 0;
+  let queue: [number, number][] = [];
+  for (let r = 0; r &lt; rows; r++) {
+    for (let c = 0; c &lt; cols; c++) {
+      if (g[r][c] === 2) queue.push([r, c]); // every rotten orange starts the BFS
+      else if (g[r][c] === 1) fresh++;
+    }
+  }
+  let minutes = 0;
+  while (queue.length &gt; 0 &amp;&amp; fresh &gt; 0) {
+    minutes++;
+    const next: [number, number][] = []; // the oranges that rot this minute
+    for (const [r, c] of queue) {
+      for (const [dr, dc] of DIRS4) {
+        const nr = r + dr, nc = c + dc;
+        if (nr &gt;= 0 &amp;&amp; nr &lt; rows &amp;&amp; nc &gt;= 0 &amp;&amp; nc &lt; cols &amp;&amp; g[nr][nc] === 1) {
+          g[nr][nc] = 2; // becomes rotten (also marks it visited)
+          fresh--;
+          next.push([nr, nc]);
+        }
+      }
+    }
+    queue = next;
+  }
+  return fresh === 0 ? minutes : -1;
+}
+console.log(orangesRotting([[2, 1, 1], [1, 1, 0], [0, 1, 1]])); // 4
+console.log(orangesRotting([[2, 1, 1], [0, 1, 1], [1, 0, 1]])); // -1
+console.log(orangesRotting([[0, 2]])); // 0
+console.log(orangesRotting([[1]])); // -1</code></pre>
+<pre data-lang="go"><code class="language-go">func orangesRotting(grid [][]int) int {
+	rows, cols := len(grid), len(grid[0])
+	g := make([][]int, rows)
+	for i := range grid {
+		g[i] = append([]int(nil), grid[i]...)
+	}
+	fresh := 0
+	queue := [][2]int{}
+	for r := 0; r &lt; rows; r++ {
+		for c := 0; c &lt; cols; c++ {
+			if g[r][c] == 2 {
+				queue = append(queue, [2]int{r, c}) // every rotten orange starts the BFS
+			} else if g[r][c] == 1 {
+				fresh++
+			}
+		}
+	}
+	minutes := 0
+	for len(queue) &gt; 0 &amp;&amp; fresh &gt; 0 {
+		minutes++
+		next := [][2]int{} // the oranges that rot this minute
+		for _, cell := range queue {
+			for _, d := range dirs4 {
+				nr, nc := cell[0]+d[0], cell[1]+d[1]
+				if nr &gt;= 0 &amp;&amp; nr &lt; rows &amp;&amp; nc &gt;= 0 &amp;&amp; nc &lt; cols &amp;&amp; g[nr][nc] == 1 {
+					g[nr][nc] = 2 // becomes rotten (also marks it visited)
+					fresh--
+					next = append(next, [2]int{nr, nc})
+				}
+			}
+		}
+		queue = next
+	}
+	if fresh == 0 {
+		return minutes
+	}
+	return -1
+}
+
+func exampleOrangesRotting() {
+	fmt.Println(orangesRotting([][]int{{2, 1, 1}, {1, 1, 0}, {0, 1, 1}})) // 4
+	fmt.Println(orangesRotting([][]int{{2, 1, 1}, {0, 1, 1}, {1, 0, 1}})) // -1
+	fmt.Println(orangesRotting([][]int{{0, 2}}))                          // 0
+	fmt.Println(orangesRotting([][]int{{1}}))                             // -1
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(rows × cols)</code>, space <code>O(rows × cols)</code>.</p>
+<p><strong>Same pattern:</strong> <em>01 Matrix</em> (distance to the nearest 0), <em>Walls and Gates</em>, <em>Shortest Bridge</em>, "spread of fire/infection/flood". Whenever many sources spread at the same speed, <strong>start with all of them in the queue</strong>.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Pacific Atlantic Water Flow (LeetCode 417, Medium)</h3>
+<p><strong>Task.</strong> <code>heights[r][c]</code> is the height of a cell. Water flows from a cell to a neighbor with <strong>equal or lower</strong> height. The Pacific Ocean touches the top and left edges, the Atlantic touches the bottom and right edges. Return all cells from which water can reach <strong>both</strong> oceans.</p>
+<p><strong>Naive.</strong> From each cell, search whether water reaches each ocean: <code>O((rows × cols)²)</code>.</p>
+<p><strong>The reversal trick.</strong> Instead of asking "from each cell, can water reach the ocean?", ask the <strong>opposite</strong>: "starting at the ocean, which cells can water <em>come from</em>?" Run a search <strong>from the ocean borders going uphill</strong> (to neighbors with height <strong>≥</strong> current). Do it once for the Pacific edges and once for the Atlantic edges. The answer is the cells reached by <strong>both</strong> searches.</p>
+<figure class="diagram" id="fig-11"><pre class="mermaid-src">flowchart TD
+    A["Pacific: start from the top row and left column"] --&gt; B["flood uphill (neighbor height &gt;= current)"]
+    C["Atlantic: start from the bottom row and right column"] --&gt; D["flood uphill"]
+    B --&gt; E["set P: cells that can reach the Pacific"]
+    D --&gt; F["set A: cells that can reach the Atlantic"]
+    E --&gt; G["answer = cells in P and in A"]
+    F --&gt; G</pre></figure>
+<p>Each search visits every cell at most once: two searches instead of <code>rows × cols</code> searches.</p>
+<div class="stage" id="st-p5" data-anim="pacific" data-code="code-7"></div>
+<div class="code-tabs" id="code-7">
+<pre data-lang="ts"><code class="language-ts">function pacificAtlantic(heights: number[][]): number[][] {
+  const rows = heights.length, cols = heights[0].length;
+
+  // All cells reachable by going uphill from the starting border cells.
+  function reach(starts: [number, number][]): boolean[][] {
+    const seen = Array.from({ length: rows }, () =&gt; new Array&lt;boolean&gt;(cols).fill(false));
+    const queue: [number, number][] = [];
+    for (const [r, c] of starts) {
+      seen[r][c] = true;
+      queue.push([r, c]);
+    }
+    for (let head = 0; head &lt; queue.length; head++) {
+      const [r, c] = queue[head];
+      for (const [dr, dc] of DIRS4) {
+        const nr = r + dr, nc = c + dc;
+        if (nr &lt; 0 || nr &gt;= rows || nc &lt; 0 || nc &gt;= cols || seen[nr][nc]) continue;
+        if (heights[nr][nc] &lt; heights[r][c]) continue; // water could not flow from the neighbor down to us
+        seen[nr][nc] = true;
+        queue.push([nr, nc]);
+      }
+    }
+    return seen;
+  }
+
+  const pacificStarts: [number, number][] = [];
+  const atlanticStarts: [number, number][] = [];
+  for (let r = 0; r &lt; rows; r++) {
+    pacificStarts.push([r, 0]); // left edge
+    atlanticStarts.push([r, cols - 1]); // right edge
+  }
+  for (let c = 0; c &lt; cols; c++) {
+    pacificStarts.push([0, c]); // top edge
+    atlanticStarts.push([rows - 1, c]); // bottom edge
+  }
+  const pacific = reach(pacificStarts), atlantic = reach(atlanticStarts);
+  const result: number[][] = [];
+  for (let r = 0; r &lt; rows; r++) {
+    for (let c = 0; c &lt; cols; c++) if (pacific[r][c] &amp;&amp; atlantic[r][c]) result.push([r, c]);
+  }
+  return result;
+}
+console.log(pacificAtlantic([
+  [1, 2, 2, 3, 5],
+  [3, 2, 3, 4, 4],
+  [2, 4, 5, 3, 1],
+  [6, 7, 1, 4, 5],
+  [5, 1, 1, 2, 4],
+]));
+// [ [0,4], [1,3], [1,4], [2,2], [3,0], [3,1], [4,0] ]
+console.log(pacificAtlantic([[1]])); // [ [ 0, 0 ] ]</code></pre>
+<pre data-lang="go"><code class="language-go">func pacificAtlantic(heights [][]int) [][]int {
+	rows, cols := len(heights), len(heights[0])
+
+	// All cells reachable by going uphill from the starting border cells.
+	reach := func(starts [][2]int) [][]bool {
+		seen := make([][]bool, rows)
+		for i := range seen {
+			seen[i] = make([]bool, cols)
+		}
+		queue := [][2]int{}
+		for _, s := range starts {
+			seen[s[0]][s[1]] = true
+			queue = append(queue, s)
+		}
+		for head := 0; head &lt; len(queue); head++ {
+			cur := queue[head]
+			for _, d := range dirs4 {
+				nr, nc := cur[0]+d[0], cur[1]+d[1]
+				if nr &lt; 0 || nr &gt;= rows || nc &lt; 0 || nc &gt;= cols || seen[nr][nc] {
+					continue
+				}
+				if heights[nr][nc] &lt; heights[cur[0]][cur[1]] {
+					continue // water could not flow from the neighbor down to us
+				}
+				seen[nr][nc] = true
+				queue = append(queue, [2]int{nr, nc})
+			}
+		}
+		return seen
+	}
+
+	pacificStarts := [][2]int{}
+	atlanticStarts := [][2]int{}
+	for r := 0; r &lt; rows; r++ {
+		pacificStarts = append(pacificStarts, [2]int{r, 0})          // left edge
+		atlanticStarts = append(atlanticStarts, [2]int{r, cols - 1}) // right edge
+	}
+	for c := 0; c &lt; cols; c++ {
+		pacificStarts = append(pacificStarts, [2]int{0, c})          // top edge
+		atlanticStarts = append(atlanticStarts, [2]int{rows - 1, c}) // bottom edge
+	}
+	pacific, atlantic := reach(pacificStarts), reach(atlanticStarts)
+	result := [][]int{}
+	for r := 0; r &lt; rows; r++ {
+		for c := 0; c &lt; cols; c++ {
+			if pacific[r][c] &amp;&amp; atlantic[r][c] {
+				result = append(result, []int{r, c})
+			}
+		}
+	}
+	return result
+}
+
+func examplePacificAtlantic() {
+	fmt.Println(pacificAtlantic([][]int{
+		{1, 2, 2, 3, 5},
+		{3, 2, 3, 4, 4},
+		{2, 4, 5, 3, 1},
+		{6, 7, 1, 4, 5},
+		{5, 1, 1, 2, 4},
+	})) // [[0 4] [1 3] [1 4] [2 2] [3 0] [3 1] [4 0]]
+	fmt.Println(pacificAtlantic([][]int{{1}})) // [[0 0]]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(rows × cols)</code>, space <code>O(rows × cols)</code>.</p>
+<p><strong>The lesson:</strong> when the forward search is too expensive ("from every cell, can I reach X?"), try the <strong>reverse</strong>: "from X, which cells can reach me?" It also solves <em>Surrounded Regions</em> (LeetCode 130: flood from the border).</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · Word Ladder (LeetCode 127, Hard)</h3>
+<p><strong>Task.</strong> Transform <code>beginWord</code> into <code>endWord</code>, changing <strong>one letter at a time</strong>, and every intermediate word must be in <code>wordList</code>. Return the <strong>number of words in the shortest sequence</strong> (counting both ends), or <code>0</code>. <code>"hit" → "cog"</code> with <code>["hot","dot","dog","lot","log","cog"]</code> → <code>5</code> (<code>hit → hot → dot → dog → cog</code>).</p>
+<p><strong>Seeing the graph.</strong> Nobody hands you a graph. But: each <strong>word is a node</strong>, and two words are <strong>connected if they differ by exactly one letter</strong>. "Fewest transformations" = shortest path in an unweighted graph = <strong>BFS</strong>.</p>
+<p><strong>The efficiency problem.</strong> Finding a word's neighbors by comparing it with every other word costs <code>O(N · L)</code> per word, so <code>O(N² · L)</code> overall: too slow for <code>N = 5000</code>.</p>
+<p><strong>The wildcard trick.</strong> For each word, create its <strong>patterns</strong> by replacing each letter with <code>*</code>: <code>hot</code> → <code>*ot</code>, <code>h*t</code>, <code>ho*</code>. Two words are neighbors exactly when they share a pattern (<code>hot</code> and <code>dot</code> share <code>*ot</code>). Group all words by pattern in a map; now the neighbors of a word are found by looking up its <code>L</code> patterns.</p>
+<figure class="diagram" id="fig-12"><pre class="mermaid-src">flowchart LR
+    H["hot"] --&gt; P1["*ot"]
+    H --&gt; P2["h*t"]
+    H --&gt; P3["ho*"]
+    D["dot"] --&gt; P1
+    L["lot"] --&gt; P1
+    P1 --&gt; N["hot, dot, lot are all neighbors"]</pre></figure>
+<p><strong>BFS by levels:</strong> start at <code>beginWord</code> (length 1). Each level adds 1. Return the length when we reach <code>endWord</code>. Mark words visited when enqueued, and also <strong>consume</strong> a pattern's bucket after using it (clear it) so large buckets are not rescanned many times.</p>
+<p><strong>Trace.</strong> <code>hit → cog</code></p>
+<div class="table-wrap"><table id="tbl-8"><thead><tr><th>Level</th><th>Words in the queue</th><th>Length</th></tr></thead><tbody>
+<tr><td>1</td><td>hit</td><td>1</td></tr>
+<tr><td>2</td><td>hot</td><td>2</td></tr>
+<tr><td>3</td><td>dot, lot</td><td>3</td></tr>
+<tr><td>4</td><td>dog, log</td><td>4</td></tr>
+<tr><td>5</td><td>cog ← found</td><td><strong>5</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p6" data-anim="ladder" data-code="code-8"></div>
+<div class="code-tabs" id="code-8">
+<pre data-lang="ts"><code class="language-ts">function ladderLength(beginWord: string, endWord: string, wordList: string[]): number {
+  const words = new Set(wordList);
+  if (!words.has(endWord)) return 0; // the target must be in the list
+
+  // pattern -&gt; words that match it, for example "*ot" -&gt; [hot, dot, lot]
+  const buckets = new Map&lt;string, string[]&gt;();
+  for (const word of [beginWord, ...wordList]) {
+    for (let i = 0; i &lt; word.length; i++) {
+      const pattern = word.slice(0, i) + "*" + word.slice(i + 1);
+      const bucket = buckets.get(pattern);
+      if (bucket) bucket.push(word);
+      else buckets.set(pattern, [word]);
+    }
+  }
+
+  const visited = new Set&lt;string&gt;([beginWord]);
+  let queue: string[] = [beginWord];
+  let length = 1; // number of words in the sequence so far
+  while (queue.length &gt; 0) {
+    const next: string[] = [];
+    for (const word of queue) {
+      if (word === endWord) return length;
+      for (let i = 0; i &lt; word.length; i++) {
+        const pattern = word.slice(0, i) + "*" + word.slice(i + 1);
+        for (const neighbor of buckets.get(pattern) ?? []) {
+          if (!visited.has(neighbor)) {
+            visited.add(neighbor); // mark when enqueued
+            next.push(neighbor);
+          }
+        }
+        buckets.set(pattern, []); // this pattern is fully used: never rescan it
+      }
+    }
+    queue = next;
+    length++;
+  }
+  return 0;
+}
+console.log(ladderLength("hit", "cog", ["hot", "dot", "dog", "lot", "log", "cog"])); // 5
+console.log(ladderLength("hit", "cog", ["hot", "dot", "dog", "lot", "log"])); // 0
+console.log(ladderLength("a", "c", ["a", "b", "c"])); // 2</code></pre>
+<pre data-lang="go"><code class="language-go">func ladderLength(beginWord, endWord string, wordList []string) int {
+	words := make(map[string]bool, len(wordList))
+	for _, w := range wordList {
+		words[w] = true
+	}
+	if !words[endWord] {
+		return 0 // the target must be in the list
+	}
+
+	// pattern -&gt; words that match it, for example "*ot" -&gt; [hot, dot, lot]
+	buckets := make(map[string][]string)
+	patternsOf := func(word string) []string {
+		patterns := make([]string, len(word))
+		for i := 0; i &lt; len(word); i++ {
+			patterns[i] = word[:i] + "*" + word[i+1:]
+		}
+		return patterns
+	}
+	for _, word := range append([]string{beginWord}, wordList...) {
+		for _, p := range patternsOf(word) {
+			buckets[p] = append(buckets[p], word)
+		}
+	}
+
+	visited := map[string]bool{beginWord: true}
+	queue := []string{beginWord}
+	length := 1 // number of words in the sequence so far
+	for len(queue) &gt; 0 {
+		next := []string{}
+		for _, word := range queue {
+			if word == endWord {
+				return length
+			}
+			for _, p := range patternsOf(word) {
+				for _, neighbor := range buckets[p] {
+					if !visited[neighbor] {
+						visited[neighbor] = true // mark when enqueued
+						next = append(next, neighbor)
+					}
+				}
+				buckets[p] = nil // this pattern is fully used: never rescan it
+			}
+		}
+		queue = next
+		length++
+	}
+	return 0
+}
+
+func exampleLadderLength() {
+	fmt.Println(ladderLength("hit", "cog", []string{"hot", "dot", "dog", "lot", "log", "cog"})) // 5
+	fmt.Println(ladderLength("hit", "cog", []string{"hot", "dot", "dog", "lot", "log"}))        // 0
+	fmt.Println(ladderLength("a", "c", []string{"a", "b", "c"}))                                // 2
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(N · L²)</code> (for each of <code>N</code> words, <code>L</code> patterns, each pattern costing <code>O(L)</code> to build), space <code>O(N · L²)</code> for the buckets.</p>
+<p><strong>Follow-up (hard).</strong> <em>Bidirectional BFS</em>: search from both ends and stop when the frontiers meet. The number of words explored drops dramatically (from <code>b^d</code> to roughly <code>2·b^(d/2)</code>). <em>Word Ladder II</em> (LeetCode 126): return <strong>all</strong> shortest sequences: BFS to compute distances, then DFS/backtracking along edges that go exactly one level deeper.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>No visited set</strong> → infinite loops on cycles and undirected graphs.</li>
+<li><strong>Marking visited too late</strong> (when dequeued instead of when enqueued) → the same node queued many times, wasted work or wrong counts.</li>
+<li><strong>Using DFS for "shortest path"</strong> in an unweighted graph.</li>
+<li><strong>Forgetting the bounds check</strong> on grids (index out of range) or checking bounds <em>after</em> reading the cell.</li>
+<li><strong>Using <code>rows</code> for both loops</strong> on a non-square grid (swapped <code>rows</code>/<code>cols</code>).</li>
+<li><strong>Mutating the input grid</strong> without being allowed to.</li>
+<li><strong>Not handling disconnected graphs</strong> (a single BFS covers only one component).</li>
+<li><strong>Recursing too deep</strong> on huge grids in JavaScript.</li>
+<li><strong>In <code>clone</code>, registering the copy after the recursion</strong>, so cycles loop forever.</li>
+<li><strong>Treating diagonal neighbors as connected</strong> unless the problem says so.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Matrix or list</h3>
+<p>Give two situations where an <em>adjacency matrix</em> beats an adjacency list, and one where it loses badly.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>A matrix wins when the graph is <strong>dense</strong> (E close to V²), and when you need many <strong>"is there an edge a–b?"</strong> checks in <code>O(1)</code> (Floyd–Warshall, small complete graphs). It loses badly on a <strong>sparse</strong> graph: a million nodes with a few edges each needs 10¹² cells, and listing a node's neighbors costs <code>O(V)</code> instead of its degree.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Why BFS, not DFS, for shortest paths</h3>
+<p>Why does BFS give shortest paths in an unweighted graph but DFS does not? Draw a 4-node example where DFS finds a longer path.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>BFS handles all nodes at distance 1, then all at distance 2, and so on, so the first time it reaches a node is by a shortest route. DFS follows one branch as deep as it goes. Example: edges <code>0–1, 1–2, 2–3, 0–3</code>. DFS from 0 visits 1, then 2, then reaches 3 by a 3-edge path, although the edge 0–3 is one step. Try it in the DFS tab with input <code>4 ; 0-1 1-2 2-3 0-3 ; 0</code>.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Flood Fill and Max Area of Island</h3>
+<p><em>Flood Fill</em> (LeetCode 733) and <em>Max Area of Island</em> (LeetCode 695): what do you change in Number of Islands?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><strong>Flood Fill:</strong> one flood fill from the given cell, recoloring cells that have the starting color (return at once if the new color equals the old one, or it loops). <strong>Max Area:</strong> make <code>sink</code> return the number of cells it turned to water (1 + the sum over the 4 neighbors) and keep the maximum instead of counting islands.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Shortest Path in Binary Matrix</h3>
+<p><em>Shortest Path in Binary Matrix</em> (LeetCode 1091): 8 directions, BFS: what is the start state and the answer?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Start state <code>(0, 0)</code> with distance 1 (if it is 0; if it is 1, answer −1). BFS over the <strong>8</strong> neighbors that are 0 and inside the grid, marking on enqueue. The answer is the distance when <code>(n−1, n−1)</code> is dequeued, or −1 if the queue empties first.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Is Graph Bipartite?</h3>
+<p><em>Is Graph Bipartite?</em> (LeetCode 785): BFS/DFS with two colors. When is the answer "no"?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Color the start node 0 and give every neighbor the opposite color as you BFS or DFS. The answer is <strong>no</strong> exactly when an edge joins two nodes of the same color (that means an odd cycle). Run it from every uncolored node, because the graph may be disconnected.</p></div></details>
+</div>
+<div class="exercise" id="ex6">
+<h3>6 · Open the Lock</h3>
+<p><em>Open the Lock</em> (LeetCode 752): 4-digit wheel, states are the nodes: what are the edges? Why is BFS right?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Nodes are the 10,000 strings <code>0000</code>…<code>9999</code>. Each has <strong>8 edges</strong>: turn one of the 4 wheels up or down by one (9 wraps to 0). Dead ends are removed nodes. Every move costs one, so BFS from <code>0000</code> gives the fewest moves to the target.</p></div></details>
+</div>
+<div class="exercise" id="ex7">
+<h3>7 · How often is each edge looked at?</h3>
+<p>Design: how many times does each edge get looked at in BFS on an undirected graph with adjacency lists? (Twice, once from each end, so <code>O(V + E)</code> still.)</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><strong>Twice</strong> in an undirected graph: once from each end, when each end's neighbor list is scanned. So the work is <code>O(V + 2E)</code> = <code>O(V + E)</code>.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="graph19"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/viz/graph.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/19.js"></script>
+</body>
+</html>

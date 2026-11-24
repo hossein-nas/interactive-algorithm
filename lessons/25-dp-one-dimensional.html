@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="25" data-pattern="1-D DP">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>25 Dynamic programming, part 1: one dimension | Algorithm guide</title>
+<meta name="description" content="One-dimensional DP animated: climbing stairs four ways (recursion tree, memo, table, two variables), house robber, coin change, LIS, word break and maximum subarray.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 25</span><span>Dynamic programming</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Dynamic programming, part 1: one dimension</h1>
+<p class="sub">Solve each smaller question once, write it down, and build up.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 11 (the knapsack problem revisited, the knapsack FAQ, longest common substring). The book teaches DP by filling a <strong>grid, one cell at a time</strong>, where every cell is the best answer to a smaller version of the problem. This file teaches the same idea with the interview vocabulary (state, recurrence, base case, order), then solves the one-dimensional problems: a <em>single</em> row of answers. File 26 does the two-dimensional ones (grids, knapsack, strings). It covers v2 questions Coin Change, House Robber, and Longest Increasing Subsequence, and extends them.</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>"How many ways", "the minimum or maximum", "is it possible", and the choices overlap: the same smaller question keeps coming back.</p></div><div><b>The recipe</b><p>Say what <code>dp[i]</code> means; write the recurrence from the last choice; set the base case; pick the fill order; read the answer.</p></div><div><b>What it costs</b><p>Usually states × choices per state; often <code>O(n)</code> memory, or <code>O(1)</code> with rolling variables.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>Suppose you must compute something big, and you notice that to compute it you keep needing the <strong>same smaller answers</strong> again and again. Instead of recomputing them each time, <strong>compute each small answer once, write it down, and look it up later</strong>. That is dynamic programming (DP).</p>
+<p><strong>An everyday comparison.</strong> You are climbing a staircase and want to know how many different ways there are to reach step 10, if you can climb 1 or 2 steps at a time. To arrive at step 10 you must have come from step 9 or step 8. So:</p>
+<blockquote><p>ways(10) = ways(9) + ways(8)</p></blockquote>
+<p>and the same logic applies to ways(9) and ways(8). If you compute naively, you recompute <code>ways(8)</code> many times. If you write each answer down the first time, every answer is computed <strong>once</strong>.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart TD
+    W5["ways(5)"] --&gt; W4["ways(4)"]
+    W5 --&gt; W3a["ways(3)"]
+    W4 --&gt; W3b["ways(3)  (again!)"]
+    W4 --&gt; W2a["ways(2)"]
+    W3a --&gt; W2b["ways(2)  (again!)"]
+    W3a --&gt; W1a["ways(1)"]
+    W3b --&gt; W2c["ways(2)  (again!)"]
+    W3b --&gt; W1b["ways(1)"]</pre></figure>
+<p>The repeated nodes are <strong>overlapping subproblems</strong>. DP removes the repetition.</p>
+<h3 id="two-properties-a-problem-needs">Two properties a problem needs</h3>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Property</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><strong>Overlapping subproblems</strong></td><td>The same smaller question is asked many times. (If every subproblem were different, there is nothing to remember; that is divide and conquer, file 09.)</td></tr>
+<tr><td><strong>Optimal substructure</strong></td><td>The best answer for the big problem can be built from the best answers of smaller problems.</td></tr>
+</tbody></table></div>
+<h3 id="how-dp-differs-from-greedy-and-from-plain-recursion">How DP differs from greedy and from plain recursion</h3>
+<ul>
+<li><strong>Greedy</strong> (file 23) commits to one choice and never looks back. DP <strong>tries all choices</strong> (efficiently, by reusing answers) and picks the best.</li>
+<li><strong>Plain recursion</strong> may recompute the same answer exponentially many times. DP computes each distinct answer <strong>once</strong>: exponential becomes polynomial.</li>
+</ul>
+</section>
+<section class="sec" id="the-five-step-recipe-memorize-this">
+<h2>2. The five-step recipe (memorize this)</h2>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    A["1. STATE&lt;br/&gt;What small question does dp[i] answer?&lt;br/&gt;Say it in a full sentence."] --&gt; B["2. RECURRENCE&lt;br/&gt;How does dp[i] come from smaller answers?&lt;br/&gt;Try each last choice."]
+    B --&gt; C["3. BASE CASES&lt;br/&gt;The smallest answers you know directly."]
+    C --&gt; D["4. ORDER&lt;br/&gt;Which answers must be ready first?&lt;br/&gt;(usually left to right)"]
+    D --&gt; E["5. ANSWER&lt;br/&gt;Which cell holds the final result?&lt;br/&gt;(often dp[n], sometimes a max over all cells)"]</pre></figure>
+<p><strong>Step 1 is the hard one.</strong> Write the sentence: <em>"<code>dp[i]</code> = the fewest coins needed to make amount <code>i</code>"</em>. If you cannot say it clearly, the rest will be wrong.</p>
+<p><strong>For step 2, ask the "last move" question:</strong> <em>"What was the last decision that led to this state?"</em> Each possible last decision gives one term; take the best (min, max, or sum).</p>
+<h3 id="two-ways-to-write-it">Two ways to write it</h3>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th></th><th>Top-down (memoization)</th><th>Bottom-up (tabulation)</th></tr></thead><tbody>
+<tr><td>Style</td><td>recursion + a cache</td><td>loops filling a table</td></tr>
+<tr><td>Starts from</td><td>the big problem, asks for smaller ones</td><td>the base cases, builds upward</td></tr>
+<tr><td>Computes</td><td>only the states actually needed</td><td>all states</td></tr>
+<tr><td>Risk</td><td>recursion depth (stack overflow in JavaScript)</td><td>none; but must choose the right order</td></tr>
+<tr><td>Easier to <strong>write first</strong></td><td><strong>yes</strong> (translate the recurrence directly)</td><td>needs the order worked out</td></tr>
+<tr><td>Easier to <strong>optimize space</strong></td><td>no</td><td><strong>yes</strong></td></tr>
+</tbody></table></div>
+<p><strong>Interview advice:</strong> write the recurrence in words, then write the <strong>top-down</strong> version (it is close to the math), then convert to <strong>bottom-up</strong> and shrink the memory if the interviewer asks.</p>
+<h3 id="how-to-recognize-a-dp-problem">How to recognize a DP problem</h3>
+<ul>
+<li>Asks for the <strong>minimum / maximum / count of ways / is it possible</strong>, over choices.</li>
+<li><strong>Brute force is a recursion that tries every option</strong> and the options repeat the same sub-situation.</li>
+<li>The input is small enough for <code>O(n²)</code> or <code>O(n · k)</code> (typically <code>n ≤ 5000</code> or a target up to 10⁴ or 10⁵).</li>
+<li>"Longest/shortest subsequence", "minimum cost to reach", "number of ways to", "can you partition…".</li>
+</ul>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    A["Question"] --&gt; B{"Asks for the count / min / max / feasibility over choices?"}
+    B --&gt;|No| Z["Probably not DP"]
+    B --&gt;|Yes| C{"Does brute force recurse and repeat the same sub-situations?"}
+    C --&gt;|No| D{"Is a local choice always safe?"}
+    D --&gt;|Yes| E["Greedy (file 23)"]
+    D --&gt;|No| F["Backtracking (file 11)"]
+    C --&gt;|Yes| G["DP"]</pre></figure>
+<h3 id="three-flavors-you-will-meet">Three flavors you will meet</h3>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Goal</th><th>Combine sub-answers with</th><th>Example</th></tr></thead><tbody>
+<tr><td><strong>Minimum / maximum</strong></td><td><code>min</code> or <code>max</code> over the last choice</td><td>coin change, house robber</td></tr>
+<tr><td><strong>Count the ways</strong></td><td><code>+</code> (sum over the last choice)</td><td>climbing stairs, coin change II</td></tr>
+<tr><td><strong>Yes / no</strong> (feasible?)</td><td><code>or</code> (is <em>any</em> last choice good?)</td><td>word break, subset sum</td></tr>
+</tbody></table></div>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>3. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Climbing Stairs: the DP warm-up (LeetCode 70, Easy)</h3>
+<p><strong>Task.</strong> You can climb 1 or 2 steps. How many distinct ways to reach step <code>n</code>? <code>n = 3</code> → <code>3</code> (1+1+1, 1+2, 2+1). <code>n = 5</code> → <code>8</code>.</p>
+<ol>
+<li><strong>State:</strong> <code>ways[i]</code> = the number of ways to stand on step <code>i</code>.</li>
+<li><strong>Recurrence:</strong> the last move was a 1-step (from <code>i − 1</code>) or a 2-step (from <code>i − 2</code>): <code>ways[i] = ways[i−1] + ways[i−2]</code>.</li>
+<li><strong>Base:</strong> <code>ways[1] = 1</code>, <code>ways[2] = 2</code> (or <code>ways[0] = 1</code>).</li>
+<li><strong>Order:</strong> left to right.</li>
+<li><strong>Answer:</strong> <code>ways[n]</code>.</li>
+</ol>
+<p><strong>Trace.</strong></p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>i</th><th>ways[i]</th><th>derivation</th></tr></thead><tbody>
+<tr><td>1</td><td>1</td><td>base</td></tr>
+<tr><td>2</td><td>2</td><td>base</td></tr>
+<tr><td>3</td><td>3</td><td>2 + 1</td></tr>
+<tr><td>4</td><td>5</td><td>3 + 2</td></tr>
+<tr><td>5</td><td>8</td><td>5 + 3</td></tr>
+</tbody></table></div>
+<p>Three versions: slow recursion, memoized recursion, and constant-space loop. The code shows all three so you can see the evolution.</p>
+<div class="stage" id="st-p1" data-anim="climbNaive,climbMemo,climbTable,climbRoll" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="naive, memoized, table, and O(1) space"><code class="language-ts">// 1) Naive recursion: O(2^n), recomputes the same answers.
+function climbNaive(n: number): number {
+  if (n &lt;= 2) return n;
+  return climbNaive(n - 1) + climbNaive(n - 2);
+}
+
+// 2) Top-down with a memo: O(n) time and space.
+function climbMemo(n: number, memo = new Map&lt;number, number&gt;()): number {
+  if (n &lt;= 2) return n;
+  const saved = memo.get(n);
+  if (saved !== undefined) return saved;
+  const result = climbMemo(n - 1, memo) + climbMemo(n - 2, memo);
+  memo.set(n, result);
+  return result;
+}
+
+// 3) Bottom-up table: O(n) time and space.
+function climbTable(n: number): number {
+  if (n &lt;= 2) return n;
+  const ways = new Array&lt;number&gt;(n + 1).fill(0);
+  ways[1] = 1;
+  ways[2] = 2;
+  for (let i = 3; i &lt;= n; i++) ways[i] = ways[i - 1] + ways[i - 2];
+  return ways[n];
+}
+
+// 4) Keep only the last two values: O(n) time, O(1) space.
+function climbStairs(n: number): number {
+  if (n &lt;= 2) return n;
+  let prev2 = 1, prev1 = 2;
+  for (let i = 3; i &lt;= n; i++) [prev2, prev1] = [prev1, prev1 + prev2];
+  return prev1;
+}
+
+console.log(climbNaive(10), climbMemo(10), climbTable(10), climbStairs(10)); // 89 89 89 89
+console.log(climbStairs(3), climbStairs(5), climbStairs(45)); // 3 8 1836311903</code></pre>
+<pre data-lang="go" data-caption="naive, memoized, table, and O(1) space"><code class="language-go">// 1) Naive recursion: O(2^n), recomputes the same answers.
+func climbNaive(n int) int {
+	if n &lt;= 2 {
+		return n
+	}
+	return climbNaive(n-1) + climbNaive(n-2)
+}
+
+// 2) Top-down with a memo: O(n) time and space.
+func climbMemo(n int, memo map[int]int) int {
+	if n &lt;= 2 {
+		return n
+	}
+	if v, ok := memo[n]; ok {
+		return v
+	}
+	memo[n] = climbMemo(n-1, memo) + climbMemo(n-2, memo)
+	return memo[n]
+}
+
+// 3) Bottom-up table: O(n) time and space.
+func climbTable(n int) int {
+	if n &lt;= 2 {
+		return n
+	}
+	ways := make([]int, n+1)
+	ways[1], ways[2] = 1, 2
+	for i := 3; i &lt;= n; i++ {
+		ways[i] = ways[i-1] + ways[i-2]
+	}
+	return ways[n]
+}
+
+// 4) Keep only the last two values: O(n) time, O(1) space.
+func climbStairs(n int) int {
+	if n &lt;= 2 {
+		return n
+	}
+	prev2, prev1 := 1, 2
+	for i := 3; i &lt;= n; i++ {
+		prev2, prev1 = prev1, prev1+prev2
+	}
+	return prev1
+}
+
+func exampleClimbStairs() {
+	fmt.Println(climbNaive(10), climbMemo(10, map[int]int{}), climbTable(10), climbStairs(10)) // 89 89 89 89
+	fmt.Println(climbStairs(3), climbStairs(5), climbStairs(45))                               // 3 8 1836311903
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Naive <code>O(2ⁿ)</code>; memo/table <code>O(n)</code>; rolling variables <code>O(n)</code> time and <code>O(1)</code> space.</p>
+<p><strong>The "rolling variables" idea.</strong> Since <code>ways[i]</code> depends only on the previous two, keep just those two. Whenever <code>dp[i]</code> depends on a <strong>fixed number</strong> of recent cells, you can shrink memory to that many variables.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · House Robber (LeetCode 198, Medium; v2 Q8)</h3>
+<p><strong>Task.</strong> Houses in a row contain money <code>nums[i]</code>. You cannot rob <strong>two adjacent houses</strong> (alarm). Maximize the money. <code>[1,2,3,1]</code> → <code>4</code> (houses 1 and 3). <code>[2,7,9,3,1]</code> → <code>12</code> (2 + 9 + 1).</p>
+<ol>
+<li><strong>State:</strong> <code>best[i]</code> = the maximum money from the <strong>first <code>i</code> houses</strong> (considering houses <code>0..i−1</code>).</li>
+<li><strong>Recurrence (the last-move question: rob house <code>i − 1</code> or not?):</strong></li>
+<ul>
+<li><strong>Skip</strong> house <code>i−1</code>: <code>best[i−1]</code>.</li>
+<li><strong>Rob</strong> house <code>i−1</code>: you could not have robbed <code>i−2</code>, so <code>best[i−2] + nums[i−1]</code>.</li>
+<li><code>best[i] = max(best[i−1], best[i−2] + nums[i−1])</code>.</li>
+</ul>
+<li><strong>Base:</strong> <code>best[0] = 0</code> (no houses), <code>best[1] = nums[0]</code>.</li>
+<li><strong>Answer:</strong> <code>best[n]</code>.</li>
+</ol>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["best of the first i houses"] --&gt; B["Skip the last house:&lt;br/&gt;best of the first i-1"]
+    A --&gt; C["Rob the last house:&lt;br/&gt;best of the first i-2 + that house"]
+    B --&gt; D["take the max"]
+    C --&gt; D</pre></figure>
+<p><strong>Trace.</strong> <code>[2, 7, 9, 3, 1]</code></p>
+<div class="table-wrap"><table id="tbl-5"><thead><tr><th>i (houses considered)</th><th>skip: best[i−1]</th><th>rob: best[i−2] + nums[i−1]</th><th>best[i]</th></tr></thead><tbody>
+<tr><td>0</td><td></td><td></td><td>0</td></tr>
+<tr><td>1</td><td></td><td></td><td>2</td></tr>
+<tr><td>2</td><td>2</td><td>0 + 7</td><td>7</td></tr>
+<tr><td>3</td><td>7</td><td>2 + 9 = 11</td><td>11</td></tr>
+<tr><td>4</td><td>11</td><td>7 + 3 = 10</td><td>11</td></tr>
+<tr><td>5</td><td>11</td><td>11 + 1 = 12</td><td><strong>12</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p2" data-anim="rob" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function rob(nums: number[]): number {
+  let skip = 0; // best[i-2]: best when we have NOT used the previous house
+  let take = 0; // best[i-1]: best over the houses so far
+  for (const money of nums) {
+    const newBest = Math.max(take, skip + money); // skip this house, or rob it on top of best[i-2]
+    skip = take;
+    take = newBest;
+  }
+  return take;
+}
+console.log(rob([1, 2, 3, 1])); // 4
+console.log(rob([2, 7, 9, 3, 1])); // 12
+console.log(rob([5])); // 5
+console.log(rob([])); // 0
+console.log(rob([2, 1, 1, 2])); // 4</code></pre>
+<pre data-lang="go"><code class="language-go">func rob(nums []int) int {
+	skip, take := 0, 0 // best[i-2] and best[i-1]
+	for _, money := range nums {
+		newBest := max(take, skip+money) // skip this house, or rob it on top of best[i-2]
+		skip, take = take, newBest
+	}
+	return take
+}
+
+func exampleRob() {
+	fmt.Println(rob([]int{1, 2, 3, 1}))    // 4
+	fmt.Println(rob([]int{2, 7, 9, 3, 1})) // 12
+	fmt.Println(rob([]int{5}))             // 5
+	fmt.Println(rob(nil))                  // 0
+	fmt.Println(rob([]int{2, 1, 1, 2}))    // 4
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(1)</code>.</p>
+<p><strong>Why not greedy?</strong> <code>[2, 1, 1, 2]</code>: greedy "take the biggest available" grabs a 2, then a 1, getting 3; the best is <code>2 + 2 = 4</code>. DP considers both options at every house.</p>
+<p><strong>Follow-ups.</strong> <em>House Robber II (LeetCode 213), houses in a circle:</em> the first and last are adjacent, so run the linear version twice (without the first house, without the last house) and take the max. <em>House Robber III (LeetCode 337), houses in a tree:</em> tree DP returning a pair (rob this node, skip this node).</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Coin Change (LeetCode 322, Medium; v2 Q7), and Coin Change II (LeetCode 518)</h3>
+<p><strong>Task (322).</strong> Given coin values and a target <code>amount</code>, find the <strong>fewest coins</strong> that sum to it, or <code>−1</code>. Coins <code>[1,2,5]</code>, <code>amount = 11</code> → <code>3</code> (5 + 5 + 1). Coins <code>[2]</code>, <code>amount = 3</code> → <code>−1</code>. (Each coin type may be used any number of times.)</p>
+<p><strong>Why greedy fails.</strong> Coins <code>[1, 3, 4]</code>, amount <code>6</code>: greedy gives <code>4 + 1 + 1</code> (3 coins); best is <code>3 + 3</code> (2 coins).</p>
+<ol>
+<li><strong>State:</strong> <code>fewest[a]</code> = the fewest coins to make amount <code>a</code>.</li>
+<li><strong>Recurrence (the last coin):</strong> if the last coin used is <code>c</code>, the rest is <code>fewest[a − c]</code>, plus one coin: <code>fewest[a] = 1 + min over coins c ≤ a of fewest[a − c]</code>.</li>
+<li><strong>Base:</strong> <code>fewest[0] = 0</code>. All others start at "infinity" (impossible).</li>
+<li><strong>Order:</strong> <code>a</code> from 1 up to <code>amount</code>.</li>
+<li><strong>Answer:</strong> <code>fewest[amount]</code> (or <code>−1</code> if still infinity).</li>
+</ol>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["fewest[6] with coins 1, 3, 4"] --&gt; B["last coin 1: 1 + fewest[5]"]
+    A --&gt; C["last coin 3: 1 + fewest[3]"]
+    A --&gt; D["last coin 4: 1 + fewest[2]"]
+    B --&gt; E["take the minimum of the three"]
+    C --&gt; E
+    D --&gt; E</pre></figure>
+<p><strong>Trace</strong> (coins <code>[1, 3, 4]</code>, amount <code>6</code>)</p>
+<div class="table-wrap"><table id="tbl-6"><thead><tr><th>a</th><th>options</th><th>fewest[a]</th></tr></thead><tbody>
+<tr><td>0</td><td></td><td>0</td></tr>
+<tr><td>1</td><td>coin 1: 1 + f[0] = 1</td><td>1</td></tr>
+<tr><td>2</td><td>coin 1: 1 + f[1] = 2</td><td>2</td></tr>
+<tr><td>3</td><td>coin 1: 1+f[2]=3; coin 3: 1+f[0]=1</td><td>1</td></tr>
+<tr><td>4</td><td>coin 1: 1+f[3]=2; coin 3: 1+f[1]=2; coin 4: 1+f[0]=1</td><td>1</td></tr>
+<tr><td>5</td><td>coin 1: 1+f[4]=2; coin 3: 1+f[2]=3; coin 4: 1+f[1]=2</td><td>2</td></tr>
+<tr><td>6</td><td>coin 1: 1+f[5]=3; coin 3: 1+f[3]=<strong>2</strong>; coin 4: 1+f[2]=3</td><td>2</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p3" data-anim="coinChange,change" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts" data-caption="fewest coins, and the &quot;number of ways&quot; variant"><code class="language-ts">function coinChange(coins: number[], amount: number): number {
+  const fewest = new Array&lt;number&gt;(amount + 1).fill(Infinity); // Infinity = not reachable
+  fewest[0] = 0; // zero coins make amount 0
+  for (let a = 1; a &lt;= amount; a++) {
+    for (const coin of coins) {
+      if (coin &lt;= a &amp;&amp; fewest[a - coin] + 1 &lt; fewest[a]) fewest[a] = fewest[a - coin] + 1;
+    }
+  }
+  return fewest[amount] === Infinity ? -1 : fewest[amount];
+}
+
+// Coin Change II: the NUMBER OF COMBINATIONS (order does not matter) that make the amount.
+function change(amount: number, coins: number[]): number {
+  const ways = new Array&lt;number&gt;(amount + 1).fill(0);
+  ways[0] = 1; // one way to make 0: use no coins
+  for (const coin of coins) { // coins in the OUTER loop: each combination is counted once
+    for (let a = coin; a &lt;= amount; a++) ways[a] += ways[a - coin];
+  }
+  return ways[amount];
+}
+
+console.log(coinChange([1, 2, 5], 11)); // 3
+console.log(coinChange([2], 3)); // -1
+console.log(coinChange([1], 0)); // 0
+console.log(coinChange([1, 3, 4], 6)); // 2
+console.log(coinChange([186, 419, 83, 408], 6249)); // 20
+console.log(change(5, [1, 2, 5])); // 4   (5, 2+2+1, 2+1+1+1, 1+1+1+1+1)
+console.log(change(3, [2])); // 0
+console.log(change(10, [10])); // 1</code></pre>
+<pre data-lang="go" data-caption="fewest coins, and the &quot;number of ways&quot; variant"><code class="language-go">func coinChange(coins []int, amount int) int {
+	unreachable := amount + 1 // bigger than any real answer, safe to add 1 to
+	fewest := make([]int, amount+1)
+	for a := 1; a &lt;= amount; a++ {
+		fewest[a] = unreachable
+		for _, coin := range coins {
+			if coin &lt;= a &amp;&amp; fewest[a-coin]+1 &lt; fewest[a] {
+				fewest[a] = fewest[a-coin] + 1
+			}
+		}
+	}
+	if fewest[amount] &gt;= unreachable {
+		return -1
+	}
+	return fewest[amount]
+}
+
+// Coin Change II: the NUMBER OF COMBINATIONS (order does not matter) that make the amount.
+func change(amount int, coins []int) int {
+	ways := make([]int, amount+1)
+	ways[0] = 1 // one way to make 0: use no coins
+	for _, coin := range coins { // coins in the OUTER loop: each combination is counted once
+		for a := coin; a &lt;= amount; a++ {
+			ways[a] += ways[a-coin]
+		}
+	}
+	return ways[amount]
+}
+
+func exampleCoinChange() {
+	fmt.Println(coinChange([]int{1, 2, 5}, 11))              // 3
+	fmt.Println(coinChange([]int{2}, 3))                     // -1
+	fmt.Println(coinChange([]int{1}, 0))                     // 0
+	fmt.Println(coinChange([]int{1, 3, 4}, 6))               // 2
+	fmt.Println(coinChange([]int{186, 419, 83, 408}, 6249)) // 20
+	fmt.Println(change(5, []int{1, 2, 5}))                   // 4
+	fmt.Println(change(3, []int{2}))                         // 0
+	fmt.Println(change(10, []int{10}))                       // 1
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(amount × number of coins)</code>, space <code>O(amount)</code>.</p>
+<p><strong>Why the loop order matters in Coin Change II.</strong> With <strong>coins outside</strong> and amounts inside, each combination is built in one fixed coin order, so <code>{1, 2}</code> is counted once. If you swap the loops (amounts outside), <code>1+2</code> and <code>2+1</code> are counted separately: that counts <strong>permutations</strong>, which is a different problem (LeetCode 377, Combination Sum IV).</p>
+<p><strong>Telling the three flavors apart</strong> (the same coins, three different questions):</p>
+<div class="table-wrap"><table id="tbl-7"><thead><tr><th>Question</th><th>Recurrence</th><th>Base</th></tr></thead><tbody>
+<tr><td>Fewest coins</td><td><code>min(dp[a−c] + 1)</code></td><td><code>dp[0] = 0</code></td></tr>
+<tr><td>Number of combinations</td><td><code>dp[a] += dp[a−c]</code> (coins outer)</td><td><code>dp[0] = 1</code></td></tr>
+<tr><td>Is it possible?</td><td><code>dp[a] = dp[a] or dp[a−c]</code></td><td><code>dp[0] = true</code></td></tr>
+</tbody></table></div>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Longest Increasing Subsequence (LeetCode 300, Medium; v2 Q9)</h3>
+<p><strong>Task.</strong> Find the length of the longest <strong>strictly increasing subsequence</strong> (items need not be adjacent, but must keep their order). <code>[10,9,2,5,3,7,101,18]</code> → <code>4</code> (<code>2,3,7,101</code>).</p>
+<p><strong>Solution A: <code>O(n²)</code> DP.</strong></p>
+<ol>
+<li><strong>State:</strong> <code>len[i]</code> = the length of the longest increasing subsequence <strong>ending exactly at index <code>i</code></strong> (that last item must be <code>nums[i]</code>).</li>
+<li><strong>Recurrence:</strong> look at every earlier <code>j &lt; i</code> with <code>nums[j] &lt; nums[i]</code>; extend the best of them: <code>len[i] = 1 + max(len[j])</code>, or just <code>1</code> if none.</li>
+<li><strong>Base:</strong> every <code>len[i]</code> starts at 1 (the item alone).</li>
+<li><strong>Answer:</strong> the <strong>maximum</strong> over all <code>len[i]</code> (the best subsequence can end anywhere).</li>
+</ol>
+<p><strong>Trace.</strong> <code>[10, 9, 2, 5, 3, 7, 101, 18]</code></p>
+<div class="table-wrap"><table id="tbl-8" class="trace"><thead><tr><th>i</th><th>nums[i]</th><th>earlier smaller values (and their len)</th><th>len[i]</th></tr></thead><tbody>
+<tr><td>0</td><td>10</td><td></td><td>1</td></tr>
+<tr><td>1</td><td>9</td><td></td><td>1</td></tr>
+<tr><td>2</td><td>2</td><td></td><td>1</td></tr>
+<tr><td>3</td><td>5</td><td>2 (1)</td><td>2</td></tr>
+<tr><td>4</td><td>3</td><td>2 (1)</td><td>2</td></tr>
+<tr><td>5</td><td>7</td><td>2 (1), 5 (2), 3 (2)</td><td>3</td></tr>
+<tr><td>6</td><td>101</td><td>all earlier; best is 7 (3)</td><td>4</td></tr>
+<tr><td>7</td><td>18</td><td>10, 9, 2, 5, 3, 7: best is 7 (3)</td><td>4</td></tr>
+</tbody></table></div>
+<p>Maximum = <strong>4</strong>.</p>
+<p><strong>Solution B: <code>O(n log n)</code>, the "tails" trick (patience sorting).</strong> Keep an array <code>tails</code> where <code>tails[k]</code> = the <strong>smallest possible last value</strong> of an increasing subsequence of length <code>k + 1</code>. This array is always sorted. For each number <code>x</code>:</p>
+<ul>
+<li>Find the first position in <code>tails</code> whose value is <code>≥ x</code> (binary search: the <em>lower bound</em> from file 08).</li>
+<li>If found, <strong>replace</strong> it with <code>x</code> (we found a smaller ending for that length, which can only help future extensions).</li>
+<li>If not found (x is bigger than everything), <strong>append</strong> <code>x</code> (a longer subsequence now exists).</li>
+</ul>
+<p>The <strong>length of <code>tails</code></strong> at the end is the answer. (The array itself is <em>not</em> necessarily a valid subsequence; only its length is meaningful.)</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["next number x"] --&gt; B["binary search: first tails[k] &gt;= x"]
+    B --&gt; C{"found?"}
+    C --&gt;|Yes| D["tails[k] = x  (a smaller end for length k+1)"]
+    C --&gt;|No| E["append x  (a longer subsequence)"]
+    D --&gt; A
+    E --&gt; A</pre></figure>
+<p><strong>Trace</strong> (tails after each number) for <code>[10, 9, 2, 5, 3, 7, 101, 18]</code>:</p>
+<div class="table-wrap"><table id="tbl-9" class="trace"><thead><tr><th>x</th><th>tails after</th></tr></thead><tbody>
+<tr><td>10</td><td><code>[10]</code></td></tr>
+<tr><td>9</td><td><code>[9]</code></td></tr>
+<tr><td>2</td><td><code>[2]</code></td></tr>
+<tr><td>5</td><td><code>[2, 5]</code></td></tr>
+<tr><td>3</td><td><code>[2, 3]</code> (3 replaces 5)</td></tr>
+<tr><td>7</td><td><code>[2, 3, 7]</code></td></tr>
+<tr><td>101</td><td><code>[2, 3, 7, 101]</code></td></tr>
+<tr><td>18</td><td><code>[2, 3, 7, 18]</code> (18 replaces 101)</td></tr>
+</tbody></table></div>
+<p>Length <strong>4</strong> ✔.</p>
+<div class="stage" id="st-p4" data-anim="lisQuad,lisTails" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts" data-caption="O(n^2) DP and O(n log n) tails"><code class="language-ts">function lengthOfLISQuadratic(nums: number[]): number {
+  const len = new Array&lt;number&gt;(nums.length).fill(1); // each item alone is a subsequence of length 1
+  let best = 0;
+  for (let i = 0; i &lt; nums.length; i++) {
+    for (let j = 0; j &lt; i; j++) {
+      if (nums[j] &lt; nums[i]) len[i] = Math.max(len[i], len[j] + 1);
+    }
+    best = Math.max(best, len[i]);
+  }
+  return best;
+}
+
+function lengthOfLIS(nums: number[]): number {
+  const tails: number[] = []; // tails[k] = smallest last value of any increasing subsequence of length k+1
+  for (const x of nums) {
+    let lo = 0, hi = tails.length; // lower bound: first index with tails[index] &gt;= x
+    while (lo &lt; hi) {
+      const mid = lo + ((hi - lo) &gt;&gt; 1);
+      if (tails[mid] &gt;= x) hi = mid;
+      else lo = mid + 1;
+    }
+    tails[lo] = x; // replaces a larger tail, or appends when lo === tails.length
+  }
+  return tails.length;
+}
+
+console.log(lengthOfLISQuadratic([10, 9, 2, 5, 3, 7, 101, 18]), lengthOfLIS([10, 9, 2, 5, 3, 7, 101, 18])); // 4 4
+console.log(lengthOfLISQuadratic([0, 1, 0, 3, 2, 3]), lengthOfLIS([0, 1, 0, 3, 2, 3])); // 4 4
+console.log(lengthOfLISQuadratic([7, 7, 7, 7]), lengthOfLIS([7, 7, 7, 7])); // 1 1
+console.log(lengthOfLIS([])); // 0</code></pre>
+<pre data-lang="go" data-caption="O(n^2) DP and O(n log n) tails"><code class="language-go">func lengthOfLISQuadratic(nums []int) int {
+	length := make([]int, len(nums))
+	best := 0
+	for i := range nums {
+		length[i] = 1 // each item alone is a subsequence of length 1
+		for j := 0; j &lt; i; j++ {
+			if nums[j] &lt; nums[i] {
+				length[i] = max(length[i], length[j]+1)
+			}
+		}
+		best = max(best, length[i])
+	}
+	return best
+}
+
+func lengthOfLIS(nums []int) int {
+	tails := []int{} // tails[k] = smallest last value of any increasing subsequence of length k+1
+	for _, x := range nums {
+		pos := sort.SearchInts(tails, x) // lower bound: first index with tails[index] &gt;= x
+		if pos == len(tails) {
+			tails = append(tails, x) // a longer subsequence now exists
+		} else {
+			tails[pos] = x // a smaller end for an existing length
+		}
+	}
+	return len(tails)
+}
+
+func exampleLIS() {
+	fmt.Println(lengthOfLISQuadratic([]int{10, 9, 2, 5, 3, 7, 101, 18}), lengthOfLIS([]int{10, 9, 2, 5, 3, 7, 101, 18})) // 4 4
+	fmt.Println(lengthOfLISQuadratic([]int{0, 1, 0, 3, 2, 3}), lengthOfLIS([]int{0, 1, 0, 3, 2, 3}))                     // 4 4
+	fmt.Println(lengthOfLISQuadratic([]int{7, 7, 7, 7}), lengthOfLIS([]int{7, 7, 7, 7}))                                 // 1 1
+	fmt.Println(lengthOfLIS(nil))                                                                                        // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> <code>O(n²)</code> time and <code>O(n)</code> space; or <code>O(n log n)</code> time and <code>O(n)</code> space.</p>
+<p><strong>Follow-ups.</strong> <em>Print the actual subsequence:</em> store a <code>prev[i]</code> pointer in the <code>O(n²)</code> version and walk back from the best end. <em>Non-decreasing instead of strictly increasing:</em> use an upper bound (first index with <code>tails[k] &gt; x</code>). <em>Russian Doll Envelopes (LeetCode 354):</em> sort by width ascending and height <strong>descending</strong> for ties, then LIS on heights.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Word Break (LeetCode 139, Medium)</h3>
+<p><strong>Task.</strong> Can the string <code>s</code> be split into a sequence of words from a dictionary? (Words may be reused.) <code>s = "leetcode"</code>, dict <code>["leet","code"]</code> → <code>true</code>. <code>s = "catsandog"</code>, dict <code>["cats","dog","sand","and","cat"]</code> → <code>false</code>.</p>
+<p><strong>This is a "yes/no" DP.</strong></p>
+<ol>
+<li><strong>State:</strong> <code>can[i]</code> = <strong>true</strong> if the first <code>i</code> characters of <code>s</code> (the prefix <code>s[0..i)</code>) can be split into dictionary words.</li>
+<li><strong>Recurrence (the last word):</strong> the prefix of length <code>i</code> can be built if there is a split point <code>j &lt; i</code> such that the prefix of length <code>j</code> is splittable <strong>and</strong> the piece <code>s[j..i)</code> is a dictionary word: <code>can[i] = OR over j of (can[j] AND s[j..i) is a word)</code>.</li>
+<li><strong>Base:</strong> <code>can[0] = true</code> (the empty prefix).</li>
+<li><strong>Answer:</strong> <code>can[n]</code>.</li>
+</ol>
+<p><strong>Trace.</strong> <code>s = "leetcode"</code>, words <code>leet</code>, <code>code</code></p>
+<div class="table-wrap"><table id="tbl-10" class="trace"><thead><tr><th>i</th><th>prefix</th><th>a split j that works</th><th>can[i]</th></tr></thead><tbody>
+<tr><td>0</td><td>""</td><td></td><td>true</td></tr>
+<tr><td>1–3</td><td>"l", "le", "lee"</td><td>none</td><td>false</td></tr>
+<tr><td>4</td><td>"leet"</td><td>j = 0: can[0] and "leet" is a word</td><td><strong>true</strong></td></tr>
+<tr><td>5–7</td><td>"leetc"…</td><td>none</td><td>false</td></tr>
+<tr><td>8</td><td>"leetcode"</td><td>j = 4: can[4] and "code" is a word</td><td><strong>true</strong></td></tr>
+</tbody></table></div>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart LR
+    A["can[0] = true"] --&gt;|"word 'leet'"| B["can[4] = true"]
+    B --&gt;|"word 'code'"| C["can[8] = true: answer"]</pre></figure>
+<p><strong>Speed-up.</strong> Only try <code>j</code> such that the piece length <code>i − j</code> is at most the longest dictionary word, since longer pieces cannot match.</p>
+<div class="stage" id="st-p5" data-anim="wordBreak" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function wordBreak(s: string, wordDict: string[]): boolean {
+  const words = new Set(wordDict);
+  const maxLen = Math.max(0, ...wordDict.map((w) =&gt; w.length)); // longer pieces cannot match
+  const can = new Array&lt;boolean&gt;(s.length + 1).fill(false);
+  can[0] = true; // the empty prefix is splittable
+  for (let i = 1; i &lt;= s.length; i++) {
+    for (let j = Math.max(0, i - maxLen); j &lt; i; j++) {
+      if (can[j] &amp;&amp; words.has(s.slice(j, i))) {
+        can[i] = true; // found one valid last word
+        break;
+      }
+    }
+  }
+  return can[s.length];
+}
+console.log(wordBreak("leetcode", ["leet", "code"])); // true
+console.log(wordBreak("applepenapple", ["apple", "pen"])); // true
+console.log(wordBreak("catsandog", ["cats", "dog", "sand", "and", "cat"])); // false
+console.log(wordBreak("", ["a"])); // true</code></pre>
+<pre data-lang="go"><code class="language-go">func wordBreak(s string, wordDict []string) bool {
+	words := make(map[string]bool, len(wordDict))
+	maxLen := 0 // longer pieces cannot match
+	for _, w := range wordDict {
+		words[w] = true
+		maxLen = max(maxLen, len(w))
+	}
+	can := make([]bool, len(s)+1)
+	can[0] = true // the empty prefix is splittable
+	for i := 1; i &lt;= len(s); i++ {
+		for j := max(0, i-maxLen); j &lt; i; j++ {
+			if can[j] &amp;&amp; words[s[j:i]] {
+				can[i] = true // found one valid last word
+				break
+			}
+		}
+	}
+	return can[len(s)]
+}
+
+func exampleWordBreak() {
+	fmt.Println(wordBreak("leetcode", []string{"leet", "code"}))                             // true
+	fmt.Println(wordBreak("applepenapple", []string{"apple", "pen"}))                       // true
+	fmt.Println(wordBreak("catsandog", []string{"cats", "dog", "sand", "and", "cat"}))      // false
+	fmt.Println(wordBreak("", []string{"a"}))                                               // true
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n · L)</code> substring checks where <code>L = maxLen</code> (each check costs up to <code>O(L)</code> for the slice and hash), space <code>O(n)</code>.</p>
+<p><strong>Follow-up.</strong> <em>Word Break II (LeetCode 140):</em> return <strong>all</strong> sentences. Add backtracking guided by the <code>can</code> table (or memoized recursion returning lists). Warn that the output can be exponential.</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · Maximum Subarray (LeetCode 53) and Maximum Product Subarray (LeetCode 152)</h3>
+<p>These two show a DP whose state <strong>tracks more than one number</strong>.</p>
+<p><strong>Maximum Subarray (Kadane's algorithm).</strong> Find the contiguous subarray with the largest sum. <code>[-2,1,-3,4,-1,2,1,-5,4]</code> → <code>6</code> (<code>4, -1, 2, 1</code>).</p>
+<ol>
+<li><strong>State:</strong> <code>endingHere</code> = the best sum of a subarray that <strong>ends at the current index</strong>.</li>
+<li><strong>Recurrence:</strong> either <strong>extend</strong> the previous best (<code>endingHere + x</code>) or <strong>start fresh</strong> at <code>x</code>: <code>endingHere = max(x, endingHere + x)</code>. (Start fresh when the running total has turned negative: it can only hurt.)</li>
+<li><strong>Answer:</strong> the maximum <code>endingHere</code> seen anywhere.</li>
+</ol>
+<p><strong>Trace.</strong> <code>[-2, 1, -3, 4, -1, 2, 1, -5, 4]</code></p>
+<div class="table-wrap"><table id="tbl-11" class="trace"><thead><tr><th>x</th><th>endingHere</th><th>best</th></tr></thead><tbody>
+<tr><td>−2</td><td>−2</td><td>−2</td></tr>
+<tr><td>1</td><td>max(1, −1) = 1</td><td>1</td></tr>
+<tr><td>−3</td><td>max(−3, −2) = −2</td><td>1</td></tr>
+<tr><td>4</td><td>max(4, 2) = 4</td><td>4</td></tr>
+<tr><td>−1</td><td>3</td><td>4</td></tr>
+<tr><td>2</td><td>5</td><td>5</td></tr>
+<tr><td>1</td><td>6</td><td><strong>6</strong></td></tr>
+<tr><td>−5</td><td>1</td><td>6</td></tr>
+<tr><td>4</td><td>5</td><td>6</td></tr>
+</tbody></table></div>
+<p><strong>Maximum Product Subarray.</strong> Same task with products. <code>[2,3,-2,4]</code> → <code>6</code>; <code>[-2,3,-4]</code> → <code>24</code>.</p>
+<p><strong>The twist.</strong> A negative number can turn the <em>smallest</em> product into the <em>largest</em>. So track <strong>both</strong> the maximum and the minimum product of a subarray ending at the current index. When <code>x</code> is negative, <strong>swap</strong> them first (the biggest becomes the smallest and vice versa).</p>
+<figure class="diagram" id="fig-8"><pre class="mermaid-src">flowchart TD
+    A["new number x"] --&gt; B{"x &lt; 0 ?"}
+    B --&gt;|Yes| C["swap curMax and curMin"]
+    B --&gt;|No| D["keep them"]
+    C --&gt; E["curMax = max(x, curMax * x)&lt;br/&gt;curMin = min(x, curMin * x)"]
+    D --&gt; E
+    E --&gt; F["best = max(best, curMax)"]</pre></figure>
+<div class="stage" id="st-p6" data-anim="kadane,maxProd" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function maxSubArray(nums: number[]): number {
+  let endingHere = nums[0];
+  let best = nums[0];
+  for (let i = 1; i &lt; nums.length; i++) {
+    endingHere = Math.max(nums[i], endingHere + nums[i]); // extend, or start fresh
+    best = Math.max(best, endingHere);
+  }
+  return best;
+}
+
+function maxProduct(nums: number[]): number {
+  let curMax = nums[0], curMin = nums[0], best = nums[0];
+  for (let i = 1; i &lt; nums.length; i++) {
+    const x = nums[i];
+    if (x &lt; 0) [curMax, curMin] = [curMin, curMax]; // a negative flips big and small
+    curMax = Math.max(x, curMax * x);
+    curMin = Math.min(x, curMin * x);
+    best = Math.max(best, curMax);
+  }
+  return best;
+}
+
+console.log(maxSubArray([-2, 1, -3, 4, -1, 2, 1, -5, 4])); // 6
+console.log(maxSubArray([1]), maxSubArray([5, 4, -1, 7, 8]), maxSubArray([-1, -2])); // 1 23 -1
+console.log(maxProduct([2, 3, -2, 4])); // 6
+console.log(maxProduct([-2, 0, -1])); // 0
+console.log(maxProduct([-2, 3, -4])); // 24</code></pre>
+<pre data-lang="go"><code class="language-go">func maxSubArray(nums []int) int {
+	endingHere, best := nums[0], nums[0]
+	for _, x := range nums[1:] {
+		endingHere = max(x, endingHere+x) // extend, or start fresh
+		best = max(best, endingHere)
+	}
+	return best
+}
+
+func maxProduct(nums []int) int {
+	curMax, curMin, best := nums[0], nums[0], nums[0]
+	for _, x := range nums[1:] {
+		if x &lt; 0 {
+			curMax, curMin = curMin, curMax // a negative flips big and small
+		}
+		curMax = max(x, curMax*x)
+		curMin = min(x, curMin*x)
+		best = max(best, curMax)
+	}
+	return best
+}
+
+func exampleMaxSubarray() {
+	fmt.Println(maxSubArray([]int{-2, 1, -3, 4, -1, 2, 1, -5, 4}))                                // 6
+	fmt.Println(maxSubArray([]int{1}), maxSubArray([]int{5, 4, -1, 7, 8}), maxSubArray([]int{-1, -2})) // 1 23 -1
+	fmt.Println(maxProduct([]int{2, 3, -2, 4}))                                                   // 6
+	fmt.Println(maxProduct([]int{-2, 0, -1}))                                                     // 0
+	fmt.Println(maxProduct([]int{-2, 3, -4}))                                                     // 24
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Both <code>O(n)</code> time, <code>O(1)</code> space.</p>
+<p><strong>Why start from <code>nums[0]</code> rather than 0?</strong> If all numbers are negative (<code>[-1, -2]</code>), the best subarray has a negative sum: a start of <code>0</code> would wrongly report <code>0</code>.</p>
+<p><strong>The zero case in products.</strong> A zero resets both <code>curMax</code> and <code>curMin</code> to <code>x</code> (that is, <code>0</code>) through <code>max(x, curMax*x)</code>, which acts as "start fresh" after the zero.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>4. Common mistakes</h2>
+<ul>
+<li><strong>Not writing down what <code>dp[i]</code> means</strong> (the single biggest cause of bugs).</li>
+<li><strong>Wrong base case</strong> (<code>dp[0] = 0</code> for minimum, <code>1</code> for counting ways, <code>true</code> for feasibility).</li>
+<li><strong>Using <code>Infinity + 1</code> in Go-like integer worlds</strong> (use a sentinel like <code>amount + 1</code>, or check before adding).</li>
+<li><strong>Wrong loop order</strong> (the coin-change combinations vs. permutations; filling a cell before its dependencies).</li>
+<li><strong>Taking <code>dp[n]</code> as the answer when the best can end anywhere</strong> (LIS, max subarray): take the max over all.</li>
+<li><strong>Greedy shortcuts</strong> (taking the biggest coin, robbing the biggest house).</li>
+<li><strong>Forgetting the empty case</strong> (<code>amount = 0</code>, <code>nums = []</code>, <code>s = ""</code>).</li>
+<li><strong>Recursion depth</strong> in memoized versions (JavaScript stack overflow on <code>n = 100000</code>): convert to a loop.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>5. Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Six problems in one breath</h3>
+<p>For each of the six problems, say the <strong>state sentence</strong>, the <strong>recurrence</strong>, and the <strong>base case</strong> in one breath.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><ul><li><strong>Stairs:</strong> ways[i] = ways to reach step i; ways[i−1] + ways[i−2]; ways[1] = 1, ways[2] = 2.</li><li><strong>Robber:</strong> best[i] = most money from the first i houses; max(best[i−1], best[i−2] + nums[i−1]); best[0] = 0.</li><li><strong>Coin change:</strong> fewest[a] = fewest coins for amount a; min over coins of fewest[a − c] + 1; fewest[0] = 0, the rest ∞.</li><li><strong>LIS:</strong> len[i] = longest increasing subsequence ending at i; 1 + max len[j] over j &lt; i with nums[j] &lt; nums[i]; each len starts at 1; answer max len.</li><li><strong>Word break:</strong> can[i] = the first i letters split; true if some j has can[j] and s[j..i) a word; can[0] = true.</li><li><strong>Max subarray:</strong> end[i] = best sum ending at i; max(nums[i], end[i−1] + nums[i]); end[0] = nums[0]; answer max end.</li></ul></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Decode Ways</h3>
+<p><em>Decode Ways</em> (LeetCode 91): <code>"226"</code> can be decoded as <code>BZ</code>, <code>VF</code>, or <code>BBF</code> → 3. What is <code>dp[i]</code>, and when can you take <strong>two</strong> digits?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><code>dp[i]</code> = the number of ways to decode the first i digits; <code>dp[0] = 1</code>. Take <strong>one</strong> digit if it is 1–9: add <code>dp[i−1]</code>. Take <strong>two</strong> digits if they form 10–26 (so the first is not 0): add <code>dp[i−2]</code>. For "226": dp = 1, 1, 2, 3.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Min Cost Climbing Stairs</h3>
+<p><em>Min Cost Climbing Stairs</em> (LeetCode 746): which of today's recurrences is it a disguise of?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>It is <strong>Climbing Stairs with a cost</strong> (and House Robber's "from one or two back" shape): <code>cost to reach i = cost[i] + min(reach[i−1], reach[i−2])</code>, answer <code>min(reach[n−1], reach[n−2])</code>. Two rolling variables suffice.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Extra state beside len[i]</h3>
+<p><em>Longest Arithmetic Subsequence</em> and <em>Number of Longest Increasing Subsequences</em> (LeetCode 673): what extra state do you track beside <code>len[i]</code>?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><strong>Number of LIS (673):</strong> also keep <code>count[i]</code>, how many subsequences of length len[i] end at i. When len[j] + 1 beats len[i], copy count[j]; when it ties, add count[j]. <strong>Longest arithmetic subsequence:</strong> the state needs the <strong>difference</strong>: <code>dp[i][d]</code> = length of the longest arithmetic subsequence ending at i with step d (a map per index).</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · 1, 2 or 3 steps</h3>
+<p>Turn <code>climbMemo</code> into a version for 1, 2, <strong>or 3</strong> steps. What changes in the recurrence and the rolling variables?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The recurrence gains a term: <code>ways[i] = ways[i−1] + ways[i−2] + ways[i−3]</code>, with bases ways[0] = 1, ways[1] = 1, ways[2] = 2 (or start at 0 with ways[0] = 1 and treat negative indices as 0). The rolling version keeps <strong>three</strong> variables and slides them each step.</p></div></details>
+</div>
+<div class="exercise" id="ex6">
+<h3>6 · Counts and loop order</h3>
+<p>Why is <code>dp</code> for "number of ways to make change" called a <em>count</em>, and why does the loop order decide whether you count combinations or permutations?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>It is a <em>count</em> because the recurrence adds the counts of sub-answers instead of taking a min or max. Coins in the outer loop build every combination in one fixed coin order, so {1, 2} is counted once. Amounts in the outer loop let any coin be last at every amount, so 1+2 and 2+1 are counted separately: that is permutations (Combination Sum IV, LeetCode 377).</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="dp25"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/25.js"></script>
+</body>
+</html>

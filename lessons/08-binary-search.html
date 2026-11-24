@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="08" data-pattern="Binary search">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>08 Binary search | Algorithm guide</title>
+<meta name="description" content="Binary search animated: the first-true template, rotated arrays, searching on the answer and the median of two arrays.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 08</span><span>Core patterns on arrays and strings</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Binary search</h1>
+<p class="sub">Find the place where the answer changes.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 1. The book teaches binary search with a number-guessing game. This file keeps that story, then goes much further: the <em>one</em> template that covers almost every interview variation, searching on the <em>answer</em> instead of an array, rotated arrays, and one hard problem (median of two sorted arrays).</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>Sorted data, a boundary, "minimum X such that…", or O(log n) required.</p></div><div><b>The template</b><p><code>lo &lt; hi</code>; if <code>isGood(mid)</code> then <code>hi = mid</code>, else <code>lo = mid + 1</code>.</p></div><div><b>What it costs</b><p><code>O(log n)</code>: every test throws away half of what is left.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p><strong>The guessing game.</strong> I think of a number from 1 to 100. You guess, and I only say "too low", "too high", or "correct".</p>
+<ul>
+<li>A <strong>bad strategy</strong>: guess 1, then 2, then 3… In the worst case that takes 100 guesses.</li>
+<li>A <strong>good strategy</strong>: guess 50. If I say "too high", the answer is in 1–49. You just threw away <em>half</em> of the possibilities with one guess. Guess 25 next, and so on. At most <strong>7 guesses</strong> are ever needed for 100 numbers.</li>
+</ul>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart TD
+    A["Possible answers: 1 to 100"] --&gt; B["Guess 50: 'too high'"]
+    B --&gt; C["Possible answers: 1 to 49"]
+    C --&gt; D["Guess 25: 'too low'"]
+    D --&gt; E["Possible answers: 26 to 49"]
+    E --&gt; F["Guess 37 ... keep halving until one is left"]</pre></figure>
+<p>For 1,000,000 numbers you need at most 20 guesses; for a billion, 30. Doubling the data adds only <strong>one</strong> step. That is <code>O(log n)</code>.</p>
+<p><strong>The requirement.</strong> Binary search needs the possibilities to have an <strong>order</strong>, so one answer ("too high") rules out a whole half. The common case is a <strong>sorted array</strong>. The deeper, more useful view is:</p>
+<blockquote><p><strong>Binary search finds the boundary where a yes/no question flips from "no" to "yes".</strong></p></blockquote>
+</section>
+<section class="sec" id="the-one-master-template-find-the-first-true">
+<h2>2. The one master template: "find the first true"</h2>
+<p>Almost every binary-search problem can be rewritten as: <em>there is a yes/no test <code>isGood(x)</code>. For small <code>x</code> it says no. From some point onward it says yes. Find the first <code>x</code> where it says yes.</em></p>
+<div class="stage" id="st-guess" data-anim="guessing" data-code=""></div>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart LR
+    subgraph Row["Test results along the positions"]
+        direction LR
+        N1["no"] --- N2["no"] --- N3["no"] --- Y1["YES"] --- Y2["yes"] --- Y3["yes"]
+    end
+    Y1 -.-&gt; T["First true: the boundary we want"]</pre></figure>
+<h3 id="the-template-memorize-this-exactly">The template (memorize this exactly)</h3>
+<ul>
+<li>Search range is <strong>half-open</strong>: <code>lo</code> is included, <code>hi</code> is <em>not</em>. Start with <code>lo = 0</code>, <code>hi = n</code>. The answer may be <code>n</code> (meaning "no position works").</li>
+<li>Loop while <code>lo &lt; hi</code>.</li>
+<li><code>mid = lo + (hi − lo) / 2</code> (rounded down).</li>
+<li>If <code>isGood(mid)</code> is true, the answer is <code>mid</code> or something <strong>to the left</strong>, so <code>hi = mid</code> (keep <code>mid</code> as a candidate).</li>
+<li>Otherwise the answer is <strong>to the right of <code>mid</code></strong>, so <code>lo = mid + 1</code>.</li>
+<li>When the loop ends, <code>lo == hi</code> is the first true position (or <code>n</code> if none).</li>
+</ul>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    A["lo = 0, hi = n"] --&gt; B{"lo &lt; hi ?"}
+    B --&gt;|No| Z["Answer is lo&lt;br/&gt;(equals n if nothing is true)"]
+    B --&gt;|Yes| C["mid = lo + (hi - lo) / 2"]
+    C --&gt; D{"isGood(mid) ?"}
+    D --&gt;|Yes| E["hi = mid&lt;br/&gt;mid might be the answer"]
+    D --&gt;|No| F["lo = mid + 1&lt;br/&gt;mid is definitely not"]
+    E --&gt; B
+    F --&gt; B</pre></figure>
+<p><strong>Why this template never loops forever.</strong> If <code>isGood(mid)</code> is true we set <code>hi = mid</code>, and since <code>mid &lt; hi</code> (because <code>mid</code> rounds down) the range shrinks. If false we set <code>lo = mid + 1</code>, which also shrinks. Compare with the "<code>lo &lt;= hi</code>, <code>hi = mid</code> " style that loops forever on two items. This template avoids that.</p>
+<div class="stage" id="st-tpl" data-anim="lowerBound" data-code="code-1" data-flow="fig-3"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="the master template and two direct uses"><code class="language-ts">// Smallest index in [lo, hi) where isGood is true; returns hi if none is.
+function firstTrue(lo: number, hi: number, isGood: (x: number) =&gt; boolean): number {
+  while (lo &lt; hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (isGood(mid)) hi = mid; // mid could be the answer
+    else lo = mid + 1; // mid is definitely too small
+  }
+  return lo;
+}
+
+// Lower bound: first index whose value is &gt;= target. This is also "where to insert".
+function lowerBound(nums: number[], target: number): number {
+  return firstTrue(0, nums.length, (i) =&gt; nums[i] &gt;= target);
+}
+
+const sortedNums = [1, 3, 3, 5, 8];
+console.log(lowerBound(sortedNums, 3)); // 1   first 3
+console.log(lowerBound(sortedNums, 4)); // 3   where 4 would be inserted
+console.log(lowerBound(sortedNums, 9)); // 5   past the end: bigger than everything</code></pre>
+<pre data-lang="go" data-caption="the master template and two direct uses"><code class="language-go">// Smallest index in [lo, hi) where isGood is true; returns hi if none is.
+func firstTrue(lo, hi int, isGood func(int) bool) int {
+	for lo &lt; hi {
+		mid := lo + (hi-lo)/2
+		if isGood(mid) {
+			hi = mid // mid could be the answer
+		} else {
+			lo = mid + 1 // mid is definitely too small
+		}
+	}
+	return lo
+}
+
+// Lower bound: first index whose value is &gt;= target. This is also "where to insert".
+func lowerBound(nums []int, target int) int {
+	return firstTrue(0, len(nums), func(i int) bool { return nums[i] &gt;= target })
+}
+
+func exampleLowerBound() {
+	sortedNums := []int{1, 3, 3, 5, 8}
+	fmt.Println(lowerBound(sortedNums, 3)) // 1
+	fmt.Println(lowerBound(sortedNums, 4)) // 3
+	fmt.Println(lowerBound(sortedNums, 9)) // 5
+	// Go's standard library has the same idea built in:
+	fmt.Println(sort.SearchInts(sortedNums, 4)) // 3
+}</code></pre>
+</div>
+<p>Go note: <code>sort.SearchInts</code> and <code>sort.Search(n, func(i int) bool {...})</code> are exactly "find the first true". Know them, but be able to write your own.</p>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>3. How to recognize it</h2>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["Read the problem"] --&gt; B{"Sorted data,&lt;br/&gt;or something that is sorted if you look right?"}
+    B --&gt;|Yes| C["Binary search on the array"]
+    B --&gt;|No| D{"Asks for the minimum or maximum value X&lt;br/&gt;such that something is possible?"}
+    D --&gt;|Yes| E{"If X works, does every bigger X work too?&lt;br/&gt;(or every smaller X)"}
+    E --&gt;|Yes| F["Binary search on the ANSWER"]
+    E --&gt;|No| G["Not binary search"]
+    D --&gt;|No| H{"Log n required, huge n, or&lt;br/&gt;'find the boundary'?"}
+    H --&gt;|Yes| C
+    H --&gt;|No| G</pre></figure>
+<p>Key phrases:</p>
+<ul>
+<li>"sorted array", "find the first / last position of…", "insert position".</li>
+<li>"<strong>minimum</strong> speed / capacity / days such that you can finish…" (search on the answer).</li>
+<li>"rotated sorted array".</li>
+<li>"<code>O(log n)</code> required".</li>
+<li>"the <strong>smallest</strong> <code>x</code> with <code>x * x &gt;= n</code>" (square roots and similar math).</li>
+</ul>
+<p><strong>The monotonic test.</strong> Before using binary search on an answer, ask: <em>"If a value <code>x</code> is good, is a larger <code>x</code> also good?"</em> If yes, there is one clean boundary. Example: if a ship with capacity 15 can deliver everything in 5 days, a ship with capacity 20 certainly can.</p>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>4. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Classic Binary Search (LeetCode 704, Easy)</h3>
+<p><strong>Task.</strong> In a sorted array of distinct integers, return the index of <code>target</code>, or <code>-1</code>. <code>[-1, 0, 3, 5, 9, 12]</code>, <code>target = 9</code> → <code>4</code>.</p>
+<p><strong>Idea.</strong> Use the master template with <code>isGood(i) = nums[i] &gt;= target</code>. After it finishes, <code>lo</code> is the first position with a value <code>&gt;= target</code>. Then check that it <em>is</em> the target.</p>
+<p><strong>Trace.</strong> <code>nums = [-1, 0, 3, 5, 9, 12]</code>, <code>target = 9</code></p>
+<div class="table-wrap"><table id="tbl-1" class="trace"><thead><tr><th>lo</th><th>hi</th><th>mid</th><th>nums[mid]</th><th><code>&gt;= 9</code>?</th><th>next</th></tr></thead><tbody>
+<tr><td>0</td><td>6</td><td>3</td><td>5</td><td>no</td><td>lo = 4</td></tr>
+<tr><td>4</td><td>6</td><td>5</td><td>12</td><td>yes</td><td>hi = 5</td></tr>
+<tr><td>4</td><td>5</td><td>4</td><td>9</td><td>yes</td><td>hi = 4</td></tr>
+<tr><td>4</td><td>4</td><td></td><td></td><td>stop</td><td><code>nums[4] == 9</code> ✔</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p1" data-anim="classicSearch" data-code="code-2" data-flow="fig-3"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function binarySearchIndex(nums: number[], target: number): number {
+  let lo = 0, hi = nums.length;
+  while (lo &lt; hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (nums[mid] &gt;= target) hi = mid;
+    else lo = mid + 1;
+  }
+  return lo &lt; nums.length &amp;&amp; nums[lo] === target ? lo : -1;
+}
+console.log(binarySearchIndex([-1, 0, 3, 5, 9, 12], 9)); // 4
+console.log(binarySearchIndex([-1, 0, 3, 5, 9, 12], 2)); // -1
+console.log(binarySearchIndex([], 5)); // -1
+console.log(binarySearchIndex([5], 5)); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func binarySearchIndex(nums []int, target int) int {
+	lo, hi := 0, len(nums)
+	for lo &lt; hi {
+		mid := lo + (hi-lo)/2
+		if nums[mid] &gt;= target {
+			hi = mid
+		} else {
+			lo = mid + 1
+		}
+	}
+	if lo &lt; len(nums) &amp;&amp; nums[lo] == target {
+		return lo
+	}
+	return -1
+}
+
+func exampleBinarySearchIndex() {
+	fmt.Println(binarySearchIndex([]int{-1, 0, 3, 5, 9, 12}, 9)) // 4
+	fmt.Println(binarySearchIndex([]int{-1, 0, 3, 5, 9, 12}, 2)) // -1
+	fmt.Println(binarySearchIndex([]int{}, 5))                    // -1
+	fmt.Println(binarySearchIndex([]int{5}, 5))                   // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(log n)</code>, space <code>O(1)</code>.</p>
+<p><strong>Follow-up.</strong> <em>"Why <code>lo + (hi − lo) / 2</code> and not <code>(lo + hi) / 2</code>?"</em> In languages with fixed-size integers the sum <code>lo + hi</code> could overflow. It cannot in JavaScript or 64-bit Go for realistic sizes, but writing it the safe way shows care.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · First and Last Position of an Element (LeetCode 34, Medium; v2 "first occurrence")</h3>
+<p><strong>Task.</strong> In a sorted array with <strong>duplicates</strong>, return <code>[first, last]</code> positions of <code>target</code>, or <code>[-1, -1]</code>. <code>[5, 7, 7, 8, 8, 10]</code>, <code>target = 8</code> → <code>[3, 4]</code>.</p>
+<p><strong>Idea.</strong> Two uses of the master template:</p>
+<ul>
+<li><strong>first</strong> index with value <code>&gt;= target</code> → <code>lowerBound(target)</code>.</li>
+<li><strong>last</strong> index = (first index with value <code>&gt;= target + 1</code>) − 1 → <code>lowerBound(target + 1) − 1</code>.</li>
+</ul>
+<p>Then check that the first one actually holds the target.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart LR
+    A["Array: 5 7 7 8 8 10"] --&gt; B["lowerBound(8) = 3&lt;br/&gt;first value &gt;= 8"]
+    A --&gt; C["lowerBound(9) = 5&lt;br/&gt;first value &gt;= 9"]
+    B --&gt; D["first = 3"]
+    C --&gt; E["last = 5 - 1 = 4"]</pre></figure>
+<p>(For integers <code>target + 1</code> works. For other types, write a separate "first index with value <code>&gt; target</code>".)</p>
+<div class="stage" id="st-p2" data-anim="searchRange" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function searchRange(nums: number[], target: number): [number, number] {
+  const lower = (t: number): number =&gt; {
+    let lo = 0, hi = nums.length;
+    while (lo &lt; hi) {
+      const mid = lo + Math.floor((hi - lo) / 2);
+      if (nums[mid] &gt;= t) hi = mid;
+      else lo = mid + 1;
+    }
+    return lo;
+  };
+  const first = lower(target);
+  if (first === nums.length || nums[first] !== target) return [-1, -1];
+  return [first, lower(target + 1) - 1];
+}
+console.log(searchRange([5, 7, 7, 8, 8, 10], 8)); // [ 3, 4 ]
+console.log(searchRange([5, 7, 7, 8, 8, 10], 6)); // [ -1, -1 ]
+console.log(searchRange([], 0)); // [ -1, -1 ]
+console.log(searchRange([2, 2], 2)); // [ 0, 1 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func searchRange(nums []int, target int) [2]int {
+	lower := func(t int) int {
+		lo, hi := 0, len(nums)
+		for lo &lt; hi {
+			mid := lo + (hi-lo)/2
+			if nums[mid] &gt;= t {
+				hi = mid
+			} else {
+				lo = mid + 1
+			}
+		}
+		return lo
+	}
+	first := lower(target)
+	if first == len(nums) || nums[first] != target {
+		return [2]int{-1, -1}
+	}
+	return [2]int{first, lower(target+1) - 1}
+}
+
+func exampleSearchRange() {
+	fmt.Println(searchRange([]int{5, 7, 7, 8, 8, 10}, 8)) // [3 4]
+	fmt.Println(searchRange([]int{5, 7, 7, 8, 8, 10}, 6)) // [-1 -1]
+	fmt.Println(searchRange([]int{}, 0))                  // [-1 -1]
+	fmt.Println(searchRange([]int{2, 2}, 2))              // [0 1]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(log n)</code> (two searches), space <code>O(1)</code>.</p>
+<p><strong>Why not "find one, then walk left and right"?</strong> If every element equals the target, walking costs <code>O(n)</code>, which destroys the benefit.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Search in a Rotated Sorted Array (LeetCode 33, Medium; v2 Q14)</h3>
+<p><strong>Task.</strong> A sorted array of distinct numbers was rotated at an unknown point: <code>[4, 5, 6, 7, 0, 1, 2]</code>. Find <code>target</code> in <code>O(log n)</code>. <code>target = 0</code> → <code>4</code>.</p>
+<p><strong>The key picture.</strong> A rotated array is two sorted pieces glued together:</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart LR
+    subgraph Left["Left piece (sorted, large values)"]
+        direction LR
+        A["4"] --- B["5"] --- C["6"] --- D["7"]
+    end
+    subgraph Right["Right piece (sorted, small values)"]
+        direction LR
+        E["0"] --- F["1"] --- G["2"]
+    end
+    Left --&gt; Right</pre></figure>
+<p><strong>Idea.</strong> At any <code>mid</code>, <strong>at least one half is fully sorted</strong>. Find out which half is sorted, then ask if the target lies inside that sorted half's value range.</p>
+<ul>
+<li>If <code>nums[lo] &lt;= nums[mid]</code>, the <strong>left half <code>[lo..mid]</code> is sorted</strong>. If <code>nums[lo] &lt;= target &lt; nums[mid]</code> the target is in it (go left); otherwise go right.</li>
+<li>Else the <strong>right half <code>[mid..hi]</code> is sorted</strong>. If <code>nums[mid] &lt; target &lt;= nums[hi]</code> go right; otherwise go left.</li>
+</ul>
+<p><strong>Trace.</strong> <code>[4, 5, 6, 7, 0, 1, 2]</code>, <code>target = 0</code></p>
+<div class="table-wrap"><table id="tbl-2" class="trace"><thead><tr><th>lo</th><th>hi</th><th>mid</th><th>nums[mid]</th><th>sorted half</th><th>target in it?</th><th>action</th></tr></thead><tbody>
+<tr><td>0</td><td>6</td><td>3</td><td>7</td><td>left <code>[4..7]</code></td><td>0 not in [4,7)</td><td>lo = 4</td></tr>
+<tr><td>4</td><td>6</td><td>5</td><td>1</td><td>left <code>[0,1]</code> (nums[4]=0 ≤ 1)</td><td>0 in [0,1) yes</td><td>hi = 4</td></tr>
+<tr><td>4</td><td>4</td><td>4</td><td>0</td><td></td><td>match</td><td><strong>return 4</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p3" data-anim="rotated" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function searchRotated(nums: number[], target: number): number {
+  let lo = 0, hi = nums.length - 1;
+  while (lo &lt;= hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (nums[mid] === target) return mid;
+    if (nums[lo] &lt;= nums[mid]) {
+      // left half [lo..mid] is sorted
+      if (nums[lo] &lt;= target &amp;&amp; target &lt; nums[mid]) hi = mid - 1;
+      else lo = mid + 1;
+    } else {
+      // right half [mid..hi] is sorted
+      if (nums[mid] &lt; target &amp;&amp; target &lt;= nums[hi]) lo = mid + 1;
+      else hi = mid - 1;
+    }
+  }
+  return -1;
+}
+console.log(searchRotated([4, 5, 6, 7, 0, 1, 2], 0)); // 4
+console.log(searchRotated([4, 5, 6, 7, 0, 1, 2], 3)); // -1
+console.log(searchRotated([1], 0)); // -1
+console.log(searchRotated([3, 1], 1)); // 1</code></pre>
+<pre data-lang="go"><code class="language-go">func searchRotated(nums []int, target int) int {
+	lo, hi := 0, len(nums)-1
+	for lo &lt;= hi {
+		mid := lo + (hi-lo)/2
+		if nums[mid] == target {
+			return mid
+		}
+		if nums[lo] &lt;= nums[mid] {
+			// left half [lo..mid] is sorted
+			if nums[lo] &lt;= target &amp;&amp; target &lt; nums[mid] {
+				hi = mid - 1
+			} else {
+				lo = mid + 1
+			}
+		} else {
+			// right half [mid..hi] is sorted
+			if nums[mid] &lt; target &amp;&amp; target &lt;= nums[hi] {
+				lo = mid + 1
+			} else {
+				hi = mid - 1
+			}
+		}
+	}
+	return -1
+}
+
+func exampleSearchRotated() {
+	fmt.Println(searchRotated([]int{4, 5, 6, 7, 0, 1, 2}, 0)) // 4
+	fmt.Println(searchRotated([]int{4, 5, 6, 7, 0, 1, 2}, 3)) // -1
+	fmt.Println(searchRotated([]int{1}, 0))                   // -1
+	fmt.Println(searchRotated([]int{3, 1}, 1))                // 1
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(log n)</code>, space <code>O(1)</code>.</p>
+<p><strong>Notes.</strong> This uses the <em>closed-range</em> variant (<code>lo &lt;= hi</code>, <code>hi = mid − 1</code>) because we test <code>nums[mid] === target</code> directly; each branch makes the range strictly smaller, so it terminates. The <code>&lt;=</code> in <code>nums[lo] &lt;= nums[mid]</code> matters when <code>lo == mid</code> (a two-element range).</p>
+<p><strong>Follow-ups.</strong> <em>"Find the minimum in a rotated sorted array (LeetCode 153)"</em>: use the master template with <code>isGood(i) = nums[i] &lt;= nums[last]</code>. <em>"With duplicates (LeetCode 81)"</em>: when <code>nums[lo] == nums[mid] == nums[hi]</code> you cannot tell which half is sorted, so shrink <code>lo++</code>, <code>hi--</code>; worst case becomes <code>O(n)</code>.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Koko Eating Bananas, "binary search on the answer" (LeetCode 875, Medium)</h3>
+<p><strong>Task.</strong> There are piles of bananas. Koko eats at a speed of <code>k</code> bananas per hour, taking one pile at a time (if a pile has fewer than <code>k</code>, she finishes it and idles for the rest of that hour). She has <code>h</code> hours. Find the <strong>smallest integer <code>k</code></strong> that lets her finish. <code>piles = [3, 6, 7, 11]</code>, <code>h = 8</code> → <code>4</code>.</p>
+<p><strong>This is a new idea: the array we search is not given.</strong> We search over the <em>possible speeds</em> <code>1, 2, 3, …, max(piles)</code>. No array exists in memory; we just need a yes/no test:</p>
+<blockquote><p><code>canFinish(k)</code>: the hours needed at speed <code>k</code> is <code>sum of ceil(pile / k)</code>. Is that <code>&lt;= h</code>?</p></blockquote>
+<p><strong>The monotonic check.</strong> A faster speed never makes it take longer. So as <code>k</code> goes <code>1, 2, 3, …</code> the answers to <code>canFinish</code> look like <code>no, no, no, YES, yes, yes…</code>: exactly the "first true" shape.</p>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart LR
+    A["speed k = 1"] --&gt;|"needs 27 hours: no"| B["k = 2: 15 hours, no"]
+    B --&gt; C["k = 3: 10 hours, no"]
+    C --&gt; D["k = 4: 8 hours, YES"]
+    D --&gt; E["k = 5, 6, ... all yes"]</pre></figure>
+<p><strong>Range.</strong> The smallest sensible speed is 1. The largest we ever need is <code>max(piles)</code> (one pile per hour). So search <code>[1, max + 1)</code>.</p>
+<p><strong>Trace.</strong> <code>piles = [3, 6, 7, 11]</code>, <code>h = 8</code>, search <code>lo = 1</code>, <code>hi = 12</code></p>
+<div class="table-wrap"><table id="tbl-3" class="trace"><thead><tr><th>lo</th><th>hi</th><th>mid=k</th><th>hours = Σ ceil(p/k)</th><th>≤ 8?</th><th>action</th></tr></thead><tbody>
+<tr><td>1</td><td>12</td><td>6</td><td>1+1+2+2 = 6</td><td>yes</td><td>hi = 6</td></tr>
+<tr><td>1</td><td>6</td><td>3</td><td>1+2+3+4 = 10</td><td>no</td><td>lo = 4</td></tr>
+<tr><td>4</td><td>6</td><td>5</td><td>1+2+2+3 = 8</td><td>yes</td><td>hi = 5</td></tr>
+<tr><td>4</td><td>5</td><td>4</td><td>1+2+2+3 = 8</td><td>yes</td><td>hi = 4</td></tr>
+<tr><td>4</td><td>4</td><td></td><td></td><td>stop</td><td><strong>4</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p4" data-anim="koko" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function minEatingSpeed(piles: number[], h: number): number {
+  const hoursNeeded = (k: number): number =&gt;
+    piles.reduce((total, pile) =&gt; total + Math.ceil(pile / k), 0);
+  let lo = 1, hi = Math.max(...piles) + 1; // answer is in [1, max]
+  while (lo &lt; hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (hoursNeeded(mid) &lt;= h) hi = mid; // fast enough: try slower
+    else lo = mid + 1; // too slow: need faster
+  }
+  return lo;
+}
+console.log(minEatingSpeed([3, 6, 7, 11], 8)); // 4
+console.log(minEatingSpeed([30, 11, 23, 4, 20], 5)); // 30
+console.log(minEatingSpeed([30, 11, 23, 4, 20], 6)); // 23</code></pre>
+<pre data-lang="go"><code class="language-go">func minEatingSpeed(piles []int, h int) int {
+	hoursNeeded := func(k int) int {
+		total := 0
+		for _, pile := range piles {
+			total += (pile + k - 1) / k // integer ceiling of pile / k
+		}
+		return total
+	}
+	biggest := 0
+	for _, p := range piles {
+		biggest = max(biggest, p)
+	}
+	lo, hi := 1, biggest+1 // answer is in [1, max]
+	for lo &lt; hi {
+		mid := lo + (hi-lo)/2
+		if hoursNeeded(mid) &lt;= h {
+			hi = mid // fast enough: try slower
+		} else {
+			lo = mid + 1 // too slow: need faster
+		}
+	}
+	return lo
+}
+
+func exampleMinEatingSpeed() {
+	fmt.Println(minEatingSpeed([]int{3, 6, 7, 11}, 8))       // 4
+	fmt.Println(minEatingSpeed([]int{30, 11, 23, 4, 20}, 5)) // 30
+	fmt.Println(minEatingSpeed([]int{30, 11, 23, 4, 20}, 6)) // 23
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log M)</code> where <code>M = max(piles)</code>: <code>log M</code> rounds, each costing an <code>O(n)</code> check. Space <code>O(1)</code>.</p>
+<p><strong>The recipe for every "search on the answer" problem:</strong></p>
+<ol>
+<li>Write <code>isGood(x)</code>: "can we succeed with value <code>x</code>?"</li>
+<li>Check it is monotonic.</li>
+<li>Choose the range: smallest and largest <em>possible</em> answer.</li>
+<li>Run the master template.</li>
+</ol>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Capacity to Ship Packages Within D Days (LeetCode 1011, Medium; v2 Q15)</h3>
+<p><strong>Task.</strong> Packages with weights must ship <strong>in the given order</strong>. Each day the ship loads packages in order until the next one would exceed the capacity. Find the <strong>minimum capacity</strong> so all ship within <code>days</code>. <code>weights = [1,2,3,4,5,6,7,8,9,10]</code>, <code>days = 5</code> → <code>15</code>.</p>
+<p><strong>Range.</strong> The capacity must be at least <code>max(weights)</code> (or the heaviest package can never ship), and at most <code>sum(weights)</code> (everything in one day).</p>
+<p><strong>The test <code>canShip(capacity)</code>:</strong> simulate greedily: add packages to today's load; when the next would overflow, start a new day. Count days; check <code>&lt;= days</code>.</p>
+<figure class="diagram" id="fig-8"><pre class="mermaid-src">flowchart TD
+    A["capacity candidate c"] --&gt; B["day = 1, load = 0"]
+    B --&gt; C["next package w"]
+    C --&gt; D{"load + w &gt; c ?"}
+    D --&gt;|Yes| E["day++, load = w"]
+    D --&gt;|No| F["load += w"]
+    E --&gt; G{"more packages?"}
+    F --&gt; G
+    G --&gt;|Yes| C
+    G --&gt;|No| H{"day &lt;= days ?"}</pre></figure>
+<p><strong>Trace.</strong> <code>[1..10]</code>, <code>days = 5</code>, <code>lo = 10</code>, <code>hi = 56</code> (sum 55 + 1)</p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>lo</th><th>hi</th><th>c</th><th>days needed</th><th>ok?</th><th>action</th></tr></thead><tbody>
+<tr><td>10</td><td>56</td><td>33</td><td>2</td><td>yes</td><td>hi = 33</td></tr>
+<tr><td>10</td><td>33</td><td>21</td><td>3</td><td>yes</td><td>hi = 21</td></tr>
+<tr><td>10</td><td>21</td><td>15</td><td>5</td><td>yes</td><td>hi = 15</td></tr>
+<tr><td>10</td><td>15</td><td>12</td><td>6</td><td>no</td><td>lo = 13</td></tr>
+<tr><td>13</td><td>15</td><td>14</td><td>6</td><td>no</td><td>lo = 15</td></tr>
+<tr><td>15</td><td>15</td><td></td><td></td><td>stop</td><td><strong>15</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p5" data-anim="ship" data-code="code-6" data-flow="fig-8"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function shipWithinDays(weights: number[], days: number): number {
+  const daysNeeded = (capacity: number): number =&gt; {
+    let day = 1, load = 0;
+    for (const w of weights) {
+      if (load + w &gt; capacity) {
+        day++; // this package starts a new day
+        load = 0;
+      }
+      load += w;
+    }
+    return day;
+  };
+  let lo = Math.max(...weights); // must fit the heaviest package
+  let hi = weights.reduce((a, b) =&gt; a + b, 0) + 1; // everything in one day (+1: half-open)
+  while (lo &lt; hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (daysNeeded(mid) &lt;= days) hi = mid;
+    else lo = mid + 1;
+  }
+  return lo;
+}
+console.log(shipWithinDays([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 5)); // 15
+console.log(shipWithinDays([3, 2, 2, 4, 1, 4], 3)); // 6
+console.log(shipWithinDays([1, 2, 3, 1, 1], 4)); // 3</code></pre>
+<pre data-lang="go"><code class="language-go">func shipWithinDays(weights []int, days int) int {
+	daysNeeded := func(capacity int) int {
+		day, load := 1, 0
+		for _, w := range weights {
+			if load+w &gt; capacity {
+				day++ // this package starts a new day
+				load = 0
+			}
+			load += w
+		}
+		return day
+	}
+	lo, total := 0, 0
+	for _, w := range weights {
+		lo = max(lo, w) // must fit the heaviest package
+		total += w
+	}
+	hi := total + 1 // everything in one day (+1: half-open)
+	for lo &lt; hi {
+		mid := lo + (hi-lo)/2
+		if daysNeeded(mid) &lt;= days {
+			hi = mid
+		} else {
+			lo = mid + 1
+		}
+	}
+	return lo
+}
+
+func exampleShipWithinDays() {
+	fmt.Println(shipWithinDays([]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, 5)) // 15
+	fmt.Println(shipWithinDays([]int{3, 2, 2, 4, 1, 4}, 3))             // 6
+	fmt.Println(shipWithinDays([]int{1, 2, 3, 1, 1}, 4))                // 3
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log(sum))</code>, space <code>O(1)</code>.</p>
+<p><strong>The same pattern:</strong> Split Array Largest Sum (LeetCode 410), Minimize Max Distance, Allocate Books, Magnetic Force Between Balls (LeetCode 1552), and "maximize the minimum" problems. A tell: <em>"minimize the maximum"</em> or <em>"maximize the minimum"</em>.</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · Median of Two Sorted Arrays (LeetCode 4, Hard)</h3>
+<p><strong>Task.</strong> Two sorted arrays <code>a</code> and <code>b</code>. Find the <strong>median</strong> of all items combined in <code>O(log(min(m, n)))</code>. <code>[1, 3]</code> and <code>[2]</code> → <code>2</code>. <code>[1, 2]</code> and <code>[3, 4]</code> → <code>2.5</code>.</p>
+<p><strong>Why it is hard.</strong> Merging the two arrays and taking the middle is <code>O(m + n)</code>, which is an acceptable first answer to <em>say</em>, but the problem demands a logarithmic time.</p>
+<p><strong>Step 1: what is a median, really?</strong> It splits the combined sorted collection into a <strong>left half</strong> and a <strong>right half</strong> of (nearly) equal size, where <strong>every item on the left is ≤ every item on the right</strong>. If the total count is odd, the left half has one extra item and the median is its largest. If even, the median is the average of the left half's largest and the right half's smallest.</p>
+<p><strong>Step 2: the cut trick.</strong> Instead of merging, <em>choose how many items of <code>a</code> go into the left half</em>, call it <code>i</code>. Then the number from <code>b</code> is forced: <code>j = half − i</code> where <code>half = (m + n + 1) / 2</code>. Drawing it:</p>
+<figure class="diagram" id="fig-9"><pre class="mermaid-src">flowchart LR
+    subgraph A["Array a"]
+        direction LR
+        A1["a[0..i-1]"] --- AC["cut"] --- A2["a[i..m-1]"]
+    end
+    subgraph B["Array b"]
+        direction LR
+        B1["b[0..j-1]"] --- BC["cut"] --- B2["b[j..n-1]"]
+    end
+    A1 --&gt; L["LEFT half = a[0..i-1] plus b[0..j-1]"]
+    B1 --&gt; L
+    A2 --&gt; R["RIGHT half = a[i..] plus b[j..]"]
+    B2 --&gt; R</pre></figure>
+<p><strong>Step 3: when is the cut correct?</strong> The left half must be ≤ the right half. Inside each array the order is already fine, so we only need to check the <em>crossing</em> pairs:</p>
+<ul>
+<li><code>a[i-1] &lt;= b[j]</code> (the last item on a's left is not bigger than the first item on b's right), <strong>and</strong></li>
+<li><code>b[j-1] &lt;= a[i]</code>.</li>
+</ul>
+<p><strong>Step 4: binary search on <code>i</code>.</strong> If <code>a[i-1] &gt; b[j]</code>, we took too many items from <code>a</code>: move the cut left (<code>hi = i − 1</code>). If <code>b[j-1] &gt; a[i]</code>, we took too few from <code>a</code>: move right (<code>lo = i + 1</code>). This is a binary search on the cut position <code>i</code>. Search on the <strong>smaller array</strong> so that <code>j</code> never goes out of range.</p>
+<p><strong>Step 5: edges.</strong> If a cut is at the very start or end of an array, there is no element on that side; pretend it is <code>−∞</code> (left side) or <code>+∞</code> (right side).</p>
+<p><strong>Trace.</strong> <code>a = [1, 3]</code>, <code>b = [2]</code>. Make <code>a</code> the smaller array? <code>b</code> is smaller, so swap: <code>a = [2]</code>, <code>b = [1, 3]</code>. <code>m = 1</code>, <code>n = 2</code>, <code>half = (1+2+1)/2 = 2</code>, <code>lo = 0</code>, <code>hi = 1</code>.</p>
+<div class="table-wrap"><table id="tbl-5" class="trace"><thead><tr><th>lo</th><th>hi</th><th>i</th><th>j = 2 − i</th><th>aLeft</th><th>aRight</th><th>bLeft</th><th>bRight</th><th>check</th><th>action</th></tr></thead><tbody>
+<tr><td>0</td><td>1</td><td>0</td><td>2</td><td>−∞</td><td>2</td><td>3</td><td>+∞</td><td><code>bLeft (3) &lt;= aRight (2)</code>? no</td><td>i too small: lo = 1</td></tr>
+<tr><td>1</td><td>1</td><td>1</td><td>1</td><td>2</td><td>+∞</td><td>1</td><td>3</td><td><code>2 &lt;= 3</code> and <code>1 &lt;= +∞</code>: yes</td><td>found</td></tr>
+</tbody></table></div>
+<p>Total is odd (3), so the median is <code>max(aLeft, bLeft) = max(2, 1) = 2</code> ✔.</p>
+<div class="stage" id="st-p6" data-anim="median" data-code="code-7"></div>
+<div class="code-tabs" id="code-7">
+<pre data-lang="ts"><code class="language-ts">function findMedianSortedArrays(a: number[], b: number[]): number {
+  if (a.length &gt; b.length) return findMedianSortedArrays(b, a); // search the smaller one
+  const m = a.length, n = b.length;
+  const half = Math.floor((m + n + 1) / 2); // size of the left half
+  let lo = 0, hi = m;
+  while (lo &lt;= hi) {
+    const i = lo + Math.floor((hi - lo) / 2); // items taken from a
+    const j = half - i; // items taken from b
+    const aLeft = i === 0 ? -Infinity : a[i - 1];
+    const aRight = i === m ? Infinity : a[i];
+    const bLeft = j === 0 ? -Infinity : b[j - 1];
+    const bRight = j === n ? Infinity : b[j];
+    if (aLeft &lt;= bRight &amp;&amp; bLeft &lt;= aRight) {
+      const leftMax = Math.max(aLeft, bLeft);
+      if ((m + n) % 2 === 1) return leftMax;
+      return (leftMax + Math.min(aRight, bRight)) / 2;
+    }
+    if (aLeft &gt; bRight) hi = i - 1; // took too many from a
+    else lo = i + 1; // took too few from a
+  }
+  throw new Error("inputs must be sorted");
+}
+console.log(findMedianSortedArrays([1, 3], [2])); // 2
+console.log(findMedianSortedArrays([1, 2], [3, 4])); // 2.5
+console.log(findMedianSortedArrays([], [1])); // 1
+console.log(findMedianSortedArrays([0, 0], [0, 0])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func findMedianSortedArrays(a, b []int) float64 {
+	if len(a) &gt; len(b) {
+		return findMedianSortedArrays(b, a) // search the smaller one
+	}
+	m, n := len(a), len(b)
+	half := (m + n + 1) / 2 // size of the left half
+	lo, hi := 0, m
+	for lo &lt;= hi {
+		i := lo + (hi-lo)/2 // items taken from a
+		j := half - i       // items taken from b
+		aLeft, aRight := math.MinInt, math.MaxInt
+		bLeft, bRight := math.MinInt, math.MaxInt
+		if i &gt; 0 {
+			aLeft = a[i-1]
+		}
+		if i &lt; m {
+			aRight = a[i]
+		}
+		if j &gt; 0 {
+			bLeft = b[j-1]
+		}
+		if j &lt; n {
+			bRight = b[j]
+		}
+		if aLeft &lt;= bRight &amp;&amp; bLeft &lt;= aRight {
+			leftMax := max(aLeft, bLeft)
+			if (m+n)%2 == 1 {
+				return float64(leftMax)
+			}
+			return float64(leftMax+min(aRight, bRight)) / 2
+		}
+		if aLeft &gt; bRight {
+			hi = i - 1 // took too many from a
+		} else {
+			lo = i + 1 // took too few from a
+		}
+	}
+	panic("inputs must be sorted")
+}
+
+func exampleFindMedianSortedArrays() {
+	fmt.Println(findMedianSortedArrays([]int{1, 3}, []int{2}))     // 2
+	fmt.Println(findMedianSortedArrays([]int{1, 2}, []int{3, 4}))  // 2.5
+	fmt.Println(findMedianSortedArrays([]int{}, []int{1}))         // 1
+	fmt.Println(findMedianSortedArrays([]int{0, 0}, []int{0, 0})) // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(log(min(m, n)))</code>, space <code>O(1)</code>.</p>
+<p><strong>Careful in Go:</strong> the sentinels <code>math.MinInt</code> and <code>math.MaxInt</code> are only added to or compared, never added to each other, in the branches that run, so no overflow occurs. (<code>leftMax + min(aRight, bRight)</code> is only computed when both sides are real numbers: in an even total, both halves are non-empty.)</p>
+<p><strong>How to explain this in an interview.</strong> Do not start with code. Say: <em>"The median splits the combined data into two halves where everything left is ≤ everything right. I choose how many to take from the smaller array; the other array's count is forced. I binary-search that number until the two crossing comparisons hold."</em> Then draw the two arrays with a vertical cut each.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Infinite loops</strong> from mixing templates: <code>lo &lt;= hi</code> with <code>hi = mid</code>. Stick to one style per problem.</li>
+<li><strong>Off-by-one on the half-open range.</strong> If the answer can be "past the end", <code>hi</code> must start at <code>n</code>, not <code>n − 1</code>.</li>
+<li><strong>Forgetting the final check</strong> (<code>lo &lt; n &amp;&amp; nums[lo] == target</code>) after a lower-bound search.</li>
+<li><strong>Non-monotonic test.</strong> If <code>isGood</code> flips back and forth, binary search silently gives garbage.</li>
+<li><strong>Search range too narrow</strong> in "search on the answer" (for example starting <code>lo</code> at 1 when the answer may be 0).</li>
+<li><strong>Ceiling division</strong> done wrong (<code>Math.ceil(a / b)</code> in JS, <code>(a + b − 1) / b</code> in Go for positive integers).</li>
+<li><strong>Searching on unsorted data</strong>, or on data that is only partly sorted without reasoning about which half is sorted.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1" data-track>
+<h3>1 · The template, then two one-liners</h3>
+<p>Write the master template from memory in both languages. Then rewrite <em>Search Insert Position</em> (LeetCode 35) and <em>Sqrt(x)</em> (LeetCode 69) as one-line calls to it.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Search Insert Position is exactly lower bound. Sqrt(x) is (first r with r·r &gt; x) − 1.</p><div class="code-tabs" id="code-ex1">
+<pre data-lang="ts"><code class="language-ts">// Search Insert Position: the first index whose value is &gt;= target.
+function searchInsert(nums: number[], target: number): number {
+  let lo = 0, hi = nums.length; // the answer may be nums.length (insert at the end)
+  while (lo &lt; hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (nums[mid] &gt;= target) hi = mid;
+    else lo = mid + 1;
+  }
+  return lo;
+}
+
+// Sqrt(x): the largest r with r * r &lt;= x, found as (first r with r * r &gt; x) - 1.
+function mySqrt(x: number): number {
+  let lo = 0, hi = x + 1;
+  while (lo &lt; hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (mid * mid &gt; x) hi = mid;
+    else lo = mid + 1;
+  }
+  return lo - 1;
+}
+console.log(searchInsert([1, 3, 5, 6], 5), searchInsert([1, 3, 5, 6], 2), searchInsert([1, 3, 5, 6], 7)); // 2 1 4
+console.log(mySqrt(8), mySqrt(16), mySqrt(0), mySqrt(1)); // 2 4 0 1</code></pre>
+<pre data-lang="go"><code class="language-go">// Search Insert Position: the first index whose value is &gt;= target.
+func searchInsert(nums []int, target int) int {
+	lo, hi := 0, len(nums) // the answer may be len(nums) (insert at the end)
+	for lo &lt; hi {
+		mid := lo + (hi-lo)/2
+		if nums[mid] &gt;= target {
+			hi = mid
+		} else {
+			lo = mid + 1
+		}
+	}
+	return lo
+}
+
+// Sqrt(x): the largest r with r * r &lt;= x, found as (first r with r * r &gt; x) - 1.
+func mySqrt(x int) int {
+	lo, hi := 0, x+1
+	for lo &lt; hi {
+		mid := lo + (hi-lo)/2
+		if mid*mid &gt; x {
+			hi = mid
+		} else {
+			lo = mid + 1
+		}
+	}
+	return lo - 1
+}
+
+func exampleSearchInsertSqrt() {
+	fmt.Println(searchInsert([]int{1, 3, 5, 6}, 5), searchInsert([]int{1, 3, 5, 6}, 2), searchInsert([]int{1, 3, 5, 6}, 7)) // 2 1 4
+	fmt.Println(mySqrt(8), mySqrt(16), mySqrt(0), mySqrt(1))                                                            // 2 4 0 1
+}</code></pre>
+</div></div></details>
+</div>
+<div class="exercise" id="ex2" data-track>
+<h3>2 · Find a peak</h3>
+<p>Find the peak in a "mountain" array (LeetCode 162/852). What is the yes/no question? (Hint: "is <code>nums[i] &gt; nums[i+1]</code>?")</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>Is nums[i] > nums[i+1]?</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The test "going down at i?" flips once from no to yes (the last index counts as yes), so first-true finds a peak in <code>O(log n)</code>.</p><div class="stage" id="st-ex2" data-anim="peak" data-code="code-ex2"></div>
+<div class="code-tabs" id="code-ex2">
+<pre data-lang="ts"><code class="language-ts">// Find Peak Element: the first index i with nums[i] &gt; nums[i + 1] (the last index counts as yes).
+function findPeakElement(nums: number[]): number {
+  let lo = 0, hi = nums.length - 1; // index n-1 is always a valid "yes"
+  while (lo &lt; hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (nums[mid] &gt; nums[mid + 1]) hi = mid; // going down: a peak is at mid or to its left
+    else lo = mid + 1; // going up: a peak is to the right
+  }
+  return lo;
+}
+console.log(findPeakElement([1, 2, 3, 1])); // 2
+console.log(findPeakElement([1, 2, 1, 3, 5, 6, 4])); // 5
+console.log(findPeakElement([0, 1, 2, 5, 3, 1])); // 3</code></pre>
+<pre data-lang="go"><code class="language-go">// Find Peak Element: the first index i with nums[i] &gt; nums[i + 1] (the last index counts as yes).
+func findPeakElement(nums []int) int {
+	lo, hi := 0, len(nums)-1 // index n-1 is always a valid "yes"
+	for lo &lt; hi {
+		mid := lo + (hi-lo)/2
+		if nums[mid] &gt; nums[mid+1] {
+			hi = mid // going down: a peak is at mid or to its left
+		} else {
+			lo = mid + 1 // going up: a peak is to the right
+		}
+	}
+	return lo
+}
+
+func exampleFindPeakElement() {
+	fmt.Println(findPeakElement([]int{1, 2, 3, 1}))          // 2
+	fmt.Println(findPeakElement([]int{1, 2, 1, 3, 5, 6, 4})) // 5
+	fmt.Println(findPeakElement([]int{0, 1, 2, 5, 3, 1}))    // 3
+}</code></pre>
+</div></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Split Array Largest Sum</h3>
+<p>Split Array Largest Sum: state <code>isGood</code>, the range, and why it is monotonic.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><code>isGood(cap)</code>: can the array be cut, in order, into at most k pieces whose sums are all ≤ cap (greedy, like shipping packages)? Range: max(nums) to sum(nums). Monotonic: a bigger cap never needs more pieces.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Why not a linked list</h3>
+<p>Why can't you run binary search on a <em>linked list</em> efficiently, even if it is sorted?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Binary search needs <code>O(1)</code> access to the middle. A linked list must walk to it, <code>O(n)</code> per step, so the whole search is <code>O(n)</code> or worse.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Rotated with duplicates</h3>
+<p>In "rotated array with duplicates", why does the worst case become <code>O(n)</code>? Give an input.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>When <code>nums[lo] == nums[mid] == nums[hi]</code> you cannot tell which half is sorted, so you can only shrink by one. Input <code>[1,1,1,1,1,1,2,1,1]</code> forces nearly n steps: <code>O(n)</code>.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="bsearch08"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/08.js"></script>
+</body>
+</html>

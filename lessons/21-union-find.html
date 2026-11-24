@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="21" data-pattern="Union-find (DSU)">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>21 Union-find | Algorithm guide</title>
+<meta name="description" content="Union-find animated: a forest of leaders, path halving, union by size, components, redundant edges, valid trees, merging accounts and islands that appear one cell at a time.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 21</span><span>Graphs</span><span class="stars" title="Fairly likely in interviews">★★</span></div>
+<h1>Union-find</h1>
+<p class="sub">Every group has a leader; merging is just pointing one leader at another.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em> does not cover this structure, but it solves the same family of questions as chapter 6's connected-friends graph search ("who is connected to whom?") with a much faster tool when the graph <strong>grows over time</strong>. It is the engine behind Kruskal's minimum spanning tree (the book's appendix on NP-hard problems and chapter 9 mention related graph ideas). This file is new compared with v2.</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>Groups that only ever merge: connectivity as edges arrive, cycles in undirected graphs, Kruskal.</p></div><div><b>How it works</b><p><code>parent[]</code> forms a forest; a tree's root is the group's leader. <code>find</code> climbs to it; <code>union</code> hangs one root under another.</p></div><div><b>What it costs</b><p>With union by size and path compression, nearly <code>O(1)</code> per operation.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>Imagine a party where people keep discovering that they know each other. After "Ann knows Bob" and "Bob knows Cara", Ann, Bob, and Cara form <strong>one friend group</strong>. Your job is to answer, <strong>quickly, at any moment</strong>:</p>
+<ul>
+<li><em>Are Ann and Dan in the same group?</em></li>
+<li><em>How many separate groups are there?</em></li>
+</ul>
+<p>You could run BFS every time (file 19), but that costs <code>O(V + E)</code> per question. <strong>Union-find</strong> (also called <strong>disjoint set union</strong>, DSU) answers each question in <strong>almost constant time</strong>, even while groups merge.</p>
+<p>It supports two operations:</p>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Operation</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><strong><code>find(x)</code></strong></td><td>Which group is <code>x</code> in? (Returns a <em>representative</em>, the "leader" of the group.)</td></tr>
+<tr><td><strong><code>union(a, b)</code></strong></td><td>Merge the group of <code>a</code> and the group of <code>b</code>.</td></tr>
+</tbody></table></div>
+<p>Two items are in the same group exactly when <code>find(a) == find(b)</code>.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    subgraph Before["Before union(1, 4): two groups"]
+        direction TB
+        L1["leader 1"] --&gt; N2["2"]
+        L1 --&gt; N3["3"]
+        L4["leader 4"] --&gt; N5["5"]
+    end
+    subgraph After["After: one group, leader 1"]
+        direction TB
+        M1["leader 1"] --&gt; M2["2"]
+        M1 --&gt; M3["3"]
+        M1 --&gt; M4["4"]
+        M4 --&gt; M5["5"]
+    end
+    Before --&gt; After</pre></figure>
+</section>
+<section class="sec" id="how-it-works-inside">
+<h2>2. How it works inside</h2>
+<h3 id="each-item-points-to-a-parent-the-leader-points-to-itself">Each item points to a parent; the leader points to itself</h3>
+<p>Store one array <code>parent</code>. At the start, <strong>everyone is their own leader</strong>: <code>parent[i] = i</code>. A group is a little <strong>tree</strong> whose root is the leader.</p>
+<ul>
+<li><code>find(x)</code>: follow <code>parent</code> pointers up until you reach an item that is its own parent: that is the leader.</li>
+<li><code>union(a, b)</code>: find both leaders; if they differ, make <strong>one leader point to the other</strong>.</li>
+</ul>
+<h3 id="the-problem-trees-can-become-tall-chains">The problem: trees can become tall chains</h3>
+<p>If you always attach in the same direction, <code>union(1,2), union(2,3), union(3,4)…</code> can build a <strong>chain</strong> 1 → 2 → 3 → … and <code>find</code> becomes <code>O(n)</code>. Two small, famous fixes make it nearly constant:</p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    A["Slow: tall chains"] --&gt; B["Fix 1: Union by size (or rank)&lt;br/&gt;always hang the SMALLER tree under the bigger one&lt;br/&gt;so trees stay shallow: height at most log n"]
+    A --&gt; C["Fix 2: Path compression&lt;br/&gt;after find(x), make every node on the path&lt;br/&gt;point straight at the leader&lt;br/&gt;so the next find is one step"]</pre></figure>
+<p><strong>Path compression picture:</strong> <code>find(5)</code> walks <code>5 → 4 → 3 → 1</code>. Afterwards 5, 4, and 3 all point directly at 1.</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart LR
+    subgraph Before["Before find(5)"]
+        direction LR
+        B5["5"] --&gt; B4["4"] --&gt; B3["3"] --&gt; B1["1 (leader)"]
+    end
+    subgraph After["After find(5) with compression"]
+        direction LR
+        A5["5"] --&gt; A1["1 (leader)"]
+        A4["4"] --&gt; A1
+        A3["3"] --&gt; A1
+    end
+    Before --&gt; After</pre></figure>
+<p><strong>Cost with both fixes:</strong> each operation takes <code>O(α(n))</code> amortized, where <code>α</code> is the <em>inverse Ackermann function</em>, which is at most <strong>4</strong> for any <code>n</code> you could ever store in the universe. In an interview say "<strong>effectively constant</strong>" (and "<code>O(α(n))</code>, the inverse Ackermann" if you want to impress).</p>
+<h3 id="the-standard-implementation">The standard implementation</h3>
+<div class="stage" id="st-uf" data-anim="ufOps" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="union by size + path compression (iterative)"><code class="language-ts">class UnionFind {
+  private parent: number[];
+  private size: number[]; // size[root] = number of items in that group
+  count: number; // the number of separate groups
+
+  constructor(n: number) {
+    this.parent = Array.from({ length: n }, (_, i) =&gt; i); // everyone is their own leader
+    this.size = new Array&lt;number&gt;(n).fill(1);
+    this.count = n;
+  }
+
+  find(x: number): number {
+    while (this.parent[x] !== x) {
+      this.parent[x] = this.parent[this.parent[x]]; // path halving: skip one level as we climb
+      x = this.parent[x];
+    }
+    return x;
+  }
+
+  // Returns true if a merge happened, false if they were already together.
+  union(a: number, b: number): boolean {
+    let rootA = this.find(a), rootB = this.find(b);
+    if (rootA === rootB) return false; // already in the same group
+    if (this.size[rootA] &lt; this.size[rootB]) [rootA, rootB] = [rootB, rootA]; // A is the bigger tree
+    this.parent[rootB] = rootA; // hang the smaller tree under the bigger
+    this.size[rootA] += this.size[rootB];
+    this.count--;
+    return true;
+  }
+
+  connected(a: number, b: number): boolean {
+    return this.find(a) === this.find(b);
+  }
+}
+
+const uf = new UnionFind(6);
+uf.union(0, 1);
+uf.union(1, 2);
+uf.union(3, 4);
+console.log(uf.connected(0, 2), uf.connected(0, 3)); // true false
+console.log(uf.count); // 3   groups: {0,1,2}, {3,4}, {5}
+console.log(uf.union(0, 2)); // false  (already together)</code></pre>
+<pre data-lang="go" data-caption="union by size + path compression (iterative)"><code class="language-go">type UnionFind struct {
+	parent []int
+	size   []int // size[root] = number of items in that group
+	Count  int   // the number of separate groups
+}
+
+func NewUnionFind(n int) *UnionFind {
+	uf := &amp;UnionFind{parent: make([]int, n), size: make([]int, n), Count: n}
+	for i := range uf.parent {
+		uf.parent[i] = i // everyone is their own leader
+		uf.size[i] = 1
+	}
+	return uf
+}
+
+func (u *UnionFind) Find(x int) int {
+	for u.parent[x] != x {
+		u.parent[x] = u.parent[u.parent[x]] // path halving: skip one level as we climb
+		x = u.parent[x]
+	}
+	return x
+}
+
+// Union returns true if a merge happened, false if they were already together.
+func (u *UnionFind) Union(a, b int) bool {
+	rootA, rootB := u.Find(a), u.Find(b)
+	if rootA == rootB {
+		return false // already in the same group
+	}
+	if u.size[rootA] &lt; u.size[rootB] {
+		rootA, rootB = rootB, rootA // A is the bigger tree
+	}
+	u.parent[rootB] = rootA // hang the smaller tree under the bigger
+	u.size[rootA] += u.size[rootB]
+	u.Count--
+	return true
+}
+
+func (u *UnionFind) Connected(a, b int) bool { return u.Find(a) == u.Find(b) }
+
+func exampleUnionFind() {
+	uf := NewUnionFind(6)
+	uf.Union(0, 1)
+	uf.Union(1, 2)
+	uf.Union(3, 4)
+	fmt.Println(uf.Connected(0, 2), uf.Connected(0, 3)) // true false
+	fmt.Println(uf.Count)                                // 3   groups: {0,1,2}, {3,4}, {5}
+	fmt.Println(uf.Union(0, 2))                          // false  (already together)
+}</code></pre>
+</div>
+<p><strong>Path halving vs. full compression.</strong> Full compression (recursive: <code>parent[x] = find(parent[x])</code>) makes every node on the path point at the root. <strong>Path halving</strong> (the code above) is iterative and has the same speed. Use it to avoid deep recursion.</p>
+<p><strong>What is "the leader"?</strong> Only the root of each tree. Its identity can change after a union, so never store a leader; always call <code>find</code>.</p>
+</section>
+<section class="sec" id="when-to-use-union-find-vs-bfs-dfs">
+<h2>3. When to use union-find (vs. BFS/DFS)</h2>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Situation</th><th>Best tool</th></tr></thead><tbody>
+<tr><td>Graph is fixed; answer a <strong>single</strong> connectivity question</td><td>BFS/DFS: simple</td></tr>
+<tr><td>Edges arrive <strong>over time</strong>; keep asking "are these connected?" or "how many groups?"</td><td><strong>Union-find</strong></td></tr>
+<tr><td>"Does adding this edge create a cycle?" in an <strong>undirected</strong> graph</td><td><strong>Union-find</strong>: if <code>find(a) == find(b)</code> the edge closes a cycle</td></tr>
+<tr><td><strong>Kruskal's minimum spanning tree</strong> (sort edges, add if they join different groups)</td><td><strong>Union-find</strong></td></tr>
+<tr><td>Group items that are "equivalent" under a rule (accounts with a shared email)</td><td><strong>Union-find</strong></td></tr>
+<tr><td>Directed graph cycle / ordering</td><td>topological sort (file 20), not union-find</td></tr>
+<tr><td>Shortest paths</td><td>BFS or Dijkstra</td></tr>
+</tbody></table></div>
+<p><strong>Union-find cannot split groups</strong> (no "delete an edge"). If edges are removed, run it <strong>backwards in time</strong> (add them instead) or use another structure.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["Connectivity-style question"] --&gt; B{"Do edges or items get added over time&lt;br/&gt;and you keep asking about groups?"}
+    B --&gt;|Yes| C["Union-find"]
+    B --&gt;|No| D{"Need a path, distance, or order?"}
+    D --&gt;|Yes| E["BFS, DFS, Dijkstra, topological sort"]
+    D --&gt;|No| F["BFS/DFS flood fill is fine"]</pre></figure>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>4. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Number of Connected Components (LeetCode 323, Medium)</h3>
+<p><strong>Task.</strong> <code>n</code> nodes labeled <code>0..n−1</code> and a list of undirected edges. Return the number of connected components. <code>n = 5</code>, edges <code>[[0,1],[1,2],[3,4]]</code> → <code>2</code>.</p>
+<p><strong>Idea.</strong> Start with <code>n</code> groups (everyone alone). For each edge, <code>union</code> the endpoints; every successful merge reduces the group count by one. The final count is the answer. (BFS/DFS also works: this is the "new search per unvisited node" count.)</p>
+<p><strong>Trace.</strong> <code>n = 5</code></p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Edge</th><th>find roots</th><th>merged?</th><th>count</th></tr></thead><tbody>
+<tr><td>start</td><td></td><td></td><td>5</td></tr>
+<tr><td>0–1</td><td>different</td><td>yes</td><td>4</td></tr>
+<tr><td>1–2</td><td>different</td><td>yes</td><td>3</td></tr>
+<tr><td>3–4</td><td>different</td><td>yes</td><td>2</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p1" data-anim="components" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function countComponents(n: number, edges: number[][]): number {
+  const uf = new UnionFind(n);
+  for (const [a, b] of edges) uf.union(a, b);
+  return uf.count;
+}
+console.log(countComponents(5, [[0, 1], [1, 2], [3, 4]])); // 2
+console.log(countComponents(5, [[0, 1], [1, 2], [2, 3], [3, 4]])); // 1
+console.log(countComponents(3, [])); // 3</code></pre>
+<pre data-lang="go"><code class="language-go">func countComponents(n int, edges [][]int) int {
+	uf := NewUnionFind(n)
+	for _, e := range edges {
+		uf.Union(e[0], e[1])
+	}
+	return uf.Count
+}
+
+func exampleCountComponents() {
+	fmt.Println(countComponents(5, [][]int{{0, 1}, {1, 2}, {3, 4}}))         // 2
+	fmt.Println(countComponents(5, [][]int{{0, 1}, {1, 2}, {2, 3}, {3, 4}})) // 1
+	fmt.Println(countComponents(3, nil))                                     // 3
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O((V + E) · α(V))</code>, space <code>O(V)</code>.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Redundant Connection (LeetCode 684, Medium)</h3>
+<p><strong>Task.</strong> A tree with <code>n</code> nodes (labeled <code>1..n</code>) had <strong>one extra edge</strong> added, creating exactly one cycle. Given the edge list, return the edge that can be <strong>removed</strong> to make it a tree again; if several work, return the one that appears <strong>last</strong> in the input. <code>[[1,2],[1,3],[2,3]]</code> → <code>[2,3]</code>.</p>
+<p><strong>Idea.</strong> Add the edges one by one. An edge <code>(a, b)</code> is <strong>redundant</strong> exactly when <code>a</code> and <code>b</code> are <strong>already connected</strong>: the new edge would close a cycle. The first edge for which <code>union</code> returns <code>false</code> is the one that closes the cycle (and it is the last in input order among the cycle's edges).</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart LR
+    A1["1"] --- B1["2"]
+    A1 --- C1["3"]
+    B1 -.-&gt;|"closes the cycle"| C1</pre></figure>
+<p><strong>Trace.</strong> <code>[[1,2],[1,3],[2,3]]</code></p>
+<div class="table-wrap"><table id="tbl-4"><thead><tr><th>Edge</th><th>find(a), find(b)</th><th>action</th></tr></thead><tbody>
+<tr><td>1–2</td><td>different</td><td>merge</td></tr>
+<tr><td>1–3</td><td>different</td><td>merge</td></tr>
+<tr><td>2–3</td><td><strong>same leader</strong> (1)</td><td><strong>redundant: return [2,3]</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p2" data-anim="redundant" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function findRedundantConnection(edges: number[][]): number[] {
+  const uf = new UnionFind(edges.length + 1); // nodes are 1..n and a tree plus one edge has n edges
+  for (const [a, b] of edges) {
+    if (!uf.union(a, b)) return [a, b]; // already connected: this edge closes a cycle
+  }
+  return [];
+}
+console.log(findRedundantConnection([[1, 2], [1, 3], [2, 3]])); // [ 2, 3 ]
+console.log(findRedundantConnection([[1, 2], [2, 3], [3, 4], [1, 4], [1, 5]])); // [ 1, 4 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func findRedundantConnection(edges [][]int) []int {
+	uf := NewUnionFind(len(edges) + 1) // nodes are 1..n and a tree plus one edge has n edges
+	for _, e := range edges {
+		if !uf.Union(e[0], e[1]) {
+			return e // already connected: this edge closes a cycle
+		}
+	}
+	return nil
+}
+
+func exampleFindRedundantConnection() {
+	fmt.Println(findRedundantConnection([][]int{{1, 2}, {1, 3}, {2, 3}}))                   // [2 3]
+	fmt.Println(findRedundantConnection([][]int{{1, 2}, {2, 3}, {3, 4}, {1, 4}, {1, 5}})) // [1 4]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n · α(n))</code>, space <code>O(n)</code>.</p>
+<p><strong>Follow-up.</strong> <em>Redundant Connection II (LeetCode 685)</em> is the <strong>directed</strong> version: harder, needs care for nodes with two parents.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Graph Valid Tree (LeetCode 261, Medium)</h3>
+<p><strong>Task.</strong> <code>n</code> nodes and a list of undirected edges. Is the graph a <strong>valid tree</strong> (connected, no cycles)? <code>n = 5</code>, <code>[[0,1],[0,2],[0,3],[1,4]]</code> → <code>true</code>; <code>[[0,1],[1,2],[2,3],[1,3],[1,4]]</code> → <code>false</code>.</p>
+<p><strong>Idea.</strong> A tree on <code>n</code> nodes has <strong>exactly <code>n − 1</code> edges</strong>, is <strong>connected</strong>, and has <strong>no cycle</strong>. Any two of these imply the third. So:</p>
+<ol>
+<li>If <code>edges.length != n − 1</code>, answer <code>false</code> immediately.</li>
+<li>Union every edge. If any union finds the endpoints <strong>already connected</strong>, there is a cycle → <code>false</code>.</li>
+<li>With <code>n − 1</code> edges and no cycles, the graph is automatically connected → <code>true</code>.</li>
+</ol>
+<div class="stage" id="st-p3" data-anim="validTree" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function validTree(n: number, edges: number[][]): boolean {
+  if (edges.length !== n - 1) return false; // a tree has exactly n - 1 edges
+  const uf = new UnionFind(n);
+  for (const [a, b] of edges) {
+    if (!uf.union(a, b)) return false; // a cycle
+  }
+  return true; // n - 1 edges and no cycle: it must be connected
+}
+console.log(validTree(5, [[0, 1], [0, 2], [0, 3], [1, 4]])); // true
+console.log(validTree(5, [[0, 1], [1, 2], [2, 3], [1, 3], [1, 4]])); // false
+console.log(validTree(4, [[0, 1], [2, 3], [2, 3]])); // false   (a duplicate edge makes a cycle)
+console.log(validTree(1, [])); // true</code></pre>
+<pre data-lang="go"><code class="language-go">func validTree(n int, edges [][]int) bool {
+	if len(edges) != n-1 {
+		return false // a tree has exactly n - 1 edges
+	}
+	uf := NewUnionFind(n)
+	for _, e := range edges {
+		if !uf.Union(e[0], e[1]) {
+			return false // a cycle
+		}
+	}
+	return true // n - 1 edges and no cycle: it must be connected
+}
+
+func exampleValidTree() {
+	fmt.Println(validTree(5, [][]int{{0, 1}, {0, 2}, {0, 3}, {1, 4}}))         // true
+	fmt.Println(validTree(5, [][]int{{0, 1}, {1, 2}, {2, 3}, {1, 3}, {1, 4}})) // false
+	fmt.Println(validTree(4, [][]int{{0, 1}, {2, 3}, {2, 3}}))                 // false
+	fmt.Println(validTree(1, nil))                                             // true
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n · α(n))</code>, space <code>O(n)</code>.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Accounts Merge (LeetCode 721, Medium)</h3>
+<p><strong>Task.</strong> Each account is <code>[name, email1, email2, …]</code>. Two accounts belong to the <strong>same person</strong> if they share <strong>any email</strong> (names alone are not enough: two different people can share a name). Merge the accounts of the same person; return each as <code>[name, sorted emails…]</code>.</p>
+<p><strong>Idea.</strong> Treat <strong>emails</strong> as the items. All emails in one account belong together, so <code>union</code> the first email with each of the other emails of that account. After processing every account, the emails fall into groups: each group is one person. Remember each email's name, then collect groups by their leader.</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["Account 1: John, a, b"] --&gt; U["union(a, b)"]
+    B["Account 2: John, a, c"] --&gt; V["union(a, c)"]
+    C["Account 3: Mary, m"] --&gt; W["alone"]
+    U --&gt; G["group {a, b, c}: one person, John"]
+    V --&gt; G</pre></figure>
+<p><strong>Steps.</strong></p>
+<ol>
+<li>Give each distinct email an integer id (map: email → id) and remember <code>emailToName</code>.</li>
+<li>For each account: <code>union(id(first email), id(other email))</code>.</li>
+<li>Group all emails by <code>find(id)</code>.</li>
+<li>For each group: sort its emails, prepend the name.</li>
+</ol>
+<div class="stage" id="st-p4" data-anim="accounts" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function accountsMerge(accounts: string[][]): string[][] {
+  const emailId = new Map&lt;string, number&gt;();
+  const emailName = new Map&lt;string, string&gt;();
+  for (const [name, ...emails] of accounts) {
+    for (const email of emails) {
+      if (!emailId.has(email)) emailId.set(email, emailId.size);
+      emailName.set(email, name);
+    }
+  }
+  const uf = new UnionFind(emailId.size);
+  for (const [, first, ...rest] of accounts) {
+    for (const email of rest) uf.union(emailId.get(first)!, emailId.get(email)!); // same account = same person
+  }
+  const groups = new Map&lt;number, string[]&gt;(); // leader id -&gt; emails
+  for (const [email, id] of emailId) {
+    const leader = uf.find(id);
+    if (!groups.has(leader)) groups.set(leader, []);
+    groups.get(leader)!.push(email);
+  }
+  const merged = [...groups.values()].map((emails) =&gt; {
+    emails.sort();
+    return [emailName.get(emails[0])!, ...emails];
+  });
+  return merged.sort((a, b) =&gt; a[1].localeCompare(b[1])); // stable output order for display
+}
+console.log(accountsMerge([
+  ["John", "johnsmith@mail.com", "john_newyork@mail.com"],
+  ["John", "johnsmith@mail.com", "john00@mail.com"],
+  ["Mary", "mary@mail.com"],
+  ["John", "johnnybravo@mail.com"],
+]));
+// [ ['John','john00@mail.com','john_newyork@mail.com','johnsmith@mail.com'],
+//   ['John','johnnybravo@mail.com'], ['Mary','mary@mail.com'] ]</code></pre>
+<pre data-lang="go"><code class="language-go">func accountsMerge(accounts [][]string) [][]string {
+	emailID := make(map[string]int)
+	emailName := make(map[string]string)
+	for _, account := range accounts {
+		for _, email := range account[1:] {
+			if _, ok := emailID[email]; !ok {
+				emailID[email] = len(emailID)
+			}
+			emailName[email] = account[0]
+		}
+	}
+	uf := NewUnionFind(len(emailID))
+	for _, account := range accounts {
+		for _, email := range account[2:] {
+			uf.Union(emailID[account[1]], emailID[email]) // same account = same person
+		}
+	}
+	groups := make(map[int][]string) // leader id -&gt; emails
+	for email, id := range emailID {
+		leader := uf.Find(id)
+		groups[leader] = append(groups[leader], email)
+	}
+	merged := make([][]string, 0, len(groups))
+	for _, emails := range groups {
+		sort.Strings(emails)
+		merged = append(merged, append([]string{emailName[emails[0]]}, emails...))
+	}
+	sort.Slice(merged, func(i, j int) bool { return merged[i][1] &lt; merged[j][1] }) // stable output order for display
+	return merged
+}
+
+func exampleAccountsMerge() {
+	result := accountsMerge([][]string{
+		{"John", "johnsmith@mail.com", "john_newyork@mail.com"},
+		{"John", "johnsmith@mail.com", "john00@mail.com"},
+		{"Mary", "mary@mail.com"},
+		{"John", "johnnybravo@mail.com"},
+	})
+	for _, account := range result {
+		fmt.Println(account)
+	}
+	// [John john00@mail.com john_newyork@mail.com johnsmith@mail.com]
+	// [John johnnybravo@mail.com]
+	// [Mary mary@mail.com]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> With <code>E</code> total emails: time <code>O(E · α(E) + E log E)</code> (the sorting dominates), space <code>O(E)</code>.</p>
+<p><strong>Why union-find over DFS here?</strong> DFS needs you to build a graph (an email adjacency list) first. Union-find merges directly while reading the input, with no graph building.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Number of Islands II (LeetCode 305, Hard)</h3>
+<p><strong>Task.</strong> A <code>m × n</code> grid starts as all water. A list of positions turns water into land one at a time. After <strong>each</strong> addition, return the number of islands. <code>m = 3, n = 3</code>, positions <code>[[0,0],[0,1],[1,2],[2,1]]</code> → <code>[1, 1, 2, 3]</code>.</p>
+<p><strong>Why union-find, not BFS.</strong> After each addition, re-running Number of Islands (file 19) costs <code>O(m·n)</code>, so <code>O(k · m · n)</code> total: too slow. Union-find handles <strong>dynamic</strong> growth: each new land cell either creates a new island (+1) or merges with neighboring land (−1 per successful merge).</p>
+<p><strong>Idea.</strong></p>
+<ol>
+<li>Flatten <code>(r, c)</code> to a single id: <code>r * n + c</code>.</li>
+<li>Keep a <code>land</code> array. When a cell is added:</li>
+<ul>
+<li>If it is already land, the count is unchanged (a repeated position).</li>
+<li>Otherwise <code>count++</code> (a new island).</li>
+<li>For each of its four neighbors that is land, <code>union</code>; every union that <strong>actually merges</strong> two different groups does <code>count--</code>.</li>
+</ul>
+<li>Record <code>count</code> after each addition.</li>
+</ol>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["Add land at (r, c)"] --&gt; B{"already land?"}
+    B --&gt;|Yes| H["record the same count"]
+    B --&gt;|No| C["count++  (a brand new island)"]
+    C --&gt; D["for each of the 4 neighbors that is land"]
+    D --&gt; E{"union merged two different groups?"}
+    E --&gt;|Yes| F["count--"]
+    E --&gt;|No| G["no change"]
+    F --&gt; D
+    G --&gt; D
+    D --&gt; H</pre></figure>
+<p><strong>Trace.</strong> 3×3 grid; positions <code>(0,0), (0,1), (1,2), (2,1)</code></p>
+<div class="table-wrap"><table id="tbl-5"><thead><tr><th>Add</th><th>New island?</th><th>Merges</th><th>count</th></tr></thead><tbody>
+<tr><td>(0,0)</td><td>+1</td><td>none</td><td>1</td></tr>
+<tr><td>(0,1)</td><td>+1</td><td>joins (0,0): −1</td><td>1</td></tr>
+<tr><td>(1,2)</td><td>+1</td><td>no land neighbors</td><td>2</td></tr>
+<tr><td>(2,1)</td><td>+1</td><td>no land neighbors (its neighbors (1,1), (2,0), (2,2) are water)</td><td>3</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p5" data-anim="islands2" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function numIslands2(m: number, n: number, positions: number[][]): number[] {
+  const uf = new UnionFind(m * n);
+  const land = new Array&lt;boolean&gt;(m * n).fill(false);
+  let islands = 0;
+  const answer: number[] = [];
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (const [r, c] of positions) {
+    const id = r * n + c;
+    if (!land[id]) {
+      land[id] = true;
+      islands++; // assume a new island...
+      for (const [dr, dc] of dirs) {
+        const nr = r + dr, nc = c + dc;
+        if (nr &lt; 0 || nr &gt;= m || nc &lt; 0 || nc &gt;= n || !land[nr * n + nc]) continue;
+        if (uf.union(id, nr * n + nc)) islands--; // ...each real merge removes one island
+      }
+    }
+    answer.push(islands);
+  }
+  return answer;
+}
+console.log(numIslands2(3, 3, [[0, 0], [0, 1], [1, 2], [2, 1]])); // [ 1, 1, 2, 3 ]
+console.log(numIslands2(3, 3, [[0, 0], [0, 1], [1, 2], [1, 2]])); // [ 1, 1, 2, 2 ]  (the repeat is ignored)
+console.log(numIslands2(1, 1, [[0, 0]])); // [ 1 ]
+console.log(numIslands2(3, 3, [[0, 0], [1, 1], [0, 1]])); // [ 1, 2, 1 ]  (the third cell bridges the two)</code></pre>
+<pre data-lang="go"><code class="language-go">func numIslands2(m, n int, positions [][]int) []int {
+	uf := NewUnionFind(m * n)
+	land := make([]bool, m*n)
+	islands := 0
+	answer := make([]int, 0, len(positions))
+	dirs := [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
+	for _, p := range positions {
+		r, c := p[0], p[1]
+		id := r*n + c
+		if !land[id] {
+			land[id] = true
+			islands++ // assume a new island...
+			for _, d := range dirs {
+				nr, nc := r+d[0], c+d[1]
+				if nr &lt; 0 || nr &gt;= m || nc &lt; 0 || nc &gt;= n || !land[nr*n+nc] {
+					continue
+				}
+				if uf.Union(id, nr*n+nc) {
+					islands-- // ...each real merge removes one island
+				}
+			}
+		}
+		answer = append(answer, islands)
+	}
+	return answer
+}
+
+func exampleNumIslands2() {
+	fmt.Println(numIslands2(3, 3, [][]int{{0, 0}, {0, 1}, {1, 2}, {2, 1}})) // [1 1 2 3]
+	fmt.Println(numIslands2(3, 3, [][]int{{0, 0}, {0, 1}, {1, 2}, {1, 2}})) // [1 1 2 2]
+	fmt.Println(numIslands2(1, 1, [][]int{{0, 0}}))                         // [1]
+	fmt.Println(numIslands2(3, 3, [][]int{{0, 0}, {1, 1}, {0, 1}}))         // [1 2 1]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(k · α(m·n))</code> for <code>k</code> positions (plus <code>O(m·n)</code> to initialize), space <code>O(m·n)</code>.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Not initializing <code>parent[i] = i</code>.</strong></li>
+<li><strong>Comparing <code>parent[a]</code> and <code>parent[b]</code></strong> instead of <code>find(a)</code> and <code>find(b)</code> (parents are not leaders).</li>
+<li><strong>Storing a leader and reusing it</strong> after unions (it can change).</li>
+<li><strong>Forgetting to decrement <code>count</code></strong> only on a <em>successful</em> merge.</li>
+<li><strong>Mixing 0-based and 1-based nodes</strong> (Redundant Connection uses <code>1..n</code>; allocate <code>n + 1</code>).</li>
+<li><strong>No size/rank and no path compression</strong> (degenerates to <code>O(n)</code> per find).</li>
+<li><strong>Using union-find for directed cycle detection</strong> (it only understands undirected connectivity).</li>
+<li><strong>Trying to "un-union"</strong>: it is not supported.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Write it from memory</h3>
+<p>From memory: write <code>find</code> with path halving, then <code>union</code> by size. Say what each of the three lines in <code>find</code>'s loop does.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The loop in <code>find</code> runs while <code>parent[x] !== x</code> (x is not a leader yet). Line one, <code>parent[x] = parent[parent[x]]</code>, points x at its grandparent: path halving, so later finds are shorter. Line two, <code>x = parent[x]</code>, climbs. After the loop, return x, the leader. <code>union</code> finds both leaders, returns false if they are equal, hangs the smaller tree's leader under the bigger one, adds the sizes and decrements <code>count</code>.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Four unions</h3>
+<p>Run <code>union(1,2), union(3,4), union(2,4), union(1,3)</code> on a fresh structure and report <code>count</code> and each return value.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><code>union(1,2)</code> → true; <code>union(3,4)</code> → true; <code>union(2,4)</code> → true (it joins {1,2} and {3,4}); <code>union(1,3)</code> → <strong>false</strong>, they are already together. Three successful merges, so <code>count</code> = n − 3: with n = 5 (items 0..4) that is 2 groups, {0} and {1,2,3,4}. The third preset of the first animation runs exactly this.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Number of Provinces</h3>
+<p><em>Number of Provinces</em> (LeetCode 547): the input is an adjacency <strong>matrix</strong>. Which loop bounds do you need so you union each pair only once?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The matrix is symmetric and its diagonal is all 1s, so union only the upper triangle: <code>for i in 0..n-1, for j in i+1..n-1, if isConnected[i][j] == 1: union(i, j)</code>. The answer is <code>count</code>. (BFS or DFS from each unvisited city also works.)</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Equality equations</h3>
+<p><em>Satisfiability of Equality Equations</em> (LeetCode 990): process all <code>==</code> first, then check each <code>!=</code>. Why in that order?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The <code>==</code> equations build the groups; a <code>!=</code> can only be checked once every group is complete. If you checked <code>a != b</code> first, a later <code>a == c</code> and <code>c == b</code> could still put a and b together. So: union every <code>==</code>, then for each <code>!=</code> return false if <code>find(a) === find(b)</code>.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Kruskal</h3>
+<p><strong>Kruskal's algorithm</strong> for the minimum spanning tree: sort edges by weight, add an edge only if it joins two different groups. Which operation tells you that?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><strong><code>union</code>'s return value</strong> (or comparing <code>find(a)</code> and <code>find(b)</code>). Sort edges by weight; for each, if <code>union(a, b)</code> returns true, the edge joins two different trees, so add it to the spanning tree; if false, it would close a cycle, so skip it. Stop after V − 1 edges. Cost <code>O(E log E)</code>, from the sort.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="uf21"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/21.js"></script>
+</body>
+</html>

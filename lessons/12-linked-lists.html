@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="12" data-pattern="Linked list">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12 Linked lists | Algorithm guide</title>
+<meta name="description" content="Linked lists animated: reversing arrows, merging with a dummy, Floyd&#x27;s cycle detection, gap pointers, adding digits and reordering.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 12</span><span>Data structures</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Linked lists</h1>
+<p class="sub">Following a chain of "what comes next".</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 2 (arrays vs. linked lists). File 09 already compared them on memory and speed. This file is about <em>using</em> a linked list: the pointer moves interviewers love (reverse, merge, find the middle, detect a cycle). It covers v2 question #1 (Reverse Linked List) and adds five more.</p></blockquote>
+<div class="glance"><div><b>The golden rule</b><p>Before you overwrite <code>node.next</code>, save what it pointed to.</p></div><div><b>Five tools</b><p>Dummy node, prev/cur/next, slow and fast, gap pointers, reverse a segment.</p></div><div><b>What it costs</b><p>Usually <code>O(n)</code> time and <code>O(1)</code> extra space: you rewire, you do not copy.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>A <strong>linked list</strong> is a chain of small boxes called <strong>nodes</strong>. Each node holds a <strong>value</strong> and a <strong>pointer</strong> (an arrow) to the <strong>next</strong> node. The last node's pointer is <code>null</code> ("nothing comes next"). You hold only the <strong>head</strong>, the first box. To reach any other box you must follow the arrows.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    H["head"] --&gt; A["1"] --&gt; B["2"] --&gt; C["3"] --&gt; N["null"]</pre></figure>
+<p>Why interviewers like them: there is no index to lean on, so every problem becomes a puzzle about <strong>moving and rewiring arrows without losing the rest of the chain</strong>. If you change an arrow too early, the rest of the list is gone forever.</p>
+<h3 id="the-golden-rule">The golden rule</h3>
+<blockquote><p><strong>Before you overwrite <code>node.next</code>, save what it pointed to.</strong></p></blockquote>
+<p>Almost every bug in this topic is a lost reference.</p>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>2. How to recognize it</h2>
+<ul>
+<li>The input is described as a "linked list" or shows <code>ListNode</code>.</li>
+<li>Words like: "in place", "<code>O(1)</code> extra space", "without using extra memory".</li>
+<li>"Find the middle", "k-th from the end", "detect a loop", "reverse (part of) the list", "merge", "reorder".</li>
+</ul>
+</section>
+<section class="sec" id="the-five-tools-to-own">
+<h2>3. The five tools to own</h2>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    T["Linked list toolbox"] --&gt; D["1. Dummy node&lt;br/&gt;removes special cases for the head"]
+    T --&gt; P["2. Previous / current / next&lt;br/&gt;for rewiring arrows safely"]
+    T --&gt; S["3. Slow and fast pointers&lt;br/&gt;middle and cycles"]
+    T --&gt; G["4. Gap pointers&lt;br/&gt;k-th from the end"]
+    T --&gt; R["5. Reverse a segment&lt;br/&gt;the building block of harder problems"]</pre></figure>
+<h3 id="tool-1-the-dummy-node">Tool 1 · The dummy node</h3>
+<p>Many operations have an ugly special case when the <strong>head</strong> changes (you delete the first node, or the new first node is chosen during a merge). A <strong>dummy node</strong> is a fake node placed <em>before</em> the head. Then every real node, including the head, has a predecessor, and the code has no special case. At the end, return <code>dummy.next</code>.</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart LR
+    D["dummy (fake)"] --&gt; H["head"] --&gt; B["2"] --&gt; C["3"] --&gt; N["null"]</pre></figure>
+<h3 id="tool-2-previous-current-next">Tool 2 · Previous / current / next</h3>
+<p>To reverse arrows you walk with three references: where you came from (<code>prev</code>), where you are (<code>cur</code>), and where you are going (<code>next</code>, saved <em>before</em> rewiring).</p>
+<h3 id="tool-3-slow-and-fast-pointers-tortoise-and-hare">Tool 3 · Slow and fast pointers ("tortoise and hare")</h3>
+<p>Move <code>slow</code> one step and <code>fast</code> two steps per round. When <code>fast</code> reaches the end, <code>slow</code> is at the <strong>middle</strong>. If there is a cycle, <code>fast</code> laps <code>slow</code> and they must meet.</p>
+<h3 id="tool-4-gap-pointers">Tool 4 · Gap pointers</h3>
+<p>To find the <code>n</code>-th node <strong>from the end</strong> without knowing the length: send <code>fast</code> <code>n</code> steps ahead, then move both together. When <code>fast</code> falls off the end, <code>slow</code> is exactly <code>n</code> from the end.</p>
+<h3 id="tool-5-reverse-a-segment">Tool 5 · Reverse a segment</h3>
+<p>Reversal is used inside many harder problems (palindrome list, reorder list, reverse in groups).</p>
+</section>
+<section class="sec" id="setup-used-by-every-example-below">
+<h2>4. Setup used by every example below</h2>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="node class and helpers to build and print lists"><code class="language-ts">class ListNode {
+  constructor(public val: number, public next: ListNode | null = null) {}
+}
+
+function fromArray(values: number[]): ListNode | null {
+  const dummy = new ListNode(0);
+  let tail = dummy;
+  for (const v of values) {
+    tail.next = new ListNode(v);
+    tail = tail.next;
+  }
+  return dummy.next;
+}
+
+function toArray(head: ListNode | null, limit = 1000): number[] {
+  const out: number[] = [];
+  for (let n = head; n !== null &amp;&amp; out.length &lt; limit; n = n.next) out.push(n.val);
+  return out;
+}
+
+// Build a list whose tail points back to the node at index `pos` (-1 = no cycle).
+function fromArrayWithCycle(values: number[], pos: number): ListNode | null {
+  const head = fromArray(values);
+  if (pos &lt; 0 || head === null) return head;
+  let target: ListNode = head, tail: ListNode = head;
+  for (let i = 0; i &lt; pos; i++) target = target.next!;
+  while (tail.next !== null) tail = tail.next;
+  tail.next = target;
+  return head;
+}
+
+console.log(toArray(fromArray([1, 2, 3]))); // [ 1, 2, 3 ]</code></pre>
+<pre data-lang="go" data-caption="node struct and helpers to build and print lists"><code class="language-go">type ListNode struct {
+	Val  int
+	Next *ListNode
+}
+
+func fromSlice(values []int) *ListNode {
+	dummy := &amp;ListNode{}
+	tail := dummy
+	for _, v := range values {
+		tail.Next = &amp;ListNode{Val: v}
+		tail = tail.Next
+	}
+	return dummy.Next
+}
+
+func toSlice(head *ListNode) []int {
+	out := []int{}
+	for n := head; n != nil &amp;&amp; len(out) &lt; 1000; n = n.Next {
+		out = append(out, n.Val)
+	}
+	return out
+}
+
+// Build a list whose tail points back to the node at index pos (-1 = no cycle).
+func fromSliceWithCycle(values []int, pos int) *ListNode {
+	head := fromSlice(values)
+	if pos &lt; 0 || head == nil {
+		return head
+	}
+	target, tail := head, head
+	for i := 0; i &lt; pos; i++ {
+		target = target.Next
+	}
+	for tail.Next != nil {
+		tail = tail.Next
+	}
+	tail.Next = target
+	return head
+}
+
+func exampleListSetup() {
+	fmt.Println(toSlice(fromSlice([]int{1, 2, 3}))) // [1 2 3]
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>5. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Reverse Linked List (LeetCode 206, Easy; v2 list #1)</h3>
+<p><strong>Task.</strong> Reverse a list. <code>1 → 2 → 3 → null</code> becomes <code>3 → 2 → 1 → null</code>.</p>
+<p><strong>Thinking.</strong> Walk down the list, and for each node <strong>point its arrow backwards</strong> at the node before it. Keep three references. The order of the four lines inside the loop matters:</p>
+<ol>
+<li>Save <code>next = cur.next</code> (otherwise we lose the rest).</li>
+<li>Flip: <code>cur.next = prev</code>.</li>
+<li>Move <code>prev</code> forward: <code>prev = cur</code>.</li>
+<li>Move <code>cur</code> forward: <code>cur = next</code>.</li>
+</ol>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["prev = null, cur = head"] --&gt; B{"cur is null?"}
+    B --&gt;|Yes| Z["return prev (the new head)"]
+    B --&gt;|No| C["next = cur.next   (save the rest)"]
+    C --&gt; D["cur.next = prev   (flip the arrow)"]
+    D --&gt; E["prev = cur"]
+    E --&gt; F["cur = next"]
+    F --&gt; B</pre></figure>
+<p><strong>Trace.</strong> <code>1 → 2 → 3</code></p>
+<div class="table-wrap"><table id="tbl-1" class="trace"><thead><tr><th>Step</th><th>prev</th><th>cur</th><th>next (saved)</th><th>List state after the flip</th></tr></thead><tbody>
+<tr><td>start</td><td>null</td><td>1</td><td></td><td><code>1 → 2 → 3</code></td></tr>
+<tr><td>1</td><td>1</td><td>2</td><td>2</td><td><code>null ← 1</code> and <code>2 → 3</code></td></tr>
+<tr><td>2</td><td>2</td><td>3</td><td>3</td><td><code>null ← 1 ← 2</code> and <code>3</code></td></tr>
+<tr><td>3</td><td>3</td><td>null</td><td>null</td><td><code>null ← 1 ← 2 ← 3</code></td></tr>
+<tr><td>end</td><td></td><td></td><td></td><td>return <code>prev</code> = 3</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p1" data-anim="reverseIter,reverseRec" data-code="code-2" data-flow="fig-4,"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts" data-caption="iterative and recursive"><code class="language-ts">function reverseList(head: ListNode | null): ListNode | null {
+  let prev: ListNode | null = null;
+  let cur = head;
+  while (cur !== null) {
+    const next = cur.next; // 1. save the rest of the list
+    cur.next = prev; // 2. flip the arrow
+    prev = cur; // 3. step forward
+    cur = next; // 4.
+  }
+  return prev;
+}
+
+// Recursive version: trust that reverseListRec(head.next) returns the reversed rest.
+function reverseListRec(head: ListNode | null): ListNode | null {
+  if (head === null || head.next === null) return head; // base case: 0 or 1 node
+  const newHead = reverseListRec(head.next); // the rest, already reversed
+  head.next.next = head; // the node after me must now point back at me
+  head.next = null; // and I become the tail
+  return newHead;
+}
+
+console.log(toArray(reverseList(fromArray([1, 2, 3])))); // [ 3, 2, 1 ]
+console.log(toArray(reverseListRec(fromArray([1, 2, 3, 4])))); // [ 4, 3, 2, 1 ]
+console.log(toArray(reverseList(null))); // []
+console.log(toArray(reverseList(fromArray([7])))); // [ 7 ]</code></pre>
+<pre data-lang="go" data-caption="iterative and recursive"><code class="language-go">func reverseList(head *ListNode) *ListNode {
+	var prev *ListNode
+	cur := head
+	for cur != nil {
+		next := cur.Next // 1. save the rest of the list
+		cur.Next = prev  // 2. flip the arrow
+		prev = cur       // 3. step forward
+		cur = next       // 4.
+	}
+	return prev
+}
+
+// Recursive version: trust that reverseListRec(head.Next) returns the reversed rest.
+func reverseListRec(head *ListNode) *ListNode {
+	if head == nil || head.Next == nil {
+		return head // base case: 0 or 1 node
+	}
+	newHead := reverseListRec(head.Next) // the rest, already reversed
+	head.Next.Next = head                // the node after me must now point back at me
+	head.Next = nil                      // and I become the tail
+	return newHead
+}
+
+func exampleReverseList() {
+	fmt.Println(toSlice(reverseList(fromSlice([]int{1, 2, 3}))))       // [3 2 1]
+	fmt.Println(toSlice(reverseListRec(fromSlice([]int{1, 2, 3, 4})))) // [4 3 2 1]
+	fmt.Println(toSlice(reverseList(nil)))                              // []
+	fmt.Println(toSlice(reverseList(fromSlice([]int{7}))))              // [7]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Iterative: time <code>O(n)</code>, space <code>O(1)</code>. Recursive: time <code>O(n)</code>, space <code>O(n)</code> (call stack).</p>
+<p><strong>Follow-up.</strong> <em>"Reverse only positions <code>left</code> to <code>right</code> (LeetCode 92)"</em> or <em>"reverse in groups of <code>k</code> (LeetCode 25)"</em>: reverse a segment and reconnect its two ends. Use a dummy node and save the node before the segment.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Merge Two Sorted Lists (LeetCode 21, Easy)</h3>
+<p><strong>Task.</strong> Merge two sorted lists into one sorted list by re-using the nodes. <code>1→2→4</code> and <code>1→3→4</code> → <code>1→1→2→3→4→4</code>.</p>
+<p><strong>Thinking.</strong> Use a <strong>dummy node</strong> and a <code>tail</code> pointer. Compare the fronts of both lists, attach the smaller one to <code>tail</code>, advance that list. When one list runs out, attach the <strong>rest of the other</strong>: it is already sorted, so no more comparing.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["tail starts at dummy"] --&gt; B{"Both lists non-empty?"}
+    B --&gt;|Yes| C{"a.val &lt;= b.val ?"}
+    C --&gt;|Yes| D["tail.next = a ; a = a.next"]
+    C --&gt;|No| E["tail.next = b ; b = b.next"]
+    D --&gt; F["tail = tail.next"]
+    E --&gt; F
+    F --&gt; B
+    B --&gt;|No| G["tail.next = whichever list still has nodes"]
+    G --&gt; H["return dummy.next"]</pre></figure>
+<div class="stage" id="st-p2" data-anim="mergeLists" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function mergeTwoLists(a: ListNode | null, b: ListNode | null): ListNode | null {
+  const dummy = new ListNode(0);
+  let tail = dummy;
+  while (a !== null &amp;&amp; b !== null) {
+    if (a.val &lt;= b.val) {
+      tail.next = a;
+      a = a.next;
+    } else {
+      tail.next = b;
+      b = b.next;
+    }
+    tail = tail.next;
+  }
+  tail.next = a !== null ? a : b; // attach the leftover (already sorted)
+  return dummy.next;
+}
+console.log(toArray(mergeTwoLists(fromArray([1, 2, 4]), fromArray([1, 3, 4])))); // [ 1, 1, 2, 3, 4, 4 ]
+console.log(toArray(mergeTwoLists(null, fromArray([0])))); // [ 0 ]
+console.log(toArray(mergeTwoLists(null, null))); // []</code></pre>
+<pre data-lang="go"><code class="language-go">func mergeTwoLists(a, b *ListNode) *ListNode {
+	dummy := &amp;ListNode{}
+	tail := dummy
+	for a != nil &amp;&amp; b != nil {
+		if a.Val &lt;= b.Val {
+			tail.Next = a
+			a = a.Next
+		} else {
+			tail.Next = b
+			b = b.Next
+		}
+		tail = tail.Next
+	}
+	if a != nil {
+		tail.Next = a // attach the leftover (already sorted)
+	} else {
+		tail.Next = b
+	}
+	return dummy.Next
+}
+
+func exampleMergeTwoLists() {
+	fmt.Println(toSlice(mergeTwoLists(fromSlice([]int{1, 2, 4}), fromSlice([]int{1, 3, 4})))) // [1 1 2 3 4 4]
+	fmt.Println(toSlice(mergeTwoLists(nil, fromSlice([]int{0}))))                             // [0]
+	fmt.Println(toSlice(mergeTwoLists(nil, nil)))                                             // []
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(a + b)</code>, space <code>O(1)</code>.</p>
+<p><strong>Follow-up.</strong> <em>"Merge <code>k</code> sorted lists (LeetCode 23)"</em>: repeatedly merging is <code>O(k · N)</code>; a <strong>min-heap</strong> of the <code>k</code> current fronts gives <code>O(N log k)</code> (file 17).</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Linked List Cycle and where it starts (LeetCode 141 and 142, Medium)</h3>
+<p><strong>Task.</strong> (a) Does the list contain a cycle (some <code>next</code> points back to an earlier node)? (b) If so, which node starts the cycle? Use <code>O(1)</code> extra memory.</p>
+<p><strong>Easy answer with memory.</strong> Store visited nodes in a set; the first repeated node is the cycle start. <code>O(n)</code> time and memory. Say this first, then improve.</p>
+<p><strong>The slow/fast answer.</strong> <code>slow</code> moves 1 step, <code>fast</code> moves 2 steps. Without a cycle, <code>fast</code> reaches <code>null</code>. With a cycle, both end up circling in it, and <code>fast</code> gains 1 step per round, so it must land exactly on <code>slow</code> (the gap shrinks by 1 each round and cannot jump over 0).</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart LR
+    A["1"] --&gt; B["2"] --&gt; C["3"] --&gt; D["4"] --&gt; E["5"] --&gt; F["6"]
+    F --&gt; C</pre></figure>
+<p><strong>Finding the start (the clever part).</strong> After they meet:</p>
+<ol>
+<li>Put a pointer at the <strong>head</strong> and keep one at the <strong>meeting point</strong>.</li>
+<li>Move both <strong>one step at a time</strong>.</li>
+<li>They meet again exactly at the <strong>cycle start</strong>.</li>
+</ol>
+<p><strong>Why this works (proof in plain words).</strong></p>
+<ul>
+<li>Let <code>a</code> = distance from head to the cycle start, <code>c</code> = the cycle length, and <code>b</code> = how far past the start the meeting point lies.</li>
+<li>When they meet, slow has walked <code>a + b</code> steps; fast has walked <code>2(a + b)</code>. Fast has done extra laps: the difference <code>a + b</code> must be a whole number of cycle laps, say <code>a + b = k·c</code>.</li>
+<li>So <code>a = k·c − b</code>: walking <code>a</code> steps from the meeting point lands you exactly at the cycle start (go forward <code>c − b</code> to finish the lap to the start, plus <code>(k − 1)</code> more laps).</li>
+<li>A pointer starting at the head also takes <code>a</code> steps to get to the start. Same distance, so they arrive together.</li>
+</ul>
+<div class="stage" id="st-p3" data-anim="detectCycle" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function hasCycle(head: ListNode | null): boolean {
+  let slow = head, fast = head;
+  while (fast !== null &amp;&amp; fast.next !== null) {
+    slow = slow!.next;
+    fast = fast.next.next;
+    if (slow === fast) return true;
+  }
+  return false;
+}
+
+function detectCycle(head: ListNode | null): ListNode | null {
+  let slow = head, fast = head;
+  while (fast !== null &amp;&amp; fast.next !== null) {
+    slow = slow!.next;
+    fast = fast.next.next;
+    if (slow === fast) {
+      let ptr = head; // restart one pointer at the head
+      while (ptr !== slow) {
+        ptr = ptr!.next;
+        slow = slow!.next;
+      }
+      return ptr; // both arrive at the cycle start together
+    }
+  }
+  return null;
+}
+
+const looped = fromArrayWithCycle([1, 2, 3, 4, 5, 6], 2); // tail points back to the node with value 3
+console.log(hasCycle(looped)); // true
+console.log(detectCycle(looped)?.val); // 3
+console.log(hasCycle(fromArray([1, 2, 3]))); // false
+console.log(detectCycle(fromArray([1, 2, 3]))); // null
+console.log(detectCycle(fromArrayWithCycle([1], 0))?.val); // 1  (a node pointing at itself)</code></pre>
+<pre data-lang="go"><code class="language-go">func hasCycle(head *ListNode) bool {
+	slow, fast := head, head
+	for fast != nil &amp;&amp; fast.Next != nil {
+		slow = slow.Next
+		fast = fast.Next.Next
+		if slow == fast {
+			return true
+		}
+	}
+	return false
+}
+
+func detectCycle(head *ListNode) *ListNode {
+	slow, fast := head, head
+	for fast != nil &amp;&amp; fast.Next != nil {
+		slow = slow.Next
+		fast = fast.Next.Next
+		if slow == fast {
+			ptr := head // restart one pointer at the head
+			for ptr != slow {
+				ptr = ptr.Next
+				slow = slow.Next
+			}
+			return ptr // both arrive at the cycle start together
+		}
+	}
+	return nil
+}
+
+func exampleDetectCycle() {
+	looped := fromSliceWithCycle([]int{1, 2, 3, 4, 5, 6}, 2) // tail points back to the node with value 3
+	fmt.Println(hasCycle(looped))                              // true
+	fmt.Println(detectCycle(looped).Val)                       // 3
+	fmt.Println(hasCycle(fromSlice([]int{1, 2, 3})))           // false
+	fmt.Println(detectCycle(fromSlice([]int{1, 2, 3})) == nil) // true
+	fmt.Println(detectCycle(fromSliceWithCycle([]int{1}, 0)).Val) // 1  (a node pointing at itself)
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(1)</code>.</p>
+<p><strong>Why <code>fast</code> moves two and not three?</strong> With step 2 the gap changes by exactly 1 per round, so they can never skip over each other. With step 3 the gap changes by 2, and the pointers could jump past each other inside an odd-length cycle (they'd still meet eventually, but the proof is harder).</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Remove the N-th Node From the End (LeetCode 19, Medium)</h3>
+<p><strong>Task.</strong> Remove the <code>n</code>-th node from the <strong>end</strong> in <strong>one pass</strong>. <code>1→2→3→4→5</code>, <code>n = 2</code> → <code>1→2→3→5</code>.</p>
+<p><strong>Thinking.</strong> We do not know the length, so we cannot count from the front. Use the <strong>gap trick</strong>: put <code>fast</code> exactly <code>n + 1</code> nodes ahead of <code>slow</code> (starting from the dummy). Move both until <code>fast</code> falls off the end. Now <code>slow</code> is just <em>before</em> the node to delete, because the gap preserved the distance. Delete with <code>slow.next = slow.next.next</code>.</p>
+<p>The dummy node handles removing the head (when <code>n</code> equals the list length).</p>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["Start slow = dummy, fast = dummy"] --&gt; B["Move fast n + 1 steps ahead"]
+    B --&gt; C["Move slow and fast together until fast is null"]
+    C --&gt; D["slow is right before the target"]
+    D --&gt; E["slow.next = slow.next.next  (skip the target)"]</pre></figure>
+<p><strong>Trace.</strong> <code>1→2→3→4→5</code>, <code>n = 2</code> (delete value 4)</p>
+<div class="table-wrap"><table id="tbl-2" class="trace"><thead><tr><th>Moment</th><th>slow at</th><th>fast at</th></tr></thead><tbody>
+<tr><td>after moving fast 3 steps (n+1)</td><td>dummy</td><td>3</td></tr>
+<tr><td>together</td><td>1</td><td>4</td></tr>
+<tr><td>together</td><td>2</td><td>5</td></tr>
+<tr><td>together</td><td>3</td><td>null (stop)</td></tr>
+<tr><td>delete</td><td><code>3.next = 3.next.next</code> → skips 4</td><td></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p4" data-anim="removeNth" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function removeNthFromEnd(head: ListNode | null, n: number): ListNode | null {
+  const dummy = new ListNode(0, head);
+  let slow: ListNode = dummy;
+  let fast: ListNode | null = dummy;
+  for (let i = 0; i &lt;= n; i++) fast = fast!.next; // gap of n + 1 nodes
+  while (fast !== null) {
+    fast = fast.next;
+    slow = slow.next!;
+  }
+  slow.next = slow.next!.next; // skip the target node
+  return dummy.next;
+}
+console.log(toArray(removeNthFromEnd(fromArray([1, 2, 3, 4, 5]), 2))); // [ 1, 2, 3, 5 ]
+console.log(toArray(removeNthFromEnd(fromArray([1]), 1))); // []
+console.log(toArray(removeNthFromEnd(fromArray([1, 2]), 2))); // [ 2 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func removeNthFromEnd(head *ListNode, n int) *ListNode {
+	dummy := &amp;ListNode{Next: head}
+	slow, fast := dummy, dummy
+	for i := 0; i &lt;= n; i++ {
+		fast = fast.Next // gap of n + 1 nodes
+	}
+	for fast != nil {
+		fast = fast.Next
+		slow = slow.Next
+	}
+	slow.Next = slow.Next.Next // skip the target node
+	return dummy.Next
+}
+
+func exampleRemoveNthFromEnd() {
+	fmt.Println(toSlice(removeNthFromEnd(fromSlice([]int{1, 2, 3, 4, 5}), 2))) // [1 2 3 5]
+	fmt.Println(toSlice(removeNthFromEnd(fromSlice([]int{1}), 1)))             // []
+	fmt.Println(toSlice(removeNthFromEnd(fromSlice([]int{1, 2}), 2)))          // [2]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code> (one pass), space <code>O(1)</code>.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Add Two Numbers (LeetCode 2, Medium)</h3>
+<p><strong>Task.</strong> Two non-negative numbers are stored as lists with the digits in <strong>reverse order</strong> (the head is the ones digit). Add them and return the sum in the same form. <code>2→4→3</code> (342) + <code>5→6→4</code> (465) = <code>7→0→8</code> (807).</p>
+<p><strong>Why reverse order is a gift:</strong> the ones digit comes first, which is exactly the order you add on paper, with a <strong>carry</strong> moving to the next digit.</p>
+<p><strong>Thinking.</strong> Walk both lists together. At each step: <code>sum = a.digit + b.digit + carry</code>. The new digit is <code>sum % 10</code>; the new carry is <code>⌊sum / 10⌋</code>. Treat a missing node as digit 0. <strong>Keep going while either list has nodes or a carry remains</strong>, because <code>99 + 1 = 100</code> needs a new last digit.</p>
+<p><strong>Trace.</strong> <code>9→9</code> + <code>1</code></p>
+<div class="table-wrap"><table id="tbl-3" class="trace"><thead><tr><th>Step</th><th>a</th><th>b</th><th>carry in</th><th>sum</th><th>digit</th><th>carry out</th></tr></thead><tbody>
+<tr><td>1</td><td>9</td><td>1</td><td>0</td><td>10</td><td>0</td><td>1</td></tr>
+<tr><td>2</td><td>9</td><td>0</td><td>1</td><td>10</td><td>0</td><td>1</td></tr>
+<tr><td>3</td><td>0</td><td>0</td><td>1</td><td>1</td><td>1</td><td>0</td></tr>
+</tbody></table></div>
+<p>Result <code>0→0→1</code> (which is 100) ✔</p>
+<div class="stage" id="st-p5" data-anim="addTwo" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function addTwoNumbers(a: ListNode | null, b: ListNode | null): ListNode | null {
+  const dummy = new ListNode(0);
+  let tail = dummy;
+  let carry = 0;
+  while (a !== null || b !== null || carry &gt; 0) {
+    const sum = (a?.val ?? 0) + (b?.val ?? 0) + carry;
+    tail.next = new ListNode(sum % 10);
+    tail = tail.next;
+    carry = Math.floor(sum / 10);
+    a = a?.next ?? null;
+    b = b?.next ?? null;
+  }
+  return dummy.next;
+}
+console.log(toArray(addTwoNumbers(fromArray([2, 4, 3]), fromArray([5, 6, 4])))); // [ 7, 0, 8 ]
+console.log(toArray(addTwoNumbers(fromArray([9, 9]), fromArray([1])))); // [ 0, 0, 1 ]
+console.log(toArray(addTwoNumbers(fromArray([0]), fromArray([0])))); // [ 0 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func addTwoNumbers(a, b *ListNode) *ListNode {
+	dummy := &amp;ListNode{}
+	tail := dummy
+	carry := 0
+	for a != nil || b != nil || carry &gt; 0 {
+		sum := carry
+		if a != nil {
+			sum += a.Val
+			a = a.Next
+		}
+		if b != nil {
+			sum += b.Val
+			b = b.Next
+		}
+		tail.Next = &amp;ListNode{Val: sum % 10}
+		tail = tail.Next
+		carry = sum / 10
+	}
+	return dummy.Next
+}
+
+func exampleAddTwoNumbers() {
+	fmt.Println(toSlice(addTwoNumbers(fromSlice([]int{2, 4, 3}), fromSlice([]int{5, 6, 4})))) // [7 0 8]
+	fmt.Println(toSlice(addTwoNumbers(fromSlice([]int{9, 9}), fromSlice([]int{1}))))          // [0 0 1]
+	fmt.Println(toSlice(addTwoNumbers(fromSlice([]int{0}), fromSlice([]int{0}))))             // [0]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(max(a, b))</code>, space <code>O(max(a, b))</code> for the new list.</p>
+<p><strong>Follow-up.</strong> <em>"Digits stored in forward order (LeetCode 445)"</em>: reverse both lists first, add, reverse the result; or use two stacks (file 13) without modifying the input.</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · Reorder List (LeetCode 143, Medium/Hard)</h3>
+<p><strong>Task.</strong> Reorder <code>L0 → L1 → … → Ln</code> into <code>L0 → Ln → L1 → Ln−1 → L2 → Ln−2 → …</code>, <strong>in place</strong>. <code>1→2→3→4→5</code> → <code>1→5→2→4→3</code>.</p>
+<p><strong>Why it is hard.</strong> The target order alternates between the front and the back, and a singly linked list cannot walk backward. The trick is to combine <strong>three tools</strong> you already know:</p>
+<figure class="diagram" id="fig-8"><pre class="mermaid-src">flowchart TD
+    A["1. Find the middle&lt;br/&gt;slow and fast pointers"] --&gt; B["2. Reverse the second half"]
+    B --&gt; C["3. Merge the two halves alternately&lt;br/&gt;one from the first, one from the reversed second"]</pre></figure>
+<p><strong>Trace</strong> on <code>1→2→3→4→5</code>:</p>
+<div class="table-wrap"><table id="tbl-4"><thead><tr><th>Phase</th><th>Result</th></tr></thead><tbody>
+<tr><td>find middle</td><td>slow stops at 3; first half <code>1→2→3</code>, second half <code>4→5</code></td></tr>
+<tr><td>cut and reverse the second half</td><td><code>5→4</code></td></tr>
+<tr><td>interleave first <code>1→2→3</code> with <code>5→4</code></td><td><code>1→5→2→4→3</code></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p6" data-anim="reorder" data-code="code-7"></div>
+<div class="code-tabs" id="code-7">
+<pre data-lang="ts"><code class="language-ts">function reorderList(head: ListNode | null): void {
+  if (head === null || head.next === null) return;
+
+  // 1. find the middle (slow ends on the last node of the first half)
+  let slow: ListNode = head, fast: ListNode | null = head;
+  while (fast!.next !== null &amp;&amp; fast!.next.next !== null) {
+    slow = slow.next!;
+    fast = fast!.next.next;
+  }
+
+  // 2. cut the list in two and reverse the second half
+  let second = reverseList(slow.next);
+  slow.next = null;
+
+  // 3. interleave the two halves
+  let first: ListNode | null = head;
+  while (second !== null) {
+    const firstNext: ListNode | null = first!.next;
+    const secondNext: ListNode | null = second.next;
+    first!.next = second;
+    second.next = firstNext;
+    first = firstNext;
+    second = secondNext;
+  }
+}
+
+const toReorder = fromArray([1, 2, 3, 4, 5]);
+reorderList(toReorder);
+console.log(toArray(toReorder)); // [ 1, 5, 2, 4, 3 ]
+const toReorder2 = fromArray([1, 2, 3, 4]);
+reorderList(toReorder2);
+console.log(toArray(toReorder2)); // [ 1, 4, 2, 3 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func reorderList(head *ListNode) {
+	if head == nil || head.Next == nil {
+		return
+	}
+
+	// 1. find the middle (slow ends on the last node of the first half)
+	slow, fast := head, head
+	for fast.Next != nil &amp;&amp; fast.Next.Next != nil {
+		slow = slow.Next
+		fast = fast.Next.Next
+	}
+
+	// 2. cut the list in two and reverse the second half
+	second := reverseList(slow.Next)
+	slow.Next = nil
+
+	// 3. interleave the two halves
+	first := head
+	for second != nil {
+		firstNext, secondNext := first.Next, second.Next
+		first.Next = second
+		second.Next = firstNext
+		first, second = firstNext, secondNext
+	}
+}
+
+func exampleReorderList() {
+	a := fromSlice([]int{1, 2, 3, 4, 5})
+	reorderList(a)
+	fmt.Println(toSlice(a)) // [1 5 2 4 3]
+	b := fromSlice([]int{1, 2, 3, 4})
+	reorderList(b)
+	fmt.Println(toSlice(b)) // [1 4 2 3]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(1)</code>.</p>
+<p><strong>What to say about the middle.</strong> For an even length (<code>1→2→3→4</code>) this version stops <code>slow</code> at node 2, so the first half is <code>1→2</code> and the second is <code>3→4</code>. For odd length the first half gets the extra middle node. Say which one you chose; it keeps the interleave loop correct (the loop runs while the second half has nodes, and the first half is never shorter).</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Losing the rest of the list</strong> by overwriting <code>next</code> before saving it.</li>
+<li><strong>No dummy node</strong> and then special-casing the head, with off-by-one errors.</li>
+<li><strong><code>fast.next.next</code> without checking</strong> <code>fast !== null &amp;&amp; fast.next !== null</code> (null pointer crash).</li>
+<li><strong>Forgetting to terminate</strong> the list (<code>tail.next = null</code>) after rearranging, which creates an accidental cycle.</li>
+<li><strong>Returning the wrong head</strong> (the original <code>head</code> after reversing it is now the tail).</li>
+<li><strong>Comparing values instead of node identity</strong> when detecting a cycle (duplicate values are common).</li>
+<li><strong>Modifying while traversing</strong> without a saved reference.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Arrows of reverseList</h3>
+<p>Draw the arrows for each iteration of <code>reverseList</code> on <code>1→2→3</code> and say which line breaks if you skip "save <code>next</code>".</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Start: null ← (prev), 1 → 2 → 3. Iteration 1: 1 → null. Iteration 2: 2 → 1. Iteration 3: 3 → 2. Return 3. If you skip "save next", the line <code>cur = next</code> has nothing to move to: after <code>cur.next = prev</code> the rest of the list is unreachable. Step through Problem 1 to watch each arrow flip.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · The middle in one pass</h3>
+<p>Find the middle of a list in one pass. For <code>1→2→3→4</code>, which node do you return, and how would you change the loop to get the other one?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Slow moves 1, fast moves 2. With <code>while (fast !== null &amp;&amp; fast.next !== null)</code>, for <code>1→2→3→4</code> slow ends at <strong>3</strong> (the second middle). With <code>while (fast.next !== null &amp;&amp; fast.next.next !== null)</code> (as in Reorder List) it ends at <strong>2</strong> (the first middle).</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Palindrome Linked List</h3>
+<p><em>Palindrome Linked List</em> (LeetCode 234) in <code>O(1)</code> space: which two tools from this file do you combine?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Slow/fast pointers to find the middle, then <strong>reverse the second half</strong>, then compare the two halves node by node. Optionally reverse it back to restore the list. <code>O(n)</code> time, <code>O(1)</code> space.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Intersection of Two Linked Lists</h3>
+<p><em>Intersection of Two Linked Lists</em> (LeetCode 160): walk two pointers so each switches to the other list's head at the end. Why do they meet at the intersection?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Pointer A walks list a then list b; pointer B walks list b then list a. Both walk exactly <code>len(a) + len(b)</code> steps before reaching the end, so if the lists share a tail they line up and meet at the first shared node; if not, both reach null at the same time.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Swap Nodes in Pairs</h3>
+<p><em>Swap Nodes in Pairs</em> (LeetCode 24): why does a dummy node make this easy?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The head itself changes (the second node becomes the new head). With a dummy in front, every swap is the same rewiring: <code>prev → second → first → rest</code>, then move <code>prev</code> to <code>first</code>. No special case for the first pair.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="list12"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/12.js"></script>
+</body>
+</html>

@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="00" data-pattern="Study plan">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>00 Start here | Algorithm guide</title>
+<meta name="description" content="Start here: how the interactive algorithm guide is organized, the five habits, and a 2 to 4 week study plan.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 00</span><span>Start</span></div>
+<h1>Start here</h1>
+<p class="sub">How this guide works, how each lesson is built, and a study plan for 2 to 4 weeks.</p>
+
+<div class="glance"><div><b>Who it is for</b><p>A mid-level to senior engineer preparing for coding interviews over 2 to 4 weeks.</p></div><div><b>How to study</b><p>Read one lesson, solve its problems, then re-solve them from a blank page, out loud.</p></div><div><b>What makes it stick</b><p>Redo every miss after 3 days and again after 7. Your misses are your real study list.</p></div></div>
+
+</header>
+<p><strong>Start here.</strong> This guide teaches the algorithms and problem-solving habits that coding interviews test, in plain English, with <strong>TypeScript</strong> and <strong>Go</strong> solutions that were each compiled and run. It replaces <code>Algorithm v2</code> (every v2 topic and all 30 v2 LeetCode questions are covered again, in more depth: see the <a href="29-pattern-chooser-mocks-and-v2-map.html">map in file 29</a>) and uses the book <em>Grokking Algorithms</em> (Aditya Bhargava, Manning, 2024) as its reference for ideas and teaching order.</p>
+<blockquote><p><strong>Who this is for:</strong> a mid-level to senior software engineer preparing for coding interviews over <strong>2 to 4 weeks</strong>. It is written to be read slowly: lots of plain-English explanation, many diagrams, and long worked examples for the hard parts.</p></blockquote>
+<section class="sec" id="how-this-guide-is-organized">
+<h2>1. How this guide is organized</h2>
+<p>Walk through the map for a one-line summary of each family. Lessons whose interactive page is ready open when you click them.</p>
+<figure class="diagram" id="fig-1"><script type="application/json" class="walk">[{"n": ["F1", "F2", "F3"], "say": "Foundations first: the interview routine, Big O, and the TypeScript and Go toolkit."}, {"n": ["P1", "P2", "P3", "P4", "P5"], "say": "Core patterns on arrays and strings: hash maps, two pointers, sliding window, prefix sums, binary search."}, {"n": ["R1", "R2", "R3"], "say": "The recursion family: divide and conquer, the call stack, and backtracking."}, {"n": ["S1", "S2", "S3", "S4", "S5", "S6", "S7"], "say": "Data structures: linked lists, stacks, queues, trees, balanced trees, heaps and tries."}, {"n": ["G1", "G2", "G3", "G4"], "say": "The graph family: BFS and DFS, topological sort, union-find and shortest paths."}, {"n": ["T1", "T2", "T3", "T4"], "say": "Strategies: greedy, intervals, and dynamic programming in one and two dimensions."}, {"n": ["E1", "E2", "E3"], "say": "Extras and the wrap-up: bits, k-NN, and the pattern chooser with three mock interviews."}]</script><pre class="mermaid-src">flowchart TD
+    subgraph Foundations["Foundations (read first)"]
+        F1["01 Interview process"] --&gt; F2["02 Big O"] --&gt; F3["03 TypeScript and Go toolkit"]
+    end
+    subgraph Patterns["Core patterns on arrays and strings"]
+        P1["04 Hash maps"] --&gt; P2["05 Two pointers"] --&gt; P3["06 Sliding window"] --&gt; P4["07 Prefix sums"] --&gt; P5["08 Binary search"]
+    end
+    subgraph Recursion["Recursion family"]
+        R1["09 Sorting and divide and conquer"] --&gt; R2["10 Recursion and the call stack"] --&gt; R3["11 Backtracking"]
+    end
+    subgraph Structures["Data structures"]
+        S1["12 Linked lists"] --&gt; S2["13 Stacks"] --&gt; S3["14 Queues and deques"] --&gt; S4["15 Trees and BST"] --&gt; S5["16 Balanced trees"] --&gt; S6["17 Heaps"] --&gt; S7["18 Tries"]
+    end
+    subgraph Graphs["Graph family"]
+        G1["19 BFS, DFS, grids"] --&gt; G2["20 Topological sort"] --&gt; G3["21 Union-find"] --&gt; G4["22 Shortest paths"]
+    end
+    subgraph Strategies["Strategies"]
+        T1["23 Greedy and NP-complete"] --&gt; T2["24 Intervals"] --&gt; T3["25 DP 1D"] --&gt; T4["26 DP 2D"]
+    end
+    subgraph Extras["Extras and wrap-up"]
+        E1["27 Bit manipulation"] --&gt; E2["28 k-NN and where to go next"] --&gt; E3["29 Pattern chooser, mocks, v2 map"]
+    end
+    Foundations --&gt; Patterns --&gt; Recursion --&gt; Structures --&gt; Graphs --&gt; Strategies --&gt; Extras</pre></figure>
+<h3 id="the-files">The files</h3>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>#</th><th>File</th><th>Main idea</th><th>Priority</th></tr></thead><tbody>
+<tr><td>01</td><td><a href="01-interview-process.html">Interview process</a></td><td>The seven-step routine; edge cases; debugging aloud</td><td>★★★</td></tr>
+<tr><td>02</td><td><a href="02-big-o-and-complexity.html">Big O and complexity</a></td><td>Growth, amortized cost, recursion memory, hidden costs</td><td>★★★</td></tr>
+<tr><td>03</td><td><a href="03-language-toolkit-typescript-and-go.html">Language toolkit</a></td><td>Arrays, strings, maps, heaps, integers in TS and Go</td><td>★★★</td></tr>
+<tr><td>04</td><td><a href="04-hash-tables-map-set.html">Hash tables</a></td><td>Remember what you saw; LRU cache</td><td>★★★</td></tr>
+<tr><td>05</td><td><a href="05-two-pointers.html">Two pointers</a></td><td>Sorted data; in-place; trapping rain water</td><td>★★★</td></tr>
+<tr><td>06</td><td><a href="06-sliding-window.html">Sliding window</a></td><td>Contiguous stretches; minimum window</td><td>★★★</td></tr>
+<tr><td>07</td><td><a href="07-prefix-sums.html">Prefix sums</a></td><td>Range sums; subarray sum equals K</td><td>★★★</td></tr>
+<tr><td>08</td><td><a href="08-binary-search.html">Binary search</a></td><td>One template; search on the answer; median of two arrays</td><td>★★★</td></tr>
+<tr><td>09</td><td><a href="09-sorting-and-divide-and-conquer.html">Sorting and divide &amp; conquer</a></td><td>Merge sort, quicksort, quickselect, inversions</td><td>★★</td></tr>
+<tr><td>10</td><td><a href="10-recursion-and-call-stack.html">Recursion and the call stack</a></td><td>Trust the smaller problem</td><td>★★★</td></tr>
+<tr><td>11</td><td><a href="11-backtracking.html">Backtracking</a></td><td>Choose, explore, un-choose; N-Queens</td><td>★★★</td></tr>
+<tr><td>12</td><td><a href="12-linked-lists.html">Linked lists</a></td><td>Reverse, merge, cycles, reorder</td><td>★★★</td></tr>
+<tr><td>13</td><td><a href="13-stacks-and-monotonic-stack.html">Stacks and monotonic stack</a></td><td>Matching; next greater; histogram</td><td>★★★</td></tr>
+<tr><td>14</td><td><a href="14-queues-and-monotonic-deque.html">Queues and monotonic deque</a></td><td>Window maximum; shortest subarray</td><td>★★</td></tr>
+<tr><td>15</td><td><a href="15-trees-and-bst.html">Trees and BST</a></td><td>"Ask each child"; traversals; LCA</td><td>★★★</td></tr>
+<tr><td>16</td><td><a href="16-balanced-trees.html">Balanced trees</a></td><td>AVL rotations; B-trees; why balance</td><td>★★</td></tr>
+<tr><td>17</td><td><a href="17-heaps-and-priority-queues.html">Heaps</a></td><td>Top K; merge K; running median</td><td>★★★</td></tr>
+<tr><td>18</td><td><a href="18-tries.html">Tries</a></td><td>Prefixes; word search II</td><td>★★</td></tr>
+<tr><td>19</td><td><a href="19-graphs-bfs-dfs-and-grids.html">Graphs: BFS, DFS, grids</a></td><td>Islands; clone; word ladder</td><td>★★★</td></tr>
+<tr><td>20</td><td><a href="20-topological-sort.html">Topological sort</a></td><td>Prerequisites; alien dictionary</td><td>★★★</td></tr>
+<tr><td>21</td><td><a href="21-union-find.html">Union-find</a></td><td>Merging groups; accounts merge</td><td>★★</td></tr>
+<tr><td>22</td><td><a href="22-shortest-paths-dijkstra-bellman-ford.html">Shortest paths</a></td><td>Dijkstra; Bellman-Ford; state-space BFS</td><td>★★★</td></tr>
+<tr><td>23</td><td><a href="23-greedy-and-np-complete.html">Greedy and NP-complete</a></td><td>Exchange argument; set cover</td><td>★★★</td></tr>
+<tr><td>24</td><td><a href="24-intervals.html">Intervals</a></td><td>Merge, insert, sweep line, skyline</td><td>★★★</td></tr>
+<tr><td>25</td><td><a href="25-dp-one-dimensional.html">DP, one dimension</a></td><td>State, recurrence, base case</td><td>★★★</td></tr>
+<tr><td>26</td><td><a href="26-dp-two-dimensional.html">DP, two dimensions</a></td><td>Knapsack, LCS, edit distance, regex</td><td>★★★</td></tr>
+<tr><td>27</td><td><a href="27-bit-manipulation.html">Bit manipulation</a></td><td>XOR tricks; bitmasks</td><td>★★</td></tr>
+<tr><td>28</td><td><a href="28-knn-and-where-to-go-next.html">k-NN and where to go next</a></td><td>Similarity; Bloom filter; inverted index</td><td>★</td></tr>
+<tr><td>29</td><td><a href="29-pattern-chooser-mocks-and-v2-map.html">Pattern chooser, mocks, v2 map</a></td><td>Decision guide; 3 mock interviews</td><td>★★★</td></tr>
+</tbody></table></div>
+<p>★★★ = very likely to appear · ★★ = fairly likely · ★ = good for depth and system-design talk.</p>
+</section>
+<section class="sec" id="how-each-topic-file-is-built">
+<h2>2. How each topic file is built</h2>
+<p>Every topic file follows the same shape, so you always know where to look:</p>
+<figure class="diagram" id="fig-2"><script type="application/json" class="walk">[{"n": ["A"], "say": "Every lesson opens with the idea in plain English, using an everyday comparison before any code."}, {"n": ["B"], "say": "Then the clues: the words in a problem statement that should make you think of this pattern."}, {"n": ["C"], "say": "Diagrams show the moving parts. In these pages they are animated and you can step through them."}, {"n": ["D"], "say": "Templates: the skeleton code you adapt to each problem."}, {"n": ["E"], "say": "Practice problems from easy to hard, each with brute force, key insight, trace table, both languages, complexity and follow-ups."}, {"n": ["F"], "say": "The mistakes people actually make, several of them replayed as animations."}, {"n": ["G"], "say": "Exercises to do without looking, with hints and answers hidden until you want them."}]</script><pre class="mermaid-src">flowchart TD
+    A["1. The idea in plain English&lt;br/&gt;an everyday comparison first"] --&gt; B["2. How to recognize it&lt;br/&gt;the clues in a problem statement"]
+    B --&gt; C["3. Diagrams&lt;br/&gt;flowcharts, trees, state pictures"]
+    C --&gt; D["4. Reusable templates&lt;br/&gt;the skeleton code"]
+    D --&gt; E["5. Practice problems, easy to hard&lt;br/&gt;brute force, key insight, trace table,&lt;br/&gt;TypeScript, Go, complexity, follow-ups"]
+    E --&gt; F["6. Common mistakes"]
+    F --&gt; G["7. Try it without looking&lt;br/&gt;exercises"]</pre></figure>
+<h3 id="reading-the-code">Reading the code</h3>
+<ul>
+<li>Every solution has <strong>two collapsed sections</strong>: one <strong>TypeScript</strong>, one <strong>Go</strong>. Click the arrow to open the one you want. (They are collapsible HTML <code>details</code> blocks; they work in VS Code's Markdown preview and on GitHub.)</li>
+<li>Output is shown in comments after each call, for example <code>// [ 0, 1 ]</code>. In Go these calls live inside functions named <code>exampleSomething()</code>; that is just a convention so a test harness can run them.</li>
+<li><strong>Diagrams</strong> are Mermaid and render in VS Code (built-in Markdown preview supports Mermaid in recent versions, or install a Mermaid extension) and on GitHub.</li>
+</ul>
+<h3 id="running-the-code-yourself">Running the code yourself</h3>
+<p>The snippets within one file are written to be <strong>combined into one program</strong>: the names are unique per file.</p>
+<p><strong>The easy way: use the included checker.</strong> From inside this folder:</p>
+<pre class="plain"><code class="language-bash">python3 tools/verify.py "05 two-pointers.md" --show</code></pre>
+<p>It extracts every <code>ts</code> and <code>go</code> block from the file, compiles them (<code>tsc --strict</code>, <code>go vet</code>), runs the examples, and prints their output. Requirements: <code>python3</code>, <code>node</code>, <code>tsc</code> (TypeScript), and <code>go</code> on your <code>PATH</code>.</p>
+<p><strong>By hand (TypeScript):</strong></p>
+<pre class="plain"><code class="language-bash"># once:  npm install -g typescript   (Node 20+)
+# put the code in a.ts, then:
+tsc --strict --target es2022 --lib es2022,dom --module commonjs a.ts &amp;&amp; node a.js</code></pre>
+<p><strong>By hand (Go):</strong></p>
+<pre class="plain"><code class="language-bash"># put the code in main.go with `package main`, the imports, and a main() that calls your example function
+go run main.go</code></pre>
+<h3 id="what-was-verified">What was verified</h3>
+<p>Every code block in this guide was compiled and executed with <strong>TypeScript 6.0.3 (strict mode, Node 22)</strong> and <strong>Go 1.26.5</strong> (the code uses only features available in Go 1.22 or newer, such as the built-in <code>min</code>/<code>max</code>), and the output was compared with the comments. Where testing found a real bug in a first draft (for example a signed-integer bug in the Bloom filter in file 28), the explanation says so, because the lesson is worth keeping.</p>
+</section>
+<section class="sec" id="the-mindset-five-habits-that-matter-more-than-any-single-alg">
+<h2>3. The mindset: five habits that matter more than any single algorithm</h2>
+<ol>
+<li><strong>Ask first, code later.</strong> Restate the problem; ask about size, order, duplicates, and empty input.</li>
+<li><strong>Say the slow way out loud.</strong> A correct <code>O(n²)</code> answer with a clear path to better beats silence.</li>
+<li><strong>Name the pattern and say why.</strong> "The array is sorted, so I can discard from either end": a reason, not a guess.</li>
+<li><strong>Trace before you declare victory.</strong> One normal case, one edge case, one tricky branch.</li>
+<li><strong>State complexity with the reason.</strong> "<code>O(n)</code>, because each index is added and removed once."</li>
+</ol>
+<div class="quiz" data-quiz="habits00"></div>
+</section>
+<section class="sec" id="a-study-plan-for-2-to-4-weeks">
+<h2>4. A study plan for 2 to 4 weeks</h2>
+<p>Assume <strong>2 to 3 focused hours per day, 5 or 6 days a week</strong>. The plan has three layers: <strong>learn</strong> (read a file and work its problems), <strong>drill</strong> (redo problems from memory), and <strong>mock</strong> (timed, spoken practice).</p>
+<h3 id="the-routine-for-every-topic-file">The routine for every topic file</h3>
+<figure class="diagram" id="fig-3"><script type="application/json" class="walk">[{"n": ["A"], "say": "About 20 minutes: read the idea and the recognition clues."}, {"n": ["B"], "say": "For each problem read only the task, try for 10 minutes, then read the solution."}, {"n": ["C"], "say": "Close the page and re-solve from a blank page, out loud, in one language. This is the cover-and-recreate rule."}, {"n": ["D"], "say": "Next day, solve it again in the other language."}, {"n": ["E"], "say": "After 3 days and after 7 days, redo what you missed. Mark a problem Needs redo and the home page reminds you."}]</script><pre class="mermaid-src">flowchart LR
+    A["Read the idea and the recognition clues&lt;br/&gt;(20 min)"] --&gt; B["Do each problem: read ONLY the task,&lt;br/&gt;try 10 min, then read the solution"]
+    B --&gt; C["Close the file. Re-solve from a blank page,&lt;br/&gt;aloud, in ONE language"]
+    C --&gt; D["Next day: re-solve in the OTHER language"]
+    D --&gt; E["After 3 and 7 days: redo what you missed"]</pre></figure>
+<p><strong>The "cover and recreate" rule.</strong> For each problem, after reading the solution, close it and write the solution again from nothing. If you cannot, you understood the <em>explanation</em> but not the <em>idea</em>; read the key-insight paragraph again, then retry.</p>
+<h3 id="the-4-week-schedule-recommended">The 4-week schedule (recommended)</h3>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Week</th><th>Theme</th><th>Days</th><th>Do</th></tr></thead><tbody>
+<tr><td><strong>1</strong></td><td><strong>Foundations and array patterns</strong></td><td>1</td><td>Files 01, 02, 03. Practice the seven-step routine on Two Sum aloud.</td></tr>
+<tr><td></td><td></td><td>2</td><td>File 04 (hash maps). Problems 1 to 4; skim 5 and 6.</td></tr>
+<tr><td></td><td></td><td>3</td><td>File 05 (two pointers).</td></tr>
+<tr><td></td><td></td><td>4</td><td>File 06 (sliding window).</td></tr>
+<tr><td></td><td></td><td>5</td><td>File 07 (prefix sums).</td></tr>
+<tr><td></td><td></td><td>6</td><td>File 08 (binary search). Weekend: redo two problems from each file from memory.</td></tr>
+<tr><td><strong>2</strong></td><td><strong>Recursion and data structures</strong></td><td>1</td><td>File 09 (sorting, divide and conquer) and file 10 (recursion).</td></tr>
+<tr><td></td><td></td><td>2</td><td>File 11 (backtracking).</td></tr>
+<tr><td></td><td></td><td>3</td><td>File 12 (linked lists). Then 13 (stacks).</td></tr>
+<tr><td></td><td></td><td>4</td><td>File 14 (queues) and file 15 (trees).</td></tr>
+<tr><td></td><td></td><td>5</td><td>File 17 (heaps) and file 18 (tries). Skim 16 (balanced trees) as concepts.</td></tr>
+<tr><td></td><td></td><td>6</td><td><strong>Mock 1</strong> (see below) + review of week 2 mistakes.</td></tr>
+<tr><td><strong>3</strong></td><td><strong>Graphs, greedy, intervals</strong></td><td>1</td><td>File 19 (BFS, DFS, grids).</td></tr>
+<tr><td></td><td></td><td>2</td><td>Files 20 (topological sort) and 21 (union-find).</td></tr>
+<tr><td></td><td></td><td>3</td><td>File 22 (shortest paths).</td></tr>
+<tr><td></td><td></td><td>4</td><td>File 23 (greedy, NP-complete).</td></tr>
+<tr><td></td><td></td><td>5</td><td>File 24 (intervals).</td></tr>
+<tr><td></td><td></td><td>6</td><td><strong>Mock 2</strong> + redo the hardest problem from each of files 19 to 24.</td></tr>
+<tr><td><strong>4</strong></td><td><strong>Dynamic programming and wrap-up</strong></td><td>1</td><td>File 25 (DP, 1D).</td></tr>
+<tr><td></td><td></td><td>2</td><td>Finish 25's exercises; start file 26 (DP, 2D): knapsack and LCS.</td></tr>
+<tr><td></td><td></td><td>3</td><td>File 26: edit distance, palindromic subsequence, regex.</td></tr>
+<tr><td></td><td></td><td>4</td><td>File 27 (bit manipulation) and skim file 28.</td></tr>
+<tr><td></td><td></td><td>5</td><td>File 29: pattern chooser, then <strong>Mock 3</strong> from the file.</td></tr>
+<tr><td></td><td></td><td>6</td><td>Full timed mock: pick <strong>3 problems you have not seen</strong> (see the practice list in file 29, Part 4).</td></tr>
+</tbody></table></div>
+<h3 id="the-compressed-plans">The compressed plans</h3>
+<p><strong>2-week plan (intensive, 3+ hours a day).</strong> Do only the ★★★ files, one per day, skipping 16, 18, 21, 27, 28 until the last two days:</p>
+<p><code>01-03 (day 1) → 04-05 (2) → 06-07 (3) → 08 + 10 (4) → 11-12 (5) → 13 + 15 (6) → 17 (7) → 19 (8) → 20 + 22 (9) → 23 + 24 (10) → 25 (11) → 26 (12) → 29 with all three mocks (13) → review weak spots, 21, 18 (14).</code></p>
+<p><strong>3-week plan.</strong> Use the 4-week plan but merge week 1's days 2 to 3 and week 2's days 3 to 4, and give DP the full last week.</p>
+<h3 id="weekly-review-15-minutes-each-sunday">Weekly review (15 minutes each Sunday)</h3>
+<p>Keep a tiny log with four columns: <strong>problem · pattern · what I got wrong · date to redo</strong>. Redo each wrong problem after 3 days and again after 7 days. Patterns you repeatedly get wrong are your <strong>real</strong> study list.</p>
+<h3 id="how-to-run-a-mock-interview">How to run a mock interview</h3>
+<ol>
+<li>Set a timer: 25 minutes for a medium problem, 40 for a hard one.</li>
+<li>Say everything out loud (or record yourself): restate, clarify, brute force, pattern, code, test, complexity.</li>
+<li>Do not look anything up for the first 15 minutes. If you are stuck, say what you would try, then take <strong>one</strong> hint.</li>
+<li>Afterwards, grade yourself with the table at the end of file 29's mock section.</li>
+<li>Write down the <strong>one</strong> thing to improve next time (usually communication or testing, not the algorithm).</li>
+</ol>
+<div class="callout why"><b>Let the guide keep the schedule</b><p>Pick the 2-week or 4-week plan and a start date on the <a href="../index.html#plan">home page</a>. Each day it shows what to study, and the problems you mark <em>Needs redo</em> come back after 3 and 7 days. That is the weekly-review log from this section, kept for you.</p></div>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">gantt
+    title The 4-week plan at a glance
+    dateFormat  YYYY-MM-DD
+    axisFormat  Week %W
+    section Week 1
+    Foundations and array patterns (01-08)        :w1, 2026-01-05, 6d
+    section Week 2
+    Recursion and data structures (09-18)         :w2, after w1, 6d
+    section Week 3
+    Graphs, greedy, intervals (19-24)             :w3, after w2, 6d
+    section Week 4
+    DP, bits, wrap-up, mocks (25-29)              :w4, after w3, 6d</pre></figure>
+<p>(The dates in the chart are placeholders: the shape is what matters.)</p>
+</section>
+<section class="sec" id="how-this-guide-relates-to-grokking-algorithms">
+<h2>5. How this guide relates to <em>Grokking Algorithms</em></h2>
+<p>The book is the friendliest introduction to the ideas; this guide goes further on interview skills and code. Where the book has a chapter, the matching file says so at the top.</p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Book chapter</th><th>Where it lives in this guide</th></tr></thead><tbody>
+<tr><td>1 Introduction to algorithms (binary search, Big O)</td><td><a href="02-big-o-and-complexity.html">02</a>, <a href="08-binary-search.html">08</a></td></tr>
+<tr><td>2 Selection sort (memory, arrays vs. linked lists)</td><td><a href="09-sorting-and-divide-and-conquer.html">09</a>, <a href="12-linked-lists.html">12</a></td></tr>
+<tr><td>3 Recursion (base case, the stack)</td><td><a href="10-recursion-and-call-stack.html">10</a></td></tr>
+<tr><td>4 Quicksort (divide and conquer)</td><td><a href="09-sorting-and-divide-and-conquer.html">09</a></td></tr>
+<tr><td>5 Hash tables</td><td><a href="04-hash-tables-map-set.html">04</a></td></tr>
+<tr><td>6 Breadth-first search</td><td><a href="19-graphs-bfs-dfs-and-grids.html">19</a>, <a href="14-queues-and-monotonic-deque.html">14</a></td></tr>
+<tr><td>7 Trees (DFS, binary trees, Huffman)</td><td><a href="15-trees-and-bst.html">15</a></td></tr>
+<tr><td>8 Balanced trees (AVL, splay, B-trees)</td><td><a href="16-balanced-trees.html">16</a></td></tr>
+<tr><td>9 Dijkstra's algorithm</td><td><a href="22-shortest-paths-dijkstra-bellman-ford.html">22</a></td></tr>
+<tr><td>10 Greedy algorithms (scheduling, knapsack, set covering)</td><td><a href="23-greedy-and-np-complete.html">23</a></td></tr>
+<tr><td>11 Dynamic programming (knapsack, longest common substring)</td><td><a href="25-dp-one-dimensional.html">25</a>, <a href="26-dp-two-dimensional.html">26</a></td></tr>
+<tr><td>12 k-nearest neighbors</td><td><a href="28-knn-and-where-to-go-next.html">28</a></td></tr>
+<tr><td>13 Where to go next (heaps, Bloom filters, LSH, MapReduce, …)</td><td><a href="17-heaps-and-priority-queues.html">17</a>, <a href="28-knn-and-where-to-go-next.html">28</a></td></tr>
+<tr><td>Appendix B NP-hard problems</td><td><a href="23-greedy-and-np-complete.html">23</a></td></tr>
+</tbody></table></div>
+<p>All explanations in this guide are written in my own words; the book is used only for ideas and the order in which to teach them.</p>
+</section>
+<section class="sec" id="what-this-guide-leaves-out-on-purpose">
+<h2>6. What this guide leaves out on purpose</h2>
+<p>Interviews at a few companies go further. When you finish, these are the next topics to study:</p>
+<ul>
+<li><strong>Range-query structures:</strong> Fenwick (binary indexed) trees and segment trees.</li>
+<li><strong>String algorithms:</strong> KMP, Z-function, rolling hash (Rabin–Karp), suffix arrays.</li>
+<li><strong>More graph algorithms:</strong> minimum spanning trees (Prim, Kruskal), strongly connected components (Tarjan, Kosaraju), maximum flow.</li>
+<li><strong>Advanced DP:</strong> DP on trees, digit DP, bitmask DP in depth, optimization tricks (monotone queue, convex hull trick).</li>
+<li><strong>Geometry and math:</strong> sweep-line geometry, number theory (sieve, modular arithmetic, fast exponentiation with a modulus).</li>
+<li><strong>Concurrency and system design:</strong> covered by their own interview rounds and not by an algorithms guide.</li>
+</ul>
+</section>
+<section class="sec" id="quick-glossary">
+<h2>7. Quick glossary</h2>
+<div class="table-wrap"><table id="tbl-4"><thead><tr><th>Term</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>n</code>, <code>V</code>, <code>E</code></td><td>input size; number of nodes; number of edges</td></tr>
+<tr><td>Amortized</td><td>average cost per operation over a long run, even if a few operations are expensive</td></tr>
+<tr><td>Subarray / substring</td><td>a <strong>contiguous</strong> part of an array / string</td></tr>
+<tr><td>Subsequence</td><td>items in the original order but <strong>not</strong> necessarily adjacent</td></tr>
+<tr><td>In place</td><td>modifying the input using <code>O(1)</code> extra memory</td></tr>
+<tr><td>Stable sort</td><td>equal items keep their original order</td></tr>
+<tr><td>Invariant</td><td>a statement that stays true throughout a loop (the key to proofs and bug-finding)</td></tr>
+<tr><td>Base case</td><td>the smallest input a recursive function answers directly</td></tr>
+<tr><td>Overlapping subproblems</td><td>the same sub-question is asked again and again (the sign of DP)</td></tr>
+<tr><td>Monotonic</td><td>only ever increasing (or only decreasing); the property that makes binary search, stacks, and windows work</td></tr>
+<tr><td>DAG</td><td>directed graph with no cycles</td></tr>
+<tr><td>NP-complete</td><td>among the hardest problems with quickly checkable answers; no fast exact algorithm is known</td></tr>
+</tbody></table></div>
+<div class="quiz" data-quiz="glossary00"></div>
+<p>Now begin with <a href="01-interview-process.html">01 · The interview process</a>.</p>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/00.js"></script>
+</body>
+</html>

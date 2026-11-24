@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="24" data-pattern="Intervals / sweep line">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>24 Intervals | Algorithm guide</title>
+<meta name="description" content="Intervals animated on a timeline: merging, inserting, intersecting two lists, arrows for balloons, meeting rooms with a sweep line, and the skyline.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 24</span><span>Greedy and hard problems</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Intervals</h1>
+<p class="sub">Sort them, then walk left to right: merge, cut, or count.</p>
+<blockquote><p><strong>Book link:</strong> the book's classroom-scheduling problem (chapter 10) is an interval problem, and file 23 solved it greedily. This file collects the whole interval family: merging, inserting, intersecting, counting overlaps with a <strong>sweep line</strong>, and a hard sweep-line problem (the skyline). It is new relative to v2, where meeting rooms appeared only under heaps.</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>Ranges with a start and an end: meetings, bookings, segments, "overlap", "free time", "rooms".</p></div><div><b>The overlap test</b><p><code>a1 ≤ b2 and a2 ≤ b1</code> (use &lt; if touching does not count). Ask which one the problem means.</p></div><div><b>The three moves</b><p>Sort by start to merge; sort by end to choose the most; split into +1/−1 events to count overlaps (sweep line).</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>An <strong>interval</strong> is a range with a start and an end: a meeting from 9:00 to 10:30, a booking from day 3 to day 7, a segment <code>[2, 6]</code> on a number line. Many questions ask: <em>do these overlap? merge them? how many are active at once? what is covered?</em></p>
+<p><strong>The key trick: sort first.</strong> If you sort intervals by start time, then any interval that could overlap the current one is <strong>right next to it</strong> in the list. A messy two-dimensional picture becomes a single left-to-right scan.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    A["Unsorted pile of ranges"] --&gt; B["Sort by start"]
+    B --&gt; C["Scan once, comparing each range only with the one before it"]</pre></figure>
+<h3 id="the-overlap-test-memorize-it">The overlap test (memorize it)</h3>
+<p>Two intervals <code>[a, b]</code> and <code>[c, d]</code> <strong>overlap</strong> when each one starts before the other ends:</p>
+<blockquote><p><strong><code>a ≤ d</code> and <code>c ≤ b</code></strong></p></blockquote>
+<p>Equivalently, they do <strong>not</strong> overlap when one ends before the other starts (<code>b &lt; c</code> or <code>d &lt; a</code>).</p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    subgraph Cases["Relationships between [a,b] and [c,d]"]
+        direction TB
+        N["Apart: b &lt; c&lt;br/&gt;[a,b]  ...  [c,d]"]
+        O["Partial overlap: a &lt;= c &lt;= b &lt; d&lt;br/&gt;[a,b]&lt;br/&gt;    [c,d]"]
+        C["Containment: a &lt;= c and d &lt;= b&lt;br/&gt;[a, b]&lt;br/&gt; [c,d]"]
+        T["Touching: b == c&lt;br/&gt;[a,b][c,d]  (ask: does this count as overlap?)"]
+    end</pre></figure>
+<p><strong>Always ask the touching question.</strong> Do <code>[1,2]</code> and <code>[2,3]</code> overlap? For meetings (one ends at 2, the next starts at 2) usually <strong>no</strong>. For merging number ranges, often <strong>yes</strong> (they join into <code>[1,3]</code>). The problem statement decides; ask.</p>
+<h3 id="intervals-are-inclusive-or-half-open">Intervals are inclusive or half-open</h3>
+<p><code>[1, 3]</code> might include 3 (closed) or stop just before it (<code>[1, 3)</code>, half-open). It changes <code>≤</code> versus <code>&lt;</code>. Clarify once and use it consistently.</p>
+</section>
+<section class="sec" id="the-three-core-moves">
+<h2>2. The three core moves</h2>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Move</th><th>When</th><th>How</th></tr></thead><tbody>
+<tr><td><strong>Sort by start, merge neighbors</strong></td><td>combine overlapping ranges</td><td>keep the last merged interval; extend its end if the next starts within it</td></tr>
+<tr><td><strong>Sort by end, take greedily</strong></td><td>maximum non-overlapping set, minimum arrows</td><td>pick the interval that finishes first (file 23)</td></tr>
+<tr><td><strong>Sweep line over events</strong></td><td>"how many are active at a time?", skyline</td><td>turn each interval into a <strong>start event</strong> and an <strong>end event</strong>, sort all events, scan, track a counter or a structure</td></tr>
+</tbody></table></div>
+<h3 id="the-sweep-line-the-idea-behind-many-hard-problems">The sweep line (the idea behind many hard problems)</h3>
+<p>Imagine a vertical line sweeping from left to right over the number line. Whenever it hits a start, a new interval becomes <strong>active</strong>; whenever it hits an end, one stops being active. What you need (a count, the maximum height, the earliest end) is maintained <strong>only at event points</strong>.</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart LR
+    S1["start of A"] --&gt; S2["start of B"] --&gt; E1["end of A"] --&gt; S3["start of C"] --&gt; E2["end of B"] --&gt; E3["end of C"]
+    S1 -.- C1["active = 1"]
+    S2 -.- C2["active = 2"]
+    E1 -.- C3["active = 1"]
+    S3 -.- C4["active = 2"]
+    E2 -.- C5["active = 1"]
+    E3 -.- C6["active = 0"]</pre></figure>
+<p>The maximum of the running count is "the most overlap at any moment".</p>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>3. How to recognize it</h2>
+<ul>
+<li>Input is a list of <code>[start, end]</code> pairs (meetings, bookings, ranges, segments, jobs).</li>
+<li>"Merge", "insert", "intersection", "overlap", "conflict", "free time", "minimum rooms", "maximum at the same time".</li>
+<li>Time-based schedules or calendars.</li>
+<li>A 1D "coverage" question (cover a segment with the fewest ranges).</li>
+</ul>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>4. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Merge Intervals (LeetCode 56, Medium)</h3>
+<p><strong>Task.</strong> Merge all overlapping intervals. <code>[[1,3],[2,6],[8,10],[15,18]]</code> → <code>[[1,6],[8,10],[15,18]]</code>.</p>
+<p><strong>Idea.</strong> Sort by start. Keep a result list. For each interval, compare with the <strong>last</strong> interval in the result:</p>
+<ul>
+<li>It <strong>overlaps</strong> (<code>current.start ≤ last.end</code>) → <strong>extend</strong>: <code>last.end = max(last.end, current.end)</code>. (Use <code>max</code> because the current one might be fully inside the last one.)</li>
+<li>Otherwise → <strong>start a new merged interval</strong>.</li>
+</ul>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["sort by start"] --&gt; B["result = [first interval]"]
+    B --&gt; C["for each next interval cur"]
+    C --&gt; D{"cur.start &lt;= last.end ?"}
+    D --&gt;|Yes| E["last.end = max(last.end, cur.end)"]
+    D --&gt;|No| F["append cur as a new interval"]
+    E --&gt; C
+    F --&gt; C</pre></figure>
+<p><strong>Trace.</strong> <code>[[1,3],[2,6],[8,10],[15,18]]</code> (already sorted)</p>
+<div class="table-wrap"><table id="tbl-2" class="trace"><thead><tr><th>cur</th><th>last in result</th><th>overlap?</th><th>result after</th></tr></thead><tbody>
+<tr><td>[1,3]</td><td></td><td>first</td><td><code>[1,3]</code></td></tr>
+<tr><td>[2,6]</td><td>[1,3]</td><td>2 ≤ 3 yes</td><td><code>[1,6]</code></td></tr>
+<tr><td>[8,10]</td><td>[1,6]</td><td>8 ≤ 6 no</td><td><code>[1,6],[8,10]</code></td></tr>
+<tr><td>[15,18]</td><td>[8,10]</td><td>15 ≤ 10 no</td><td><code>[1,6],[8,10],[15,18]</code></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p1" data-anim="merge" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts"><code class="language-ts">function mergeIntervals(intervals: number[][]): number[][] {
+  if (intervals.length === 0) return [];
+  const sorted = [...intervals].sort((a, b) =&gt; a[0] - b[0]); // by start
+  const merged: number[][] = [[...sorted[0]]]; // copy so we do not change the input
+  for (let i = 1; i &lt; sorted.length; i++) {
+    const [start, end] = sorted[i];
+    const last = merged[merged.length - 1];
+    if (start &lt;= last[1]) last[1] = Math.max(last[1], end); // overlap: extend
+    else merged.push([start, end]); // gap: a new group
+  }
+  return merged;
+}
+console.log(mergeIntervals([[1, 3], [2, 6], [8, 10], [15, 18]])); // [ [ 1, 6 ], [ 8, 10 ], [ 15, 18 ] ]
+console.log(mergeIntervals([[1, 4], [4, 5]])); // [ [ 1, 5 ] ]
+console.log(mergeIntervals([[1, 4], [0, 4]])); // [ [ 0, 4 ] ]
+console.log(mergeIntervals([[1, 10], [2, 3], [4, 5]])); // [ [ 1, 10 ] ]</code></pre>
+<pre data-lang="go"><code class="language-go">func mergeIntervals(intervals [][]int) [][]int {
+	if len(intervals) == 0 {
+		return [][]int{}
+	}
+	sorted := append([][]int(nil), intervals...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i][0] &lt; sorted[j][0] }) // by start
+	merged := [][]int{{sorted[0][0], sorted[0][1]}}                                    // copy so we do not change the input
+	for _, iv := range sorted[1:] {
+		last := merged[len(merged)-1]
+		if iv[0] &lt;= last[1] {
+			last[1] = max(last[1], iv[1]) // overlap: extend
+		} else {
+			merged = append(merged, []int{iv[0], iv[1]}) // gap: a new group
+		}
+	}
+	return merged
+}
+
+func exampleMergeIntervals() {
+	fmt.Println(mergeIntervals([][]int{{1, 3}, {2, 6}, {8, 10}, {15, 18}})) // [[1 6] [8 10] [15 18]]
+	fmt.Println(mergeIntervals([][]int{{1, 4}, {4, 5}}))                    // [[1 5]]
+	fmt.Println(mergeIntervals([][]int{{1, 4}, {0, 4}}))                    // [[0 4]]
+	fmt.Println(mergeIntervals([][]int{{1, 10}, {2, 3}, {4, 5}}))           // [[1 10]]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log n)</code> (the sort), space <code>O(n)</code>.</p>
+<p><strong>Why <code>max</code>?</strong> For <code>[1,10]</code> followed by <code>[2,3]</code>, <code>2 ≤ 10</code> overlaps, but <code>3</code> is <em>smaller</em> than <code>10</code>. Without <code>max</code>, you would shrink the merged interval to <code>[1,3]</code>.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Insert Interval (LeetCode 57, Medium)</h3>
+<p><strong>Task.</strong> You have a list of <strong>non-overlapping intervals sorted by start</strong>, and a new interval. Insert it, merging as needed. <code>[[1,3],[6,9]]</code> + <code>[2,5]</code> → <code>[[1,5],[6,9]]</code>.</p>
+<p><strong>Idea: three phases, one pass, no sort.</strong> Because the list is already sorted:</p>
+<ol>
+<li><strong>Before:</strong> copy all intervals that end <strong>before</strong> the new one starts (<code>end &lt; new.start</code>): they are untouched.</li>
+<li><strong>Overlapping:</strong> while an interval starts at or before the new one's end (<code>start ≤ new.end</code>), <strong>absorb</strong> it: <code>new.start = min(...)</code>, <code>new.end = max(...)</code>. Then add the merged new interval.</li>
+<li><strong>After:</strong> copy the rest.</li>
+</ol>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["Phase 1: copy intervals that end before the new one starts"] --&gt; B["Phase 2: merge every interval that overlaps the new one&lt;br/&gt;(expand the new interval to cover them all)"]
+    B --&gt; C["Add the expanded new interval"]
+    C --&gt; D["Phase 3: copy the remaining intervals"]</pre></figure>
+<p><strong>Trace.</strong> <code>[[1,2],[3,5],[6,7],[8,10],[12,16]]</code> + <code>[4,8]</code></p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Interval</th><th>Phase</th><th>Action</th></tr></thead><tbody>
+<tr><td>[1,2]</td><td>1 (2 &lt; 4)</td><td>copy</td></tr>
+<tr><td>[3,5]</td><td>2 (3 ≤ 8)</td><td>new → [3,8]</td></tr>
+<tr><td>[6,7]</td><td>2</td><td>new stays [3,8]</td></tr>
+<tr><td>[8,10]</td><td>2 (8 ≤ 8)</td><td>new → [3,10]</td></tr>
+<tr><td>(add [3,10])</td><td></td><td></td></tr>
+<tr><td>[12,16]</td><td>3</td><td>copy</td></tr>
+</tbody></table></div>
+<p>Result <code>[[1,2],[3,10],[12,16]]</code> ✔.</p>
+<div class="stage" id="st-p2" data-anim="insert" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function insertInterval(intervals: number[][], newInterval: number[]): number[][] {
+  const result: number[][] = [];
+  let i = 0;
+  let [start, end] = newInterval;
+  while (i &lt; intervals.length &amp;&amp; intervals[i][1] &lt; start) result.push(intervals[i++]); // 1. entirely before
+  while (i &lt; intervals.length &amp;&amp; intervals[i][0] &lt;= end) { // 2. overlapping: absorb into the new one
+    start = Math.min(start, intervals[i][0]);
+    end = Math.max(end, intervals[i][1]);
+    i++;
+  }
+  result.push([start, end]);
+  while (i &lt; intervals.length) result.push(intervals[i++]); // 3. entirely after
+  return result;
+}
+console.log(insertInterval([[1, 3], [6, 9]], [2, 5])); // [ [ 1, 5 ], [ 6, 9 ] ]
+console.log(insertInterval([[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]], [4, 8])); // [ [ 1, 2 ], [ 3, 10 ], [ 12, 16 ] ]
+console.log(insertInterval([], [5, 7])); // [ [ 5, 7 ] ]
+console.log(insertInterval([[1, 5]], [6, 8])); // [ [ 1, 5 ], [ 6, 8 ] ]</code></pre>
+<pre data-lang="go"><code class="language-go">func insertInterval(intervals [][]int, newInterval []int) [][]int {
+	result := [][]int{}
+	i := 0
+	start, end := newInterval[0], newInterval[1]
+	for i &lt; len(intervals) &amp;&amp; intervals[i][1] &lt; start { // 1. entirely before
+		result = append(result, intervals[i])
+		i++
+	}
+	for i &lt; len(intervals) &amp;&amp; intervals[i][0] &lt;= end { // 2. overlapping: absorb into the new one
+		start = min(start, intervals[i][0])
+		end = max(end, intervals[i][1])
+		i++
+	}
+	result = append(result, []int{start, end})
+	for i &lt; len(intervals) { // 3. entirely after
+		result = append(result, intervals[i])
+		i++
+	}
+	return result
+}
+
+func exampleInsertInterval() {
+	fmt.Println(insertInterval([][]int{{1, 3}, {6, 9}}, []int{2, 5}))                                    // [[1 5] [6 9]]
+	fmt.Println(insertInterval([][]int{{1, 2}, {3, 5}, {6, 7}, {8, 10}, {12, 16}}, []int{4, 8}))         // [[1 2] [3 10] [12 16]]
+	fmt.Println(insertInterval(nil, []int{5, 7}))                                                       // [[5 7]]
+	fmt.Println(insertInterval([][]int{{1, 5}}, []int{6, 8}))                                           // [[1 5] [6 8]]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(n)</code>. (A simpler alternative: append the new interval and call <code>mergeIntervals</code>, <code>O(n log n)</code>. Mention it, then show the linear version.)</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Interval List Intersections (LeetCode 986, Medium)</h3>
+<p><strong>Task.</strong> Two lists of closed intervals, each <strong>sorted</strong> and internally non-overlapping. Return the intersections between the two lists. <code>A = [[0,2],[5,10],[13,23],[24,25]]</code>, <code>B = [[1,5],[8,12],[15,24],[25,26]]</code> → <code>[[1,2],[5,5],[8,10],[15,23],[24,24],[25,25]]</code>.</p>
+<p><strong>Idea: two pointers (file 05).</strong> For the current pair <code>A[i]</code>, <code>B[j]</code>:</p>
+<ul>
+<li>Their intersection (if any) is <code>[max(starts), min(ends)]</code>; it is <strong>valid</strong> when <code>max(starts) ≤ min(ends)</code>.</li>
+<li>Then <strong>advance the pointer whose interval ends first</strong>: that interval cannot intersect anything further in the other list (the other list's later intervals start even later).</li>
+</ul>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["lo = max(A[i].start, B[j].start)&lt;br/&gt;hi = min(A[i].end, B[j].end)"] --&gt; B{"lo &lt;= hi ?"}
+    B --&gt;|Yes| C["record [lo, hi]"]
+    B --&gt;|No| D["no overlap"]
+    C --&gt; E["advance the pointer with the smaller end"]
+    D --&gt; E</pre></figure>
+<p><strong>Trace</strong> (first steps)</p>
+<div class="table-wrap"><table id="tbl-4"><thead><tr><th>A[i]</th><th>B[j]</th><th>lo, hi</th><th>Record</th><th>Advance</th></tr></thead><tbody>
+<tr><td>[0,2]</td><td>[1,5]</td><td>1, 2</td><td>[1,2]</td><td>A (ends at 2 &lt; 5)</td></tr>
+<tr><td>[5,10]</td><td>[1,5]</td><td>5, 5</td><td>[5,5]</td><td>B (5 &lt; 10)</td></tr>
+<tr><td>[5,10]</td><td>[8,12]</td><td>8, 10</td><td>[8,10]</td><td>A (10 &lt; 12)</td></tr>
+<tr><td>[13,23]</td><td>[8,12]</td><td>13, 12</td><td>none</td><td>B (12 &lt; 23)</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p3" data-anim="intersect" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function intervalIntersection(A: number[][], B: number[][]): number[][] {
+  const result: number[][] = [];
+  let i = 0, j = 0;
+  while (i &lt; A.length &amp;&amp; j &lt; B.length) {
+    const lo = Math.max(A[i][0], B[j][0]);
+    const hi = Math.min(A[i][1], B[j][1]);
+    if (lo &lt;= hi) result.push([lo, hi]); // they share the stretch [lo, hi]
+    if (A[i][1] &lt; B[j][1]) i++; // drop the one that ends first
+    else j++;
+  }
+  return result;
+}
+console.log(intervalIntersection(
+  [[0, 2], [5, 10], [13, 23], [24, 25]],
+  [[1, 5], [8, 12], [15, 24], [25, 26]],
+)); // [ [1,2], [5,5], [8,10], [15,23], [24,24], [25,25] ]
+console.log(intervalIntersection([[1, 3], [5, 9]], [])); // []
+console.log(intervalIntersection([[1, 7]], [[3, 10]])); // [ [ 3, 7 ] ]</code></pre>
+<pre data-lang="go"><code class="language-go">func intervalIntersection(A, B [][]int) [][]int {
+	result := [][]int{}
+	i, j := 0, 0
+	for i &lt; len(A) &amp;&amp; j &lt; len(B) {
+		lo := max(A[i][0], B[j][0])
+		hi := min(A[i][1], B[j][1])
+		if lo &lt;= hi {
+			result = append(result, []int{lo, hi}) // they share the stretch [lo, hi]
+		}
+		if A[i][1] &lt; B[j][1] {
+			i++ // drop the one that ends first
+		} else {
+			j++
+		}
+	}
+	return result
+}
+
+func exampleIntervalIntersection() {
+	fmt.Println(intervalIntersection(
+		[][]int{{0, 2}, {5, 10}, {13, 23}, {24, 25}},
+		[][]int{{1, 5}, {8, 12}, {15, 24}, {25, 26}},
+	)) // [[1 2] [5 5] [8 10] [15 23] [24 24] [25 25]]
+	fmt.Println(intervalIntersection([][]int{{1, 3}, {5, 9}}, nil)) // []
+	fmt.Println(intervalIntersection([][]int{{1, 7}}, [][]int{{3, 10}})) // [[3 7]]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(a + b)</code>, space <code>O(1)</code> besides the output.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Minimum Number of Arrows to Burst Balloons (LeetCode 452, Medium)</h3>
+<p><strong>Task.</strong> Balloons are horizontal segments <code>[xstart, xend]</code>. An arrow shot vertically at <code>x</code> bursts every balloon with <code>xstart ≤ x ≤ xend</code>. Find the <strong>minimum number of arrows</strong>. <code>[[10,16],[2,8],[1,6],[7,12]]</code> → <code>2</code>.</p>
+<p><strong>Idea (greedy, as in file 23).</strong> Sort by <strong>end</strong>. Shoot the first arrow at the <strong>end</strong> of the first balloon (this bursts as many as possible that overlap it). Any later balloon whose start is <code>≤ arrow position</code> is already burst. When a balloon starts <strong>after</strong> the arrow position, you need a new arrow at its end.</p>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["sort by end"] --&gt; B["arrows = 1, arrowAt = end of the first balloon"]
+    B --&gt; C["for each next balloon"]
+    C --&gt; D{"balloon.start &gt; arrowAt ?"}
+    D --&gt;|Yes| E["arrows++, arrowAt = balloon.end"]
+    D --&gt;|No| F["already burst by the current arrow"]
+    E --&gt; C
+    F --&gt; C</pre></figure>
+<p><strong>Trace.</strong> sorted by end: <code>[1,6], [2,8], [7,12], [10,16]</code></p>
+<div class="table-wrap"><table id="tbl-5"><thead><tr><th>Balloon</th><th>start &gt; arrowAt?</th><th>arrows</th><th>arrowAt</th></tr></thead><tbody>
+<tr><td>[1,6]</td><td>(first)</td><td>1</td><td>6</td></tr>
+<tr><td>[2,8]</td><td>2 &gt; 6? no: burst</td><td>1</td><td>6</td></tr>
+<tr><td>[7,12]</td><td>7 &gt; 6 yes: new arrow</td><td>2</td><td>12</td></tr>
+<tr><td>[10,16]</td><td>10 &gt; 12? no: burst</td><td>2</td><td>12</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p4" data-anim="arrows" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function findMinArrowShots(points: number[][]): number {
+  if (points.length === 0) return 0;
+  const sorted = [...points].sort((a, b) =&gt; a[1] - b[1]); // by END
+  let arrows = 1;
+  let arrowAt = sorted[0][1];
+  for (const [start, end] of sorted) {
+    if (start &gt; arrowAt) { // this balloon is out of reach of the current arrow
+      arrows++;
+      arrowAt = end;
+    }
+  }
+  return arrows;
+}
+console.log(findMinArrowShots([[10, 16], [2, 8], [1, 6], [7, 12]])); // 2
+console.log(findMinArrowShots([[1, 2], [3, 4], [5, 6], [7, 8]])); // 4
+console.log(findMinArrowShots([[1, 2], [2, 3], [3, 4], [4, 5]])); // 2
+console.log(findMinArrowShots([])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func findMinArrowShots(points [][]int) int {
+	if len(points) == 0 {
+		return 0
+	}
+	sorted := append([][]int(nil), points...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i][1] &lt; sorted[j][1] }) // by END
+	arrows := 1
+	arrowAt := sorted[0][1]
+	for _, p := range sorted {
+		if p[0] &gt; arrowAt { // this balloon is out of reach of the current arrow
+			arrows++
+			arrowAt = p[1]
+		}
+	}
+	return arrows
+}
+
+func exampleFindMinArrowShots() {
+	fmt.Println(findMinArrowShots([][]int{{10, 16}, {2, 8}, {1, 6}, {7, 12}})) // 2
+	fmt.Println(findMinArrowShots([][]int{{1, 2}, {3, 4}, {5, 6}, {7, 8}}))    // 4
+	fmt.Println(findMinArrowShots([][]int{{1, 2}, {2, 3}, {3, 4}, {4, 5}}))    // 2
+	fmt.Println(findMinArrowShots(nil))                                        // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log n)</code>, space <code>O(1)</code> extra (or <code>O(n)</code> for the sorted copy).</p>
+<p><strong>Careful with integer overflow in comparators.</strong> A sort comparator <code>(a, b) =&gt; a[1] - b[1]</code> can overflow with huge values (in languages with fixed-width ints); with JavaScript numbers it is safe within 2⁵³, and Go's <code>sort.Slice</code> uses <code>&lt;</code>, which is always safe.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Meeting Rooms I and II with the sweep line (LeetCode 252 and 253)</h3>
+<p><strong>Meeting Rooms I.</strong> Can one person attend <strong>all</strong> meetings? (No two overlap.) Sort by start; if any meeting starts <strong>before the previous one ends</strong>, the answer is <code>false</code>.</p>
+<p><strong>Meeting Rooms II.</strong> The minimum number of rooms (the maximum number of simultaneous meetings). File 17 used a heap. Here is the <strong>sweep line</strong> version, which only needs sorting:</p>
+<ol>
+<li>Put all <strong>start times</strong> in one sorted list and all <strong>end times</strong> in another sorted list.</li>
+<li>Walk through the starts with a pointer <code>e</code> into the ends. For each start <code>s</code>:</li>
+<ul>
+<li>If the earliest unmatched end is <code>≤ s</code>, that meeting is over: the room is <strong>reused</strong> (<code>e++</code>).</li>
+<li>Otherwise a <strong>new room</strong> is needed.</li>
+</ul>
+<li>The number of rooms used at the end is the answer.</li>
+</ol>
+<p>(Equivalent view: <code>+1</code> at each start, <code>−1</code> at each end; the maximum running sum is the answer.)</p>
+<figure class="diagram" id="fig-8"><pre class="mermaid-src">flowchart TD
+    A["sorted starts: 0, 5, 15&lt;br/&gt;sorted ends: 10, 20, 30"] --&gt; B["start 0: no end &lt;= 0, rooms = 1"]
+    B --&gt; C["start 5: earliest end is 10 &gt; 5, rooms = 2"]
+    C --&gt; D["start 15: earliest end is 10 &lt;= 15, reuse: rooms stays 2"]</pre></figure>
+<div class="stage" id="st-p5" data-anim="attend,sweepRooms" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function canAttendMeetings(intervals: number[][]): boolean {
+  const sorted = [...intervals].sort((a, b) =&gt; a[0] - b[0]);
+  for (let i = 1; i &lt; sorted.length; i++) {
+    if (sorted[i][0] &lt; sorted[i - 1][1]) return false; // starts before the previous one ends
+  }
+  return true;
+}
+
+function minMeetingRoomsSweep(intervals: number[][]): number {
+  const starts = intervals.map((iv) =&gt; iv[0]).sort((a, b) =&gt; a - b);
+  const ends = intervals.map((iv) =&gt; iv[1]).sort((a, b) =&gt; a - b);
+  let rooms = 0, e = 0;
+  for (const s of starts) {
+    if (ends[e] &lt;= s) e++; // a meeting has finished: reuse its room
+    else rooms++; // everyone is still busy: open a new room
+  }
+  return rooms;
+}
+console.log(canAttendMeetings([[0, 30], [5, 10], [15, 20]])); // false
+console.log(canAttendMeetings([[7, 10], [2, 4]])); // true
+console.log(minMeetingRoomsSweep([[0, 30], [5, 10], [15, 20]])); // 2
+console.log(minMeetingRoomsSweep([[7, 10], [2, 4]])); // 1
+console.log(minMeetingRoomsSweep([[1, 5], [2, 6], [3, 7]])); // 3</code></pre>
+<pre data-lang="go"><code class="language-go">func canAttendMeetings(intervals [][]int) bool {
+	sorted := append([][]int(nil), intervals...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i][0] &lt; sorted[j][0] })
+	for i := 1; i &lt; len(sorted); i++ {
+		if sorted[i][0] &lt; sorted[i-1][1] {
+			return false // starts before the previous one ends
+		}
+	}
+	return true
+}
+
+func minMeetingRoomsSweep(intervals [][]int) int {
+	starts := make([]int, len(intervals))
+	ends := make([]int, len(intervals))
+	for i, iv := range intervals {
+		starts[i], ends[i] = iv[0], iv[1]
+	}
+	sort.Ints(starts)
+	sort.Ints(ends)
+	rooms, e := 0, 0
+	for _, s := range starts {
+		if ends[e] &lt;= s {
+			e++ // a meeting has finished: reuse its room
+		} else {
+			rooms++ // everyone is still busy: open a new room
+		}
+	}
+	return rooms
+}
+
+func exampleMeetingRooms() {
+	fmt.Println(canAttendMeetings([][]int{{0, 30}, {5, 10}, {15, 20}}))      // false
+	fmt.Println(canAttendMeetings([][]int{{7, 10}, {2, 4}}))                 // true
+	fmt.Println(minMeetingRoomsSweep([][]int{{0, 30}, {5, 10}, {15, 20}}))   // 2
+	fmt.Println(minMeetingRoomsSweep([][]int{{7, 10}, {2, 4}}))              // 1
+	fmt.Println(minMeetingRoomsSweep([][]int{{1, 5}, {2, 6}, {3, 7}}))       // 3
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log n)</code>, space <code>O(n)</code>.</p>
+<p><strong>Why it is correct.</strong> At any moment, the number of busy rooms equals <code>(starts so far) − (ends so far)</code>. The sweep tracks exactly that by consuming one end for each reuse. (We never need to know <em>which</em> meeting ended, only that one did.)</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · The Skyline Problem (LeetCode 218, Hard)</h3>
+<p><strong>Task.</strong> Given buildings <code>[left, right, height]</code>, return the <strong>skyline</strong>: the list of key points <code>[x, height]</code> where the outline's height <strong>changes</strong>, listed left to right, ending with a point of height 0. For <code>[[2,9,10],[3,7,15],[5,12,12],[15,20,10],[19,24,8]]</code> → <code>[[2,10],[3,15],[7,12],[12,0],[15,10],[20,8],[24,0]]</code>.</p>
+<p><strong>Why it is hard.</strong> At each x, the skyline's height is the <strong>maximum height among buildings currently covering x</strong>. As x sweeps, buildings enter and leave, and you must always know the current <strong>maximum</strong> while supporting <strong>deletion</strong>.</p>
+<p><strong>Sweep-line plan.</strong></p>
+<ol>
+<li>Turn each building into <strong>two events</strong>: a <strong>start</strong> at <code>left</code> and an <strong>end</strong> at <code>right</code>, each carrying the height.</li>
+<li><strong>Sort</strong> events by <code>x</code>. For ties at the same <code>x</code>, the order matters:</li>
+<ul>
+<li><strong>Starts before ends</strong> (so a building that begins exactly where another ends doesn't create a fake dip to 0).</li>
+<li>Among starts: <strong>taller first</strong>. Among ends: <strong>shorter first</strong>.</li>
+<li>Trick: encode a start as <code>(x, −height)</code> and an end as <code>(x, +height)</code> and sort by <code>(x, second)</code> ascending: starts have negative values (and taller = more negative = first); ends are positive (shorter first). This one sort gives exactly the rule above.</li>
+</ul>
+<li>Keep a <strong>max-heap of active heights</strong> (start with a ground height <code>0</code>).</li>
+<li>After processing <strong>all events at the same <code>x</code></strong> (or equivalently after each event, comparing against the previous top), if the <strong>current maximum</strong> differs from the previous maximum, output <code>[x, newMax]</code>.</li>
+</ol>
+<p><strong>Removing a height from a heap</strong> is awkward (heaps only remove the top). Use <strong>lazy deletion</strong>: when a building ends, record <code>toRemove[height]++</code>. Whenever the top of the heap has a pending removal, pop it and decrement the counter. Only the <em>top</em> needs to be correct.</p>
+<figure class="diagram" id="fig-9"><pre class="mermaid-src">flowchart TD
+    A["events sorted by (x, signed height)"] --&gt; B["next event (x, h)"]
+    B --&gt; C{"start? (h negative)"}
+    C --&gt;|Yes| D["push |h| into the max-heap"]
+    C --&gt;|No| E["pending removal count for h += 1"]
+    D --&gt; F["clean the top: while the top has a pending removal, pop it"]
+    E --&gt; F
+    F --&gt; G{"current max != previous max ?"}
+    G --&gt;|Yes| H["output [x, current max]; previous = current"]
+    G --&gt;|No| I["nothing to output"]
+    H --&gt; B
+    I --&gt; B</pre></figure>
+<p><strong>Trace</strong> (first buildings: <code>[2,9,10]</code>, <code>[3,7,15]</code>, <code>[5,12,12]</code>)</p>
+<div class="table-wrap"><table id="tbl-6"><thead><tr><th>Event</th><th>Active heights after</th><th>Max</th><th>Output</th></tr></thead><tbody>
+<tr><td>x=2 start 10</td><td>{0, 10}</td><td>10 (was 0)</td><td><strong>[2,10]</strong></td></tr>
+<tr><td>x=3 start 15</td><td>{0,10,15}</td><td>15</td><td><strong>[3,15]</strong></td></tr>
+<tr><td>x=5 start 12</td><td>{0,10,15,12}</td><td>15</td><td>none</td></tr>
+<tr><td>x=7 end 15</td><td>{0,10,12}</td><td>12</td><td><strong>[7,12]</strong></td></tr>
+<tr><td>x=9 end 10</td><td>{0,12}</td><td>12</td><td>none</td></tr>
+<tr><td>x=12 end 12</td><td>{0}</td><td>0</td><td><strong>[12,0]</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p6" data-anim="skyline" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">class MaxHeap {
+  private data: number[] = [];
+  get size(): number {
+    return this.data.length;
+  }
+  peek(): number {
+    return this.data[0];
+  }
+  push(x: number): void {
+    this.data.push(x);
+    let i = this.data.length - 1;
+    while (i &gt; 0) {
+      const p = (i - 1) &gt;&gt; 1;
+      if (this.data[p] &gt;= this.data[i]) break;
+      [this.data[p], this.data[i]] = [this.data[i], this.data[p]];
+      i = p;
+    }
+  }
+  pop(): number {
+    const top = this.data[0];
+    const last = this.data.pop()!;
+    if (this.data.length &gt; 0) {
+      this.data[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r = 2 * i + 2;
+        let big = i;
+        if (l &lt; this.data.length &amp;&amp; this.data[l] &gt; this.data[big]) big = l;
+        if (r &lt; this.data.length &amp;&amp; this.data[r] &gt; this.data[big]) big = r;
+        if (big === i) break;
+        [this.data[big], this.data[i]] = [this.data[i], this.data[big]];
+        i = big;
+      }
+    }
+    return top;
+  }
+}
+
+function getSkyline(buildings: number[][]): number[][] {
+  const events: [number, number][] = []; // [x, signed height]: start = -h, end = +h
+  for (const [left, right, height] of buildings) {
+    events.push([left, -height]);
+    events.push([right, height]);
+  }
+  events.sort((a, b) =&gt; a[0] - b[0] || a[1] - b[1]); // by x; then starts (tall first) before ends (short first)
+
+  const heights = new MaxHeap();
+  heights.push(0); // the ground
+  const pendingRemoval = new Map&lt;number, number&gt;(); // height -&gt; how many to drop lazily
+  const skyline: number[][] = [];
+  let previous = 0;
+  for (const [x, signedHeight] of events) {
+    if (signedHeight &lt; 0) heights.push(-signedHeight); // a building starts
+    else pendingRemoval.set(signedHeight, (pendingRemoval.get(signedHeight) ?? 0) + 1); // a building ends
+    while (heights.size &gt; 0 &amp;&amp; (pendingRemoval.get(heights.peek()) ?? 0) &gt; 0) {
+      const top = heights.pop(); // the top height belongs to a building that already ended
+      pendingRemoval.set(top, pendingRemoval.get(top)! - 1);
+    }
+    const current = heights.peek();
+    if (current !== previous) {
+      skyline.push([x, current]); // the outline changes height here
+      previous = current;
+    }
+  }
+  return skyline;
+}
+console.log(getSkyline([[2, 9, 10], [3, 7, 15], [5, 12, 12], [15, 20, 10], [19, 24, 8]]));
+// [ [2,10], [3,15], [7,12], [12,0], [15,10], [20,8], [24,0] ]
+console.log(getSkyline([[0, 2, 3], [2, 5, 3]])); // [ [ 0, 3 ], [ 5, 0 ] ]
+console.log(getSkyline([[1, 2, 1], [1, 2, 2], [1, 2, 3]])); // [ [ 1, 3 ], [ 2, 0 ] ]</code></pre>
+<pre data-lang="go"><code class="language-go">// A tiny max-heap of ints, written out by hand.
+type MaxHeap struct{ data []int }
+
+func (h *MaxHeap) Len() int  { return len(h.data) }
+func (h *MaxHeap) Peek() int { return h.data[0] }
+
+func (h *MaxHeap) Push(x int) {
+	h.data = append(h.data, x)
+	i := len(h.data) - 1
+	for i &gt; 0 {
+		p := (i - 1) / 2
+		if h.data[p] &gt;= h.data[i] {
+			break
+		}
+		h.data[p], h.data[i] = h.data[i], h.data[p]
+		i = p
+	}
+}
+
+func (h *MaxHeap) Pop() int {
+	top := h.data[0]
+	last := len(h.data) - 1
+	h.data[0] = h.data[last]
+	h.data = h.data[:last]
+	i := 0
+	for {
+		l, r := 2*i+1, 2*i+2
+		big := i
+		if l &lt; len(h.data) &amp;&amp; h.data[l] &gt; h.data[big] {
+			big = l
+		}
+		if r &lt; len(h.data) &amp;&amp; h.data[r] &gt; h.data[big] {
+			big = r
+		}
+		if big == i {
+			break
+		}
+		h.data[big], h.data[i] = h.data[i], h.data[big]
+		i = big
+	}
+	return top
+}
+
+func getSkyline(buildings [][]int) [][]int {
+	events := make([][2]int, 0, 2*len(buildings)) // [x, signed height]: start = -h, end = +h
+	for _, b := range buildings {
+		events = append(events, [2]int{b[0], -b[2]}, [2]int{b[1], b[2]})
+	}
+	sort.Slice(events, func(i, j int) bool { // by x; then starts (tall first) before ends (short first)
+		if events[i][0] != events[j][0] {
+			return events[i][0] &lt; events[j][0]
+		}
+		return events[i][1] &lt; events[j][1]
+	})
+
+	heights := &amp;MaxHeap{}
+	heights.Push(0) // the ground
+	pendingRemoval := make(map[int]int) // height -&gt; how many to drop lazily
+	skyline := [][]int{}
+	previous := 0
+	for _, ev := range events {
+		x, signed := ev[0], ev[1]
+		if signed &lt; 0 {
+			heights.Push(-signed) // a building starts
+		} else {
+			pendingRemoval[signed]++ // a building ends
+		}
+		for heights.Len() &gt; 0 &amp;&amp; pendingRemoval[heights.Peek()] &gt; 0 {
+			top := heights.Pop() // the top height belongs to a building that already ended
+			pendingRemoval[top]--
+		}
+		current := heights.Peek()
+		if current != previous {
+			skyline = append(skyline, []int{x, current}) // the outline changes height here
+			previous = current
+		}
+	}
+	return skyline
+}
+
+func exampleGetSkyline() {
+	fmt.Println(getSkyline([][]int{{2, 9, 10}, {3, 7, 15}, {5, 12, 12}, {15, 20, 10}, {19, 24, 8}}))
+	// [[2 10] [3 15] [7 12] [12 0] [15 10] [20 8] [24 0]]
+	fmt.Println(getSkyline([][]int{{0, 2, 3}, {2, 5, 3}}))               // [[0 3] [5 0]]
+	fmt.Println(getSkyline([][]int{{1, 2, 1}, {1, 2, 2}, {1, 2, 3}}))    // [[1 3] [2 0]]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log n)</code> (sorting events plus heap operations; each height is pushed once and popped once), space <code>O(n)</code>.</p>
+<p><strong>Why the tie-breaking rule matters (two examples).</strong></p>
+<ul>
+<li><code>[[0,2,3],[2,5,3]]</code>: one building ends at <code>x = 2</code> and another of the same height starts at <code>x = 2</code>. If the <strong>end</strong> were processed first, the height would briefly drop to 0 and create a fake key point <code>[2, 0]</code>, then <code>[2, 3]</code>. Processing the <strong>start first</strong> keeps the maximum at 3, so no point is emitted: the skyline is just <code>[[0,3],[5,0]]</code>.</li>
+<li><code>[[1,2,1],[1,2,2],[1,2,3]]</code>: three buildings start at the same x. If they were processed shortest-first, you would emit <code>[1,1]</code>, <code>[1,2]</code>, <code>[1,3]</code>: three points at the same x. Processing <strong>tallest first</strong> emits only <code>[1,3]</code>.</li>
+</ul>
+<p><strong>The alternative approach to mention:</strong> divide and conquer (merge the skylines of the two halves, like merge sort), <code>O(n log n)</code> as well.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Not sorting first</strong> (or sorting by the wrong field).</li>
+<li><strong>Forgetting <code>max</code></strong> when extending an interval that fully contains the next.</li>
+<li><strong>Wrong overlap test</strong> (<code>&lt;</code> vs. <code>≤</code> for touching intervals): read the statement, and ask.</li>
+<li><strong>Mutating the input intervals</strong> (copy before extending <code>last[1]</code>).</li>
+<li><strong>Greedy by start</strong> instead of by end in the "maximum non-overlapping" and "arrows" problems.</li>
+<li><strong>In sweep lines, the order of simultaneous events</strong> (starts vs. ends at the same coordinate).</li>
+<li><strong>Assuming intervals are given sorted</strong> when they are not (merge intervals) or assuming they are not sorted when they are (insert interval, intersections: use the linear solution).</li>
+<li><strong>Overflow in subtraction comparators</strong> for very large coordinates.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · The overlap test</h3>
+<p>Write the overlap test and say which of <code>[1,5]/[5,8]</code> and <code>[1,5]/[6,8]</code> overlap if touching counts and if it does not.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Touching counts: <code>a1 ≤ b2 &amp;&amp; a2 ≤ b1</code>. Touching does not count: <code>a1 &lt; b2 &amp;&amp; a2 &lt; b1</code>. <code>[1,5]</code> and <code>[5,8]</code> overlap only if touching counts. <code>[1,5]</code> and <code>[6,8]</code> never overlap.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Employee Free Time</h3>
+<p><em>Employee Free Time</em> (LeetCode 759): schedules of several employees. Which two tools combine? (Merge all intervals into one sorted list; the gaps between merged intervals are the free time.)</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Two tools: <strong>merge K sorted lists</strong> (a heap, lesson 17, or just flatten and sort) and <strong>merge intervals</strong>. After merging all busy time into one sorted list, every gap between consecutive merged intervals is free time for everyone.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Car Pooling</h3>
+<p><em>Car Pooling</em> (LeetCode 1094): which of the ideas in file 07 (difference array) or this file (sweep line) does it use? (Both are the same idea.)</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Both views are the same idea. Add <code>+passengers</code> at each pickup and <code>−passengers</code> at each drop-off (a difference array over positions, lesson 07, or sorted events, this lesson), then take a running sum. If it ever exceeds the capacity, return false. Process drop-offs before pickups at the same position.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · My Calendar I</h3>
+<p><em>My Calendar I</em> (LeetCode 729): a new booking arrives online; reject it if it overlaps. What data structure gives <code>O(log n)</code> per booking? (A sorted structure / balanced BST: file 16.)</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Keep bookings in a <strong>sorted structure</strong> keyed by start: a balanced BST or ordered map (lesson 16). For a new booking <code>[s, e)</code>, look at the booking just before s (floor) and just after (ceiling); reject if either overlaps. <code>O(log n)</code> per booking. In TypeScript or Go, a sorted array with binary search gives <code>O(log n)</code> lookups but <code>O(n)</code> inserts.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Remove Covered Intervals</h3>
+<p><em>Remove Covered Intervals</em> (LeetCode 1288): sort by start ascending and <strong>end descending</strong>. Why descending end for ties?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Sort by start ascending, and for equal starts by <strong>end descending</strong>, so the longest of a tie comes first and the shorter ones after it are recognized as covered. Then walk once, tracking the largest end so far: an interval whose end ≤ that maximum is covered. Ascending ends would let <code>[1,2]</code> come before <code>[1,4]</code> and miss that it is covered.</p></div></details>
+</div>
+<div class="exercise" id="ex6">
+<h3>6 · Counting overlaps with events</h3>
+<p>Count the maximum number of overlapping intervals with <code>+1</code> at starts and <code>−1</code> at ends. Write the event list for <code>[[1,4],[2,5],[7,9]]</code>.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Events for <code>[[1,4],[2,5],[7,9]]</code>: <code>(1,+1) (2,+1) (4,−1) (5,−1) (7,+1) (9,−1)</code>. Running sum: 1, 2, 1, 0, 1, 0. The maximum, <strong>2</strong>, is the most intervals overlapping at once. At equal coordinates, put −1 before +1 if intervals are half-open (touching does not overlap).</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="iv24"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/viz/timeline.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/24.js"></script>
+</body>
+</html>

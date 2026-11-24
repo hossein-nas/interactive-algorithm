@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="23" data-pattern="Greedy">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>23 Greedy algorithms and NP-complete problems | Algorithm guide</title>
+<meta name="description" content="Greedy animated: earliest-end scheduling, jump games, gas station, partition labels, task scheduler, greedy set cover and the knapsack where greedy fails.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 23</span><span>Greedy and hard problems</span><span class="stars" title="Fairly likely in interviews">★★</span></div>
+<h1>Greedy algorithms and NP-complete problems</h1>
+<p class="sub">Take the best-looking step, but only when you can prove it never hurts.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 10 (the classroom scheduling problem, the knapsack problem, the set-covering problem) and appendix B (NP-hard problems). The book uses greedy methods in two ways: as an <em>exact</em> answer (classroom scheduling) and as an <em>approximation</em> when no exact fast answer is known (set covering, knapsack). This file keeps that structure and adds the interview staples: jump game, gas station, partition labels, and task scheduler.</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>A local rule (earliest end, furthest reach, most coverage) never needs to be undone. Test a tiny counterexample first.</p></div><div><b>How to argue it</b><p>An exchange argument: swapping the greedy choice into any optimal answer keeps it optimal.</p></div><div><b>When it fails</b><p>Coin change with odd coins, 0/1 knapsack, set cover, TSP: use DP, search, or accept an approximation.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>A <strong>greedy</strong> algorithm makes the choice that looks <strong>best right now</strong> and never looks back. It is the "grab the biggest cookie first" strategy.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart TD
+    A["Problem: build an answer step by step"] --&gt; B["Among the options now, pick the one that looks best"]
+    B --&gt; C["Commit to it. Never undo."]
+    C --&gt; D{"Done?"}
+    D --&gt;|No| B
+    D --&gt;|Yes| E["Answer"]</pre></figure>
+<p><strong>Why greedy is attractive:</strong> it is simple and fast (often <code>O(n log n)</code>, from a sort, or <code>O(n)</code>).</p>
+<p><strong>Why greedy is dangerous:</strong> "best right now" is <strong>not always best overall</strong>. Example: you want change for 6 cents with coins <code>{1, 3, 4}</code>. Greedy takes the biggest coin first: <code>4 + 1 + 1</code> = 3 coins. The best is <code>3 + 3</code> = 2 coins. For such problems you need dynamic programming (files 25 and 26).</p>
+<h3 id="when-does-greedy-work">When does greedy work?</h3>
+<p>It works when the problem has two properties:</p>
+<ol>
+<li><strong>Greedy-choice property:</strong> some optimal solution begins with the greedy choice. (You can safely commit to the first step.)</li>
+<li><strong>Optimal substructure:</strong> after the greedy choice, what remains is a smaller version of the same problem.</li>
+</ol>
+<p><strong>How to convince yourself (and the interviewer): the exchange argument.</strong> Take any optimal solution. If it does not use the greedy choice, show you can <strong>swap</strong> one of its choices for the greedy choice without making it worse. So an optimal solution that uses the greedy choice exists.</p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    A["Is greedy right here?"] --&gt; B["Try to find a counterexample with tiny inputs"]
+    B --&gt; C{"Found one?"}
+    C --&gt;|Yes| D["Greedy is wrong: think DP or search"]
+    C --&gt;|No| E["Try the exchange argument:&lt;br/&gt;swap an optimal solution's first choice for the greedy one.&lt;br/&gt;Does it get worse?"]
+    E --&gt; F{"Never worse?"}
+    F --&gt;|Yes| G["Greedy is correct"]
+    F --&gt;|No| D</pre></figure>
+<h3 id="typical-greedy-shapes-in-interviews">Typical greedy shapes in interviews</h3>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Shape</th><th>The greedy choice</th><th>Examples</th></tr></thead><tbody>
+<tr><td><strong>Intervals / scheduling</strong></td><td>sort by <strong>end time</strong>, take the one that ends earliest</td><td>classroom scheduling, non-overlapping intervals, meeting rooms</td></tr>
+<tr><td><strong>Reach / coverage</strong></td><td>track the <strong>furthest</strong> you can get so far</td><td>jump game, gas station, minimum taps to water a garden</td></tr>
+<tr><td><strong>Sort then pair up</strong></td><td>match the biggest with the smallest, or smallest with smallest</td><td>assign cookies, boats to save people, two-city scheduling</td></tr>
+<tr><td><strong>Partition by last occurrence</strong></td><td>extend the current block to include the last occurrence of everything inside</td><td>partition labels</td></tr>
+<tr><td><strong>Count by frequency</strong></td><td>fill the most frequent item first</td><td>task scheduler, reorganize string (a heap)</td></tr>
+<tr><td><strong>Merge cheapest first</strong></td><td>repeatedly combine the two smallest</td><td>Huffman coding, connect sticks (a heap)</td></tr>
+</tbody></table></div>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>2. How to recognize it</h2>
+<ul>
+<li>"<strong>Maximum number of</strong> non-overlapping …", "<strong>minimum number of</strong> … to cover everything".</li>
+<li>You can sort and a <strong>single pass</strong> seems enough.</li>
+<li>Choosing the locally best thing never seems to hurt later; you cannot think of a counterexample.</li>
+<li>The problem is a <strong>scheduling</strong>, <strong>covering</strong>, or <strong>matching</strong> problem.</li>
+</ul>
+<p>If a small brute-force check disagrees with your greedy rule, abandon it: a single counterexample kills a greedy proof.</p>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>3. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Classroom Scheduling / Maximum Non-Overlapping Intervals (the book's example; LeetCode 435 as the "removal" form)</h3>
+<p><strong>Task (the book).</strong> You have one classroom and a list of classes with start and end times. Schedule the <strong>largest possible number</strong> of classes with no overlaps. The book's classes: Art 9:00–10:00, English 9:30–10:30, Math 10:00–11:00, CS 10:30–11:30, Music 11:00–12:00 (shown here as hours).</p>
+<p><strong>Greedy rule.</strong> Always pick the class that <strong>ends earliest</strong> among those that do not conflict with the ones already chosen. Finishing early leaves the most room for everything else.</p>
+<p><strong>Why not "pick the earliest start" or "the shortest"?</strong> Counterexamples: one class running 9 to 17 starts first and blocks everything; a short class in the middle of two others can block both.</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart LR
+    A["Sort by end time"] --&gt; B["Take the first class"]
+    B --&gt; C["For each next class: does it start at or after the last chosen end?"]
+    C --&gt;|Yes| D["Take it"]
+    C --&gt;|No| E["Skip it"]
+    D --&gt; C
+    E --&gt; C</pre></figure>
+<p><strong>Trace</strong> (sorted by end: Art 10, English 10.5, Math 11, CS 11.5, Music 12)</p>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Class</th><th>Starts at/after last end?</th><th>Action</th><th>Last end</th></tr></thead><tbody>
+<tr><td>Art 9–10</td><td>yes (nothing yet)</td><td>take</td><td>10</td></tr>
+<tr><td>English 9.5–10.5</td><td>9.5 &lt; 10</td><td>skip</td><td>10</td></tr>
+<tr><td>Math 10–11</td><td>10 ≥ 10</td><td>take</td><td>11</td></tr>
+<tr><td>CS 10.5–11.5</td><td>10.5 &lt; 11</td><td>skip</td><td>11</td></tr>
+<tr><td>Music 11–12</td><td>11 ≥ 11</td><td>take</td><td>12</td></tr>
+</tbody></table></div>
+<p>Result: Art, Math, Music (3 classes) ✔.</p>
+<p><strong>LeetCode 435 (Non-overlapping Intervals):</strong> "minimum number of intervals to <strong>remove</strong> so the rest do not overlap" = <code>n − (maximum number you can keep)</code>.</p>
+<div class="stage" id="st-p1" data-anim="schedule" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts"><code class="language-ts">// Returns the chosen intervals (the biggest set with no overlaps).
+function maxNonOverlapping(intervals: number[][]): number[][] {
+  const sorted = [...intervals].sort((a, b) =&gt; a[1] - b[1]); // by END time
+  const chosen: number[][] = [];
+  let lastEnd = -Infinity;
+  for (const [start, end] of sorted) {
+    if (start &gt;= lastEnd) { // touching at the boundary is allowed
+      chosen.push([start, end]);
+      lastEnd = end;
+    }
+  }
+  return chosen;
+}
+
+function eraseOverlapIntervals(intervals: number[][]): number {
+  return intervals.length - maxNonOverlapping(intervals).length;
+}
+
+const classes = [[9, 10], [9.5, 10.5], [10, 11], [10.5, 11.5], [11, 12]]; // Art, English, Math, CS, Music
+console.log(maxNonOverlapping(classes)); // [ [ 9, 10 ], [ 10, 11 ], [ 11, 12 ] ]
+console.log(eraseOverlapIntervals([[1, 2], [2, 3], [3, 4], [1, 3]])); // 1
+console.log(eraseOverlapIntervals([[1, 2], [1, 2], [1, 2]])); // 2
+console.log(eraseOverlapIntervals([[1, 2], [2, 3]])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">// Returns the chosen intervals (the biggest set with no overlaps).
+func maxNonOverlapping(intervals [][]float64) [][]float64 {
+	sorted := append([][]float64(nil), intervals...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i][1] &lt; sorted[j][1] }) // by END time
+	chosen := [][]float64{}
+	lastEnd := math.Inf(-1)
+	for _, iv := range sorted {
+		if iv[0] &gt;= lastEnd { // touching at the boundary is allowed
+			chosen = append(chosen, iv)
+			lastEnd = iv[1]
+		}
+	}
+	return chosen
+}
+
+func eraseOverlapIntervals(intervals [][]int) int {
+	sorted := append([][]int(nil), intervals...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i][1] &lt; sorted[j][1] })
+	kept, lastEnd := 0, math.MinInt
+	for _, iv := range sorted {
+		if iv[0] &gt;= lastEnd {
+			kept++
+			lastEnd = iv[1]
+		}
+	}
+	return len(intervals) - kept
+}
+
+func exampleActivitySelection() {
+	classes := [][]float64{{9, 10}, {9.5, 10.5}, {10, 11}, {10.5, 11.5}, {11, 12}} // Art, English, Math, CS, Music
+	fmt.Println(maxNonOverlapping(classes))                                          // [[9 10] [10 11] [11 12]]
+	fmt.Println(eraseOverlapIntervals([][]int{{1, 2}, {2, 3}, {3, 4}, {1, 3}}))      // 1
+	fmt.Println(eraseOverlapIntervals([][]int{{1, 2}, {1, 2}, {1, 2}}))              // 2
+	fmt.Println(eraseOverlapIntervals([][]int{{1, 2}, {2, 3}}))                      // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log n)</code> (the sort), space <code>O(n)</code> (or <code>O(1)</code> extra when only counting).</p>
+<p><strong>Proof sketch (exchange argument).</strong> Let <code>g</code> be the interval ending earliest. In any optimal schedule, the first interval <code>f</code> ends no earlier than <code>g</code>. Replace <code>f</code> by <code>g</code>: since <code>g</code> ends no later, it still does not overlap the rest. The schedule is no worse, so some optimal schedule starts with <code>g</code>.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Jump Game (LeetCode 55) and Jump Game II (LeetCode 45), Medium</h3>
+<p><strong>Jump Game.</strong> <code>nums[i]</code> is the maximum jump length from position <code>i</code>. Starting at index 0, can you reach the last index? <code>[2,3,1,1,4]</code> → <code>true</code>; <code>[3,2,1,0,4]</code> → <code>false</code>.</p>
+<p><strong>Idea.</strong> Walk left to right keeping <code>furthest</code> = the farthest index reachable so far. If you ever stand on an index <strong>beyond</strong> <code>furthest</code>, you were stranded → <code>false</code>. Otherwise update <code>furthest = max(furthest, i + nums[i])</code>.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["furthest = 0"] --&gt; B["for each index i"]
+    B --&gt; C{"i &gt; furthest ?"}
+    C --&gt;|Yes| D["stuck: return false"]
+    C --&gt;|No| E["furthest = max(furthest, i + nums[i])"]
+    E --&gt; F{"furthest &gt;= last index?"}
+    F --&gt;|Yes| G["return true"]
+    F --&gt;|No| B</pre></figure>
+<p><strong>Trace</strong> on <code>[3, 2, 1, 0, 4]</code></p>
+<div class="table-wrap"><table id="tbl-3" class="trace"><thead><tr><th>i</th><th>nums[i]</th><th>furthest after</th><th>Note</th></tr></thead><tbody>
+<tr><td>0</td><td>3</td><td>3</td><td></td></tr>
+<tr><td>1</td><td>2</td><td>3</td><td>max(3, 1+2)</td></tr>
+<tr><td>2</td><td>1</td><td>3</td><td></td></tr>
+<tr><td>3</td><td>0</td><td>3</td><td></td></tr>
+<tr><td>4</td><td></td><td></td><td>i = 4 &gt; furthest = 3: <strong>stuck → false</strong></td></tr>
+</tbody></table></div>
+<p><strong>Jump Game II.</strong> Guaranteed reachable; find the <strong>minimum number of jumps</strong>.</p>
+<p><strong>Idea (BFS in disguise).</strong> Think in <strong>layers</strong>: the positions reachable with <code>j</code> jumps form a range. Keep <code>currentEnd</code> (the right edge of the layer reachable with the jumps used so far) and <code>furthest</code> (the furthest anything in this layer can reach). When you pass <code>currentEnd</code>, you <strong>must</strong> jump once more: <code>jumps++</code> and <code>currentEnd = furthest</code>.</p>
+<p><strong>Trace</strong> on <code>[2, 3, 1, 1, 4]</code></p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>i</th><th>furthest</th><th>currentEnd</th><th>jumps</th></tr></thead><tbody>
+<tr><td>0</td><td>2</td><td>0 → at i=0 we hit currentEnd: jump, currentEnd = 2</td><td>1</td></tr>
+<tr><td>1</td><td>4</td><td>2</td><td>1</td></tr>
+<tr><td>2</td><td>4</td><td>i = 2 hits currentEnd: jump, currentEnd = 4</td><td>2</td></tr>
+<tr><td>3</td><td>4</td><td>4</td><td>2</td></tr>
+</tbody></table></div>
+<p>Stop before the last index: answer <strong>2</strong>.</p>
+<div class="stage" id="st-p2" data-anim="canJump,jump2" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function canJump(nums: number[]): boolean {
+  let furthest = 0;
+  for (let i = 0; i &lt; nums.length; i++) {
+    if (i &gt; furthest) return false; // we can never stand here
+    furthest = Math.max(furthest, i + nums[i]);
+    if (furthest &gt;= nums.length - 1) return true;
+  }
+  return true;
+}
+
+function jump(nums: number[]): number {
+  let jumps = 0, currentEnd = 0, furthest = 0;
+  for (let i = 0; i &lt; nums.length - 1; i++) { // never need to jump from the last index
+    furthest = Math.max(furthest, i + nums[i]);
+    if (i === currentEnd) { // we have used up the current layer: another jump is forced
+      jumps++;
+      currentEnd = furthest;
+    }
+  }
+  return jumps;
+}
+
+console.log(canJump([2, 3, 1, 1, 4]), canJump([3, 2, 1, 0, 4]), canJump([0])); // true false true
+console.log(jump([2, 3, 1, 1, 4]), jump([2, 3, 0, 1, 4]), jump([1])); // 2 2 0</code></pre>
+<pre data-lang="go"><code class="language-go">func canJump(nums []int) bool {
+	furthest := 0
+	for i := 0; i &lt; len(nums); i++ {
+		if i &gt; furthest {
+			return false // we can never stand here
+		}
+		furthest = max(furthest, i+nums[i])
+		if furthest &gt;= len(nums)-1 {
+			return true
+		}
+	}
+	return true
+}
+
+func jump(nums []int) int {
+	jumps, currentEnd, furthest := 0, 0, 0
+	for i := 0; i &lt; len(nums)-1; i++ { // never need to jump from the last index
+		furthest = max(furthest, i+nums[i])
+		if i == currentEnd { // we have used up the current layer: another jump is forced
+			jumps++
+			currentEnd = furthest
+		}
+	}
+	return jumps
+}
+
+func exampleJumpGame() {
+	fmt.Println(canJump([]int{2, 3, 1, 1, 4}), canJump([]int{3, 2, 1, 0, 4}), canJump([]int{0})) // true false true
+	fmt.Println(jump([]int{2, 3, 1, 1, 4}), jump([]int{2, 3, 0, 1, 4}), jump([]int{1}))           // 2 2 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Both <code>O(n)</code> time, <code>O(1)</code> space. (A DP solution is <code>O(n²)</code>; naming it and then improving it shows the greedy insight.)</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Gas Station (LeetCode 134, Medium)</h3>
+<p><strong>Task.</strong> Gas stations are arranged in a circle. <code>gas[i]</code> is the fuel at station <code>i</code>; <code>cost[i]</code> is the fuel needed to drive to station <code>i + 1</code>. Starting with an empty tank, find the <strong>starting station</strong> from which you can complete one full loop, or <code>−1</code>. <code>gas = [1,2,3,4,5]</code>, <code>cost = [3,4,5,1,2]</code> → <code>3</code>.</p>
+<p><strong>Two greedy facts.</strong></p>
+<ol>
+<li>If the <strong>total</strong> gas is less than the <strong>total</strong> cost, no start works → <code>−1</code>. If total gas ≥ total cost, a start <strong>exists</strong> (and is unique).</li>
+<li>While scanning, suppose we began at station <code>s</code> and the tank first goes <strong>negative</strong> at station <code>i</code>. Take any station <code>k</code> between <code>s</code> and <code>i</code>. When we passed <code>k</code> starting from <code>s</code>, we arrived with a tank of <strong>zero or more</strong>. If we had started <em>at</em> <code>k</code> instead, we would have begun with exactly zero, so we would have <strong>less</strong> fuel than before and would run out at or before <code>i</code> as well. So <strong>none of <code>s … i</code> can be the start</strong>. Reset: the next candidate start is <code>i + 1</code>, with an empty tank.</li>
+</ol>
+<p><strong>Trace.</strong> <code>gas = [1,2,3,4,5]</code>, <code>cost = [3,4,5,1,2]</code>; net per station <code>gas − cost</code> = <code>[−2, −2, −2, 3, 3]</code></p>
+<div class="table-wrap"><table id="tbl-5" class="trace"><thead><tr><th>i</th><th>net</th><th>tank (from candidate start)</th><th>Action</th><th>start</th></tr></thead><tbody>
+<tr><td>0</td><td>−2</td><td>−2</td><td>negative: reset</td><td>1</td></tr>
+<tr><td>1</td><td>−2</td><td>−2</td><td>negative: reset</td><td>2</td></tr>
+<tr><td>2</td><td>−2</td><td>−2</td><td>negative: reset</td><td>3</td></tr>
+<tr><td>3</td><td>+3</td><td>3</td><td>ok</td><td>3</td></tr>
+<tr><td>4</td><td>+3</td><td>6</td><td>ok</td><td>3</td></tr>
+</tbody></table></div>
+<p>Total net = <code>0 + ... = −6 + 6 = 0 ≥ 0</code> → answer start <strong>3</strong> ✔.</p>
+<div class="stage" id="st-p3" data-anim="gas" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function canCompleteCircuit(gas: number[], cost: number[]): number {
+  let total = 0; // net fuel over the whole loop
+  let tank = 0; // net fuel since the candidate start
+  let start = 0;
+  for (let i = 0; i &lt; gas.length; i++) {
+    const net = gas[i] - cost[i];
+    total += net;
+    tank += net;
+    if (tank &lt; 0) { // we cannot reach station i + 1 from the current start
+      start = i + 1; // so no station up to i can be the start
+      tank = 0;
+    }
+  }
+  return total &gt;= 0 ? start : -1;
+}
+console.log(canCompleteCircuit([1, 2, 3, 4, 5], [3, 4, 5, 1, 2])); // 3
+console.log(canCompleteCircuit([2, 3, 4], [3, 4, 3])); // -1
+console.log(canCompleteCircuit([5], [4])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func canCompleteCircuit(gas, cost []int) int {
+	total, tank, start := 0, 0, 0 // total: net over the loop; tank: net since the candidate start
+	for i := range gas {
+		net := gas[i] - cost[i]
+		total += net
+		tank += net
+		if tank &lt; 0 { // we cannot reach station i + 1 from the current start
+			start = i + 1 // so no station up to i can be the start
+			tank = 0
+		}
+	}
+	if total &gt;= 0 {
+		return start
+	}
+	return -1
+}
+
+func exampleGasStation() {
+	fmt.Println(canCompleteCircuit([]int{1, 2, 3, 4, 5}, []int{3, 4, 5, 1, 2})) // 3
+	fmt.Println(canCompleteCircuit([]int{2, 3, 4}, []int{3, 4, 3}))             // -1
+	fmt.Println(canCompleteCircuit([]int{5}, []int{4}))                         // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(1)</code>.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Partition Labels (LeetCode 763, Medium)</h3>
+<p><strong>Task.</strong> Split a string into as many parts as possible so that <strong>each letter appears in at most one part</strong>. Return the part sizes. <code>"ababcbacadefegdehijhklij"</code> → <code>[9, 7, 8]</code> (<code>"ababcbaca"</code>, <code>"defegde"</code>, <code>"hijhklij"</code>).</p>
+<p><strong>Idea.</strong> First record the <strong>last index</strong> of every letter. Then scan, keeping <code>end</code> = the furthest last-occurrence of any letter seen in the current part. When the scan index reaches <code>end</code>, nothing inside the part appears later: <strong>close the part</strong> and start a new one.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["Record last index of every letter"] --&gt; B["start = 0, end = 0"]
+    B --&gt; C["for i = 0..n-1: end = max(end, last[s[i]])"]
+    C --&gt; D{"i == end ?"}
+    D --&gt;|Yes| E["part size = end - start + 1; start = i + 1"]
+    D --&gt;|No| C
+    E --&gt; C</pre></figure>
+<p><strong>Trace</strong> on <code>"ababcbaca..."</code>: <code>a</code> last at 8, <code>b</code> last at 5, <code>c</code> last at 7</p>
+<div class="table-wrap"><table id="tbl-6" class="trace"><thead><tr><th>i</th><th>char</th><th>end after</th><th>action</th></tr></thead><tbody>
+<tr><td>0</td><td>a</td><td>8</td><td></td></tr>
+<tr><td>1</td><td>b</td><td>8</td><td></td></tr>
+<tr><td>2</td><td>a</td><td>8</td><td></td></tr>
+<tr><td>3</td><td>b</td><td>8</td><td></td></tr>
+<tr><td>4</td><td>c</td><td>8</td><td></td></tr>
+<tr><td>5</td><td>b</td><td>8</td><td></td></tr>
+<tr><td>6</td><td>a</td><td>8</td><td></td></tr>
+<tr><td>7</td><td>c</td><td>8</td><td></td></tr>
+<tr><td>8</td><td>a</td><td>8</td><td>i == end: cut → size 9</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p4" data-anim="partition" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function partitionLabels(s: string): number[] {
+  const last = new Map&lt;string, number&gt;(); // letter -&gt; index of its last occurrence
+  for (let i = 0; i &lt; s.length; i++) last.set(s[i], i);
+  const sizes: number[] = [];
+  let start = 0, end = 0;
+  for (let i = 0; i &lt; s.length; i++) {
+    end = Math.max(end, last.get(s[i])!); // the part must reach this letter's last occurrence
+    if (i === end) { // everything inside is complete: cut here
+      sizes.push(end - start + 1);
+      start = i + 1;
+    }
+  }
+  return sizes;
+}
+console.log(partitionLabels("ababcbacadefegdehijhklij")); // [ 9, 7, 8 ]
+console.log(partitionLabels("eccbbbbdec")); // [ 10 ]
+console.log(partitionLabels("abc")); // [ 1, 1, 1 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func partitionLabels(s string) []int {
+	var last [26]int // letter -&gt; index of its last occurrence
+	for i := 0; i &lt; len(s); i++ {
+		last[s[i]-'a'] = i
+	}
+	sizes := []int{}
+	start, end := 0, 0
+	for i := 0; i &lt; len(s); i++ {
+		end = max(end, last[s[i]-'a']) // the part must reach this letter's last occurrence
+		if i == end {                  // everything inside is complete: cut here
+			sizes = append(sizes, end-start+1)
+			start = i + 1
+		}
+	}
+	return sizes
+}
+
+func examplePartitionLabels() {
+	fmt.Println(partitionLabels("ababcbacadefegdehijhklij")) // [9 7 8]
+	fmt.Println(partitionLabels("eccbbbbdec"))               // [10]
+	fmt.Println(partitionLabels("abc"))                      // [1 1 1]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(1)</code> (26 letters).</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Task Scheduler (LeetCode 621, Medium/Hard)</h3>
+<p><strong>Task.</strong> CPU tasks are labeled by letters. Each takes 1 unit of time. <strong>Two same-letter tasks must be at least <code>n</code> units apart</strong> (the CPU can be idle). Return the minimum total time. <code>tasks = [A,A,A,B,B,B]</code>, <code>n = 2</code> → <code>8</code> (<code>A B idle A B idle A B</code>).</p>
+<p><strong>Reasoning about the structure.</strong> The most frequent task is the bottleneck. Suppose <code>A</code> appears <code>maxCount</code> times. Lay out <code>maxCount − 1</code> <strong>frames</strong> of length <code>n + 1</code> (one <code>A</code> plus <code>n</code> slots before the next <code>A</code>), then a final partial frame holding the last <code>A</code> (and any other tasks that also have <code>maxCount</code> occurrences).</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart LR
+    F1["frame 1: A _ _"] --&gt; F2["frame 2: A _ _"] --&gt; F3["last: A"]</pre></figure>
+<p>Fill the blanks with other tasks. <strong>Formula:</strong></p>
+<blockquote><p><code>time = (maxCount − 1) × (n + 1) + (number of tasks that have the maximum frequency)</code></p></blockquote>
+<p>But if there are <em>so many</em> different tasks that the blanks overflow (no idle needed), the answer is just the number of tasks. So <code>answer = max(formula, tasks.length)</code>.</p>
+<p><strong>Trace.</strong> <code>A A A B B B</code>, <code>n = 2</code>: <code>maxCount = 3</code>, two tasks tie for the max (<code>A</code> and <code>B</code>).</p>
+<p><code>(3 − 1) × (2 + 1) + 2 = 2 × 3 + 2 = 8</code> ✔. <code>tasks.length = 6</code>, so the answer is <code>max(8, 6) = 8</code>.</p>
+<p>Another: <code>n = 0</code> → <code>(3−1)×1 + 2 = 4</code>, but there are 6 tasks, so the answer is <code>6</code> (no idle needed).</p>
+<div class="stage" id="st-p5" data-anim="tasks" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function leastInterval(tasks: string[], n: number): number {
+  const counts = new Map&lt;string, number&gt;();
+  for (const t of tasks) counts.set(t, (counts.get(t) ?? 0) + 1);
+  const maxCount = Math.max(...counts.values());
+  let tied = 0; // how many task types have the maximum frequency
+  for (const c of counts.values()) if (c === maxCount) tied++;
+  const frames = (maxCount - 1) * (n + 1) + tied; // the layout with the necessary idle slots
+  return Math.max(frames, tasks.length); // with enough variety, no idling is needed
+}
+console.log(leastInterval(["A", "A", "A", "B", "B", "B"], 2)); // 8
+console.log(leastInterval(["A", "A", "A", "B", "B", "B"], 0)); // 6
+console.log(leastInterval(["A", "A", "A", "A", "A", "A", "B", "C", "D", "E", "F", "G"], 2)); // 16
+console.log(leastInterval(["A"], 5)); // 1</code></pre>
+<pre data-lang="go"><code class="language-go">func leastInterval(tasks []byte, n int) int {
+	var counts [26]int
+	for _, t := range tasks {
+		counts[t-'A']++
+	}
+	maxCount := 0
+	for _, c := range counts {
+		maxCount = max(maxCount, c)
+	}
+	tied := 0 // how many task types have the maximum frequency
+	for _, c := range counts {
+		if c == maxCount {
+			tied++
+		}
+	}
+	frames := (maxCount-1)*(n+1) + tied // the layout with the necessary idle slots
+	return max(frames, len(tasks))      // with enough variety, no idling is needed
+}
+
+func exampleLeastInterval() {
+	fmt.Println(leastInterval([]byte("AAABBB"), 2))         // 8
+	fmt.Println(leastInterval([]byte("AAABBB"), 0))         // 6
+	fmt.Println(leastInterval([]byte("AAAAAABCDEFG"), 2))   // 16
+	fmt.Println(leastInterval([]byte("A"), 5))              // 1
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(T)</code>, space <code>O(1)</code>.</p>
+<p><strong>The heap version</strong> (the one most people write first, and a good fallback): repeatedly take the <code>n + 1</code> most frequent remaining tasks (max-heap), run one of each, decrement counts, and re-insert the survivors; count idle slots when fewer than <code>n + 1</code> distinct tasks remain. <code>O(T log 26)</code>. Explain the formula as the optimization.</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · The set-covering problem (the book's radio stations), and why greedy is only an approximation</h3>
+<p><strong>Task (from the book).</strong> You want to broadcast a radio show to 8 states. Several stations each cover some states. Choose the <strong>fewest stations</strong> that together cover <strong>all 8</strong> states.</p>
+<div class="table-wrap"><table id="tbl-7"><thead><tr><th>Station</th><th>States covered</th></tr></thead><tbody>
+<tr><td>kone</td><td>id, nv, ut</td></tr>
+<tr><td>ktwo</td><td>wa, id, mt</td></tr>
+<tr><td>kthree</td><td>or, nv, ca</td></tr>
+<tr><td>kfour</td><td>nv, ut</td></tr>
+<tr><td>kfive</td><td>ca, az</td></tr>
+</tbody></table></div>
+<p>States needed: <code>mt, wa, or, id, nv, ut, ca, az</code>.</p>
+<p><strong>The exact approach is too slow.</strong> With <code>n</code> stations there are <code>2ⁿ</code> subsets to check. For 100 stations that is more than a nonillion possibilities. This problem is <strong>NP-complete</strong> (see the next section): no known algorithm is fast on all inputs.</p>
+<p><strong>The greedy approximation.</strong> Repeatedly pick the station that covers the <strong>most still-uncovered states</strong>; remove what it covered; repeat until nothing is uncovered. Fast (<code>O(stations × states)</code> per pick) and <em>close</em> to optimal (provably within a <code>ln n</code> factor), though not always optimal.</p>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["uncovered = all states"] --&gt; B{"uncovered empty?"}
+    B --&gt;|Yes| Z["return the chosen stations"]
+    B --&gt;|No| C["pick the station covering the most uncovered states"]
+    C --&gt; D{"it covers none?"}
+    D --&gt;|Yes| X["impossible: some state has no station"]
+    D --&gt;|No| E["uncovered -= its states; add it to the chosen list"]
+    E --&gt; B</pre></figure>
+<p><strong>A tiny example where greedy is <em>not</em> optimal.</strong> Universe <code>{1..6}</code>; sets <code>T = {1,2,4,5}</code> (the tempting big one), <code>O1 = {1,2,3}</code>, <code>O2 = {4,5,6}</code>. Greedy picks <code>T</code> first (4 new items), then still needs <code>3</code> and <code>6</code>: it must add both <code>O1</code> and <code>O2</code> → <strong>3 sets</strong>. The optimum is just <code>O1 + O2</code> → <strong>2 sets</strong>. Greedy is <em>fast</em>, not <em>perfect</em>.</p>
+<div class="stage" id="st-p6" data-anim="setCover" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function greedySetCover(universe: string[], sets: Map&lt;string, Set&lt;string&gt;&gt;): string[] | null {
+  const uncovered = new Set(universe);
+  const chosen: string[] = [];
+  while (uncovered.size &gt; 0) {
+    let bestName: string | null = null;
+    let bestGain = 0;
+    for (const [name, covers] of sets) {
+      let gain = 0;
+      for (const item of covers) if (uncovered.has(item)) gain++; // how much NEW coverage?
+      if (gain &gt; bestGain) {
+        bestGain = gain;
+        bestName = name;
+      }
+    }
+    if (bestName === null) return null; // some item cannot be covered by any set
+    chosen.push(bestName);
+    for (const item of sets.get(bestName)!) uncovered.delete(item);
+  }
+  return chosen;
+}
+
+const stations = new Map&lt;string, Set&lt;string&gt;&gt;([
+  ["kone", new Set(["id", "nv", "ut"])],
+  ["ktwo", new Set(["wa", "id", "mt"])],
+  ["kthree", new Set(["or", "nv", "ca"])],
+  ["kfour", new Set(["nv", "ut"])],
+  ["kfive", new Set(["ca", "az"])],
+]);
+console.log(greedySetCover(["mt", "wa", "or", "id", "nv", "ut", "ca", "az"], stations));
+// [ 'kone', 'ktwo', 'kthree', 'kfive' ]
+
+// The counter-example: greedy uses 3 sets, the optimum is 2.
+const trap = new Map&lt;string, Set&lt;string&gt;&gt;([
+  ["T", new Set(["1", "2", "4", "5"])],
+  ["O1", new Set(["1", "2", "3"])],
+  ["O2", new Set(["4", "5", "6"])],
+]);
+console.log(greedySetCover(["1", "2", "3", "4", "5", "6"], trap)); // [ 'T', 'O1', 'O2' ]  (3 sets; optimal is [O1, O2])
+console.log(greedySetCover(["x"], trap)); // null</code></pre>
+<pre data-lang="go"><code class="language-go">type namedSet struct {
+	name   string
+	covers []string
+}
+
+func greedySetCover(universe []string, sets []namedSet) ([]string, bool) {
+	uncovered := make(map[string]bool, len(universe))
+	for _, u := range universe {
+		uncovered[u] = true
+	}
+	chosen := []string{}
+	for len(uncovered) &gt; 0 {
+		bestIdx, bestGain := -1, 0
+		for i, s := range sets {
+			gain := 0
+			for _, item := range s.covers {
+				if uncovered[item] {
+					gain++ // how much NEW coverage?
+				}
+			}
+			if gain &gt; bestGain {
+				bestGain, bestIdx = gain, i
+			}
+		}
+		if bestIdx == -1 {
+			return nil, false // some item cannot be covered by any set
+		}
+		chosen = append(chosen, sets[bestIdx].name)
+		for _, item := range sets[bestIdx].covers {
+			delete(uncovered, item)
+		}
+	}
+	return chosen, true
+}
+
+func exampleGreedySetCover() {
+	stations := []namedSet{
+		{"kone", []string{"id", "nv", "ut"}},
+		{"ktwo", []string{"wa", "id", "mt"}},
+		{"kthree", []string{"or", "nv", "ca"}},
+		{"kfour", []string{"nv", "ut"}},
+		{"kfive", []string{"ca", "az"}},
+	}
+	fmt.Println(greedySetCover([]string{"mt", "wa", "or", "id", "nv", "ut", "ca", "az"}, stations))
+	// [kone ktwo kthree kfive] true
+
+	trap := []namedSet{
+		{"T", []string{"1", "2", "4", "5"}},
+		{"O1", []string{"1", "2", "3"}},
+		{"O2", []string{"4", "5", "6"}},
+	}
+	fmt.Println(greedySetCover([]string{"1", "2", "3", "4", "5", "6"}, trap)) // [T O1 O2] true  (3 sets; optimal is O1, O2)
+	fmt.Println(greedySetCover([]string{"x"}, trap))                          // [] false
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(picks × sets × set size)</code>, space <code>O(universe)</code>.</p>
+</section>
+</section>
+<section class="sec" id="the-knapsack-problem-greedy-fails-dp-wins">
+<h2>4. The knapsack problem: greedy fails, DP wins</h2>
+<p>(The book uses this problem in both chapter 10 and chapter 11.)</p>
+<p>You have a bag that holds <strong>4 lb</strong>. Items: guitar (1 lb, $1500), stereo (4 lb, $3000), laptop (3 lb, $2000). Which to take to maximize value?</p>
+<ul>
+<li><strong>Greedy by value:</strong> take the most valuable item first, the stereo ($3000), which fills the bag. Total <strong>$3000</strong>.</li>
+<li><strong>Best:</strong> guitar + laptop (1 + 3 = 4 lb) = <strong>$3500</strong>.</li>
+</ul>
+<p>Greedy is only an approximation here. (If you could take <strong>fractions</strong> of items, greedy by value-per-pound <em>would</em> be exactly optimal: that is the "fractional knapsack", a true greedy problem. The all-or-nothing version needs dynamic programming: file 26.)</p>
+<div class="stage" id="st-ks" data-anim="knapsack" data-code="code-7"></div>
+<div class="code-tabs" id="code-7">
+<pre data-lang="ts" data-caption="greedy vs. the true best for 0/1 knapsack"><code class="language-ts">type Item = { name: string; weight: number; value: number };
+const loot: Item[] = [
+  { name: "guitar", weight: 1, value: 1500 },
+  { name: "stereo", weight: 4, value: 3000 },
+  { name: "laptop", weight: 3, value: 2000 },
+];
+
+function greedyByValue(items: Item[], capacity: number): number {
+  let total = 0, room = capacity;
+  for (const item of [...items].sort((a, b) =&gt; b.value - a.value)) {
+    if (item.weight &lt;= room) {
+      total += item.value;
+      room -= item.weight;
+    }
+  }
+  return total;
+}
+
+// Try every subset (2^n): fine for 3 items, impossible for 100.
+function bestByBruteForce(items: Item[], capacity: number): number {
+  let best = 0;
+  for (let mask = 0; mask &lt; 1 &lt;&lt; items.length; mask++) {
+    let w = 0, v = 0;
+    for (let i = 0; i &lt; items.length; i++) {
+      if (mask &amp; (1 &lt;&lt; i)) {
+        w += items[i].weight;
+        v += items[i].value;
+      }
+    }
+    if (w &lt;= capacity) best = Math.max(best, v);
+  }
+  return best;
+}
+console.log(greedyByValue(loot, 4)); // 3000
+console.log(bestByBruteForce(loot, 4)); // 3500</code></pre>
+<pre data-lang="go" data-caption="greedy vs. the true best for 0/1 knapsack"><code class="language-go">type Item struct {
+	name          string
+	weight, value int
+}
+
+func greedyByValue(items []Item, capacity int) int {
+	sorted := append([]Item(nil), items...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].value &gt; sorted[j].value })
+	total, room := 0, capacity
+	for _, item := range sorted {
+		if item.weight &lt;= room {
+			total += item.value
+			room -= item.weight
+		}
+	}
+	return total
+}
+
+// Try every subset (2^n): fine for 3 items, impossible for 100.
+func bestByBruteForce(items []Item, capacity int) int {
+	best := 0
+	for mask := 0; mask &lt; 1&lt;&lt;len(items); mask++ {
+		w, v := 0, 0
+		for i, item := range items {
+			if mask&amp;(1&lt;&lt;i) != 0 {
+				w += item.weight
+				v += item.value
+			}
+		}
+		if w &lt;= capacity {
+			best = max(best, v)
+		}
+	}
+	return best
+}
+
+func exampleKnapsackGreedyVsBest() {
+	loot := []Item{{"guitar", 1, 1500}, {"stereo", 4, 3000}, {"laptop", 3, 2000}}
+	fmt.Println(greedyByValue(loot, 4))     // 3000
+	fmt.Println(bestByBruteForce(loot, 4)) // 3500
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="np-complete-problems-when-no-fast-exact-algorithm-is-known">
+<h2>5. NP-complete problems: when no fast exact algorithm is known</h2>
+<h3 id="what-are-they">What are they?</h3>
+<p>Some problems (the book's examples: the <strong>traveling salesperson</strong>, <strong>set covering</strong>, and the <strong>knapsack decision problem</strong>) share a nasty property: <strong>nobody has found an algorithm that solves them fast in all cases</strong>, and most experts believe none exists. They are called <strong>NP-complete</strong>.</p>
+<p><strong>The traveling salesperson problem (TSP).</strong> A salesperson must visit <code>n</code> cities exactly once and return home, with the shortest total distance. The brute force tries every ordering: <code>n!</code> possibilities.</p>
+<div class="table-wrap"><table id="tbl-8"><thead><tr><th>Cities</th><th>Orderings (<code>n!</code>)</th></tr></thead><tbody>
+<tr><td>5</td><td>120</td></tr>
+<tr><td>10</td><td>3,628,800</td></tr>
+<tr><td>15</td><td>about 1.3 × 10¹²</td></tr>
+<tr><td>20</td><td>about 2.4 × 10¹⁸ (centuries)</td></tr>
+</tbody></table></div>
+<figure class="diagram" id="fig-8"><pre class="mermaid-src">flowchart LR
+    A["Add one more city"] --&gt; B["Work multiplies by n"]
+    B --&gt; C["Soon beyond any computer"]</pre></figure>
+<h3 id="the-vocabulary-simply">The vocabulary (simply)</h3>
+<div class="table-wrap"><table id="tbl-9"><thead><tr><th>Term</th><th>Plain meaning</th></tr></thead><tbody>
+<tr><td><strong>P</strong></td><td>Problems that can be <strong>solved</strong> quickly (in polynomial time, like <code>n²</code>).</td></tr>
+<tr><td><strong>NP</strong></td><td>Problems whose answer can be <strong>checked</strong> quickly once someone hands it to you.</td></tr>
+<tr><td><strong>NP-complete</strong></td><td>The hardest problems in NP: if you could solve any one of them fast, you could solve <strong>all</strong> of NP fast.</td></tr>
+<tr><td><strong>NP-hard</strong></td><td>At least as hard as NP-complete (may not even have quickly checkable answers).</td></tr>
+<tr><td><strong>P vs NP</strong></td><td>The famous open question: is every quickly-checkable problem also quickly solvable? Nobody knows.</td></tr>
+</tbody></table></div>
+<h3 id="how-to-spot-an-np-complete-problem-the-book-s-checklist">How to spot an NP-complete problem (the book's checklist)</h3>
+<ul>
+<li>Your algorithm runs <strong>fast with a few items</strong> but becomes <strong>terribly slow</strong> as items are added.</li>
+<li>The problem says "<strong>all combinations</strong> of X" or "<strong>all permutations</strong> of X" and you must pick the best.</li>
+<li>You cannot break it into smaller sub-problems; you must consider <strong>every</strong> possibility.</li>
+<li>It involves a <strong>sequence</strong> (like cities) or a <strong>set</strong> (like radio stations) and is hard.</li>
+<li>You can restate it as the <strong>set-covering</strong> or <strong>traveling salesperson</strong> problem.</li>
+</ul>
+<h3 id="what-to-do-about-it">What to do about it</h3>
+<ul>
+<li><strong>Use an approximation algorithm:</strong> fast, near-optimal (greedy set cover; the <em>nearest neighbor</em> tour for TSP).</li>
+<li><strong>Use heuristics / local search:</strong> simulated annealing, genetic algorithms.</li>
+<li><strong>Solve small instances exactly:</strong> backtracking with pruning, DP over subsets (bitmask DP: TSP in <code>O(2ⁿ · n²)</code>, fine for <code>n ≤ 20</code>).</li>
+<li><strong>Restrict the problem:</strong> special structures (a tree, small weights) can be easy.</li>
+</ul>
+<h3 id="in-an-interview">In an interview</h3>
+<p>If you realize the problem is NP-hard, <strong>say so</strong>, then ask about constraints: <em>"If <code>n</code> is small (≤ 20) I'd use bitmask DP or backtracking; if <code>n</code> is large I'd propose a greedy approximation and explain its guarantee."</em> That answer shows maturity.</p>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Assuming greedy works</strong> without testing a tiny counterexample (coin change with <code>{1, 3, 4}</code>).</li>
+<li><strong>Sorting by the wrong key</strong> (intervals: end time, not start time or length).</li>
+<li><strong>Strict vs. non-strict comparison</strong> on interval boundaries (<code>start &gt;= lastEnd</code> allows touching intervals; ask).</li>
+<li><strong>Resetting the wrong thing in Gas Station</strong> (reset the tank and move the start to <code>i + 1</code>).</li>
+<li><strong>Task Scheduler:</strong> forgetting <code>max(formula, tasks.length)</code>, or forgetting to count ties for the maximum frequency.</li>
+<li><strong>Treating an NP-hard problem as solvable exactly</strong> at large <code>n</code>.</li>
+<li><strong>Not stating the greedy proof idea.</strong> Even one sentence of "exchange argument" makes the answer convincing.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · When greedy change-making fails</h3>
+<p>Give a coin system where greedy change-making fails, and one (like US coins) where it works.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Coins <strong>{1, 3, 4}</strong>, amount 6: greedy takes 4 + 1 + 1 (3 coins), but 3 + 3 uses 2. With US coins {1, 5, 10, 25} greedy is always optimal (each coin is worth enough of the smaller ones that taking it never hurts). For an arbitrary coin set, use DP (lesson 25).</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Assign Cookies</h3>
+<p><em>Assign Cookies</em> (LeetCode 455): children have greed factors, cookies have sizes. Sort both; what is the greedy rule?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Sort children by greed and cookies by size. Two pointers: give the current (least greedy) child the <strong>smallest cookie that satisfies them</strong>; if a cookie is too small for this child, it is too small for everyone after, so skip it. Count the matches. <code>O(n log n + m log m)</code>.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Minimum arrows for balloons</h3>
+<p><em>Merge Intervals</em> is not quite greedy; <em>Minimum Number of Arrows to Burst Balloons</em> (LeetCode 452) is. What do you sort by, and what do you track?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Sort balloons by <strong>end</strong>. Shoot the first arrow at the first balloon's end; it bursts every balloon whose start ≤ that point. When a balloon starts after the arrow, shoot a new arrow at its end. Track only the last arrow's position. It is activity selection again: the arrows are the chosen non-overlapping representatives.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Boats to Save People</h3>
+<p><em>Boats to Save People</em> (LeetCode 881): two pointers on a sorted array. Why pair the heaviest with the lightest?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The heaviest person must go in some boat. The best partner for them is the lightest person: if even the lightest does not fit, nobody does, so the heaviest goes alone. If the lightest fits, pairing them uses the least capacity and leaves heavier people more options. Sort, then move the two pointers inward.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Fractional versus 0/1 knapsack</h3>
+<p>Why is the "fractional knapsack" greedy-solvable but the 0/1 knapsack is not?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>With fractions you can always fill the remaining room with the item of the best <strong>value per weight</strong>, so taking that first is never wrong (exchange argument). With whole items, a high-ratio item can leave room that nothing else fits, as the last animation shows (stereo 3000 versus guitar + laptop 3500). 0/1 needs DP over capacities.</p></div></details>
+</div>
+<div class="exercise" id="ex6">
+<h3>6 · Fast TSP?</h3>
+<p>A friend says "my algorithm solves TSP quickly for 1,000 cities." What two questions do you ask? (Exact or approximate? How close to optimal is it guaranteed?)</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Ask: <strong>is it exact or approximate</strong> (a heuristic like nearest neighbor or 2-opt), and <strong>how close to optimal is it guaranteed</strong>, or was it just measured on some inputs? An exact polynomial algorithm would prove P = NP.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="greedy23"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/viz/timeline.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/23.js"></script>
+</body>
+</html>
