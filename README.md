@@ -2,7 +2,7 @@
 
 An interactive algorithm interview guide: **30 lessons** with step-by-step animations, TypeScript and Go code that follows along, self-checks, and a redo tracker.
 
-Live site (GitLab Pages): <https://algorithm-640b90.gitpage.ir>
+Live site (GitHub Pages): <https://hossein-nas.github.io/interactive-algorithm/>
 
 ## What's inside
 
@@ -74,7 +74,7 @@ node harness.mjs 22    # animator answers vs. the lesson's compiled TypeScript
 
 ## Deployment
 
-`main` is deployed to GitLab Pages by `.gitlab-ci.yml`: the job copies the static files into `public/` and publishes them as the Pages artifact.
+`main` deploys to GitHub Pages via `.github/workflows/pages.yml`: the workflow copies the static files into `_site/` and publishes them.
 
 ## License
 
