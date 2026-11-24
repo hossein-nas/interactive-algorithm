@@ -1,4 +1,7 @@
-image: alpine:latest
+image:
+  name: docker.arvancloud.ir/library/alpine:latest
+  entrypoint: [""]
+  pull_policy: if-not-present
 
 pages:
   stage: deploy
