@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en" data-root="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Algorithm guide v3</title>
+<meta name="description" content="An interactive algorithm interview guide: 30 lessons with step-by-step animations, TypeScript and Go code that follows along, self-checks and a redo tracker.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="assets/css/theme.css">
+<link rel="stylesheet" href="assets/css/components.css">
+<link rel="stylesheet" href="assets/css/home.css">
+</head>
+<body class="home">
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson home">
+<header class="home-hero">
+<h1>Algorithm interview guide</h1>
+<p class="sub">The algorithms and problem-solving habits that coding interviews test, in plain English. Every solution is in TypeScript and Go, compiled and run. Every idea is animated so you can watch it work.</p>
+<p class="facts"><span><b>30</b> lessons</span><span><b>147</b> practice problems</span><span><b>2 to 4</b> weeks of study</span></p>
+</header>
+
+<section class="sec" id="today-sec">
+<h2>Today</h2>
+<div id="today" class="wide"></div>
+</section>
+
+<section class="sec" id="map">
+<h2>How the guide is organized</h2>
+<p>Read the families in order. Click a lesson in the map to open it once its interactive page is built; walk through the map for a one-line summary of each family.</p>
+<figure class="diagram" id="fig-map"><pre class="mermaid-src">flowchart TD
+    subgraph Foundations["Foundations (read first)"]
+        direction LR
+        F1["01 Interview process"] --&gt; F2["02 Big O"] --&gt; F3["03 TypeScript and Go toolkit"]
+    end
+    subgraph Patterns["Core patterns on arrays and strings"]
+        direction LR
+        P1["04 Hash maps"] --&gt; P2["05 Two pointers"] --&gt; P3["06 Sliding window"] --&gt; P4["07 Prefix sums"] --&gt; P5["08 Binary search"]
+    end
+    subgraph Recursion["Recursion family"]
+        direction LR
+        R1["09 Sorting and divide and conquer"] --&gt; R2["10 Recursion and the call stack"] --&gt; R3["11 Backtracking"]
+    end
+    subgraph Structures["Data structures"]
+        direction LR
+        S1["12 Linked lists"] --&gt; S2["13 Stacks"] --&gt; S3["14 Queues and deques"] --&gt; S4["15 Trees and BST"] --&gt; S5["16 Balanced trees"] --&gt; S6["17 Heaps"] --&gt; S7["18 Tries"]
+    end
+    subgraph Graphs["Graph family"]
+        direction LR
+        G1["19 BFS, DFS, grids"] --&gt; G2["20 Topological sort"] --&gt; G3["21 Union-find"] --&gt; G4["22 Shortest paths"]
+    end
+    subgraph Strategies["Strategies"]
+        direction LR
+        T1["23 Greedy and NP-complete"] --&gt; T2["24 Intervals"] --&gt; T3["25 DP 1D"] --&gt; T4["26 DP 2D"]
+    end
+    subgraph Extras["Extras and wrap-up"]
+        direction LR
+        E1["27 Bit manipulation"] --&gt; E2["28 k-NN and where to go next"] --&gt; E3["29 Pattern chooser, mocks, v2 map"]
+    end
+    Foundations --&gt; Patterns --&gt; Recursion --&gt; Structures --&gt; Graphs --&gt; Strategies --&gt; Extras</pre><script type="application/json" class="walk">[{"n": ["F1", "F2", "F3"], "say": "Start with the foundations: the interview routine, Big O, and the TypeScript and Go toolkit."}, {"n": ["P1", "P2", "P3", "P4", "P5"], "say": "Then the core patterns on arrays and strings: hash maps, two pointers, sliding window, prefix sums, binary search."}, {"n": ["R1", "R2", "R3"], "say": "The recursion family: divide and conquer, the call stack, and backtracking."}, {"n": ["S1", "S2", "S3", "S4", "S5", "S6", "S7"], "say": "The data structures: linked lists, stacks, queues, trees, balanced trees, heaps and tries."}, {"n": ["G1", "G2", "G3", "G4"], "say": "The graph family: BFS and DFS, topological sort, union-find, shortest paths."}, {"n": ["T1", "T2", "T3", "T4"], "say": "The strategies: greedy, intervals, and dynamic programming in one and two dimensions."}, {"n": ["E1", "E2", "E3"], "say": "Extras and the wrap-up: bits, k-NN, and the pattern chooser with three mock interviews."}]</script></figure>
+</section>
+
+<section class="sec" id="lessons">
+<h2>Lessons and your progress</h2>
+<p>Progress counts the problems you mark <em>Solved</em> on each lesson page. Stars show how likely a topic is to appear in an interview.</p>
+<div id="lesson-list" class="lesson-list wide"></div>
+</section>
+
+<section class="sec" id="habits">
+<h2>Five habits that matter more than any single algorithm</h2>
+<ol class="habits">
+<li><strong>Ask first, code later.</strong> Restate the problem; ask about size, order, duplicates, and empty input.</li>
+<li><strong>Say the slow way out loud.</strong> A correct <code>O(n²)</code> answer with a clear path to better beats silence.</li>
+<li><strong>Name the pattern and say why.</strong> "The array is sorted, so I can discard from either end": a reason, not a guess.</li>
+<li><strong>Trace before you declare victory.</strong> One normal case, one edge case, one tricky branch.</li>
+<li><strong>State complexity with the reason.</strong> "<code>O(n)</code>, because each index is added and removed once."</li>
+</ol>
+</section>
+
+<section class="sec" id="plan">
+<h2>Your study plan</h2>
+<p>The plans come from the <em>Start here</em> lesson: about 2 to 3 focused hours a day. The 4-week plan has six study days a week and a short review on the seventh. The 3-week plan is the 4-week plan with week 1's days 2 and 3 merged, week 2's days 3 and 4 merged, and the whole last week given to dynamic programming.</p>
+<form id="plan-form" class="plan-form">
+<label>Plan <select name="kind"><option value="4w">4 weeks (recommended)</option><option value="2w">2 weeks (intensive, ★★★ lessons first)</option></select></label>
+<label>Start date <input type="date" name="start"></label>
+<button class="btn" type="submit">Save plan</button>
+<button class="btn ghost" type="button" id="plan-clear">Remove plan</button>
+</form>
+</section>
+
+<section class="sec" id="log">
+<h2>Your redo log</h2>
+<p>The guide's rule: keep a log of <strong>problem · pattern · what I got wrong · date to redo</strong>, and redo each wrong problem after 3 days and again after 7 days. Patterns you keep getting wrong are your real study list.</p>
+<div id="log-table" class="wide"></div>
+</section>
+
+<section class="sec" id="file">
+<h2>Your progress file</h2>
+<p>Progress lives in this browser (Chrome) only. Save it to a file to back it up or move it to another computer.</p>
+<p class="file-row"><button class="btn" id="btn-export">Save progress to a file</button><button class="btn ghost" id="btn-import">Load progress from a file</button><input type="file" id="file-import" accept="application/json,.json" hidden><button class="btn ghost danger" id="btn-reset">Erase all progress</button></p>
+</section>
+
+<section class="sec" id="reading">
+<h2>How to read the animations</h2>
+<p>Every lesson uses the same inks, so a picture you learned once reads the same everywhere:</p>
+<div class="inks big"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>the item being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>part of the answer</span><span class="ink bug"><i></i>a bug in a replay</span></div>
+<ul>
+<li><strong>Play, pause, step.</strong> Click a stage, then use Space to play or pause and the arrow keys to step. The scrubber jumps anywhere.</li>
+<li><strong>The code follows along.</strong> The highlighted line is the one being run. Switch TypeScript and Go at the top of any page.</li>
+<li><strong>Predict the next move.</strong> Turn it on and the stage stops at each decision until you choose.</li>
+<li><strong>Your own input.</strong> Type any input and press Run; presets include the lesson's trace-table examples, and those table rows light up as the animation runs.</li>
+<li><strong>Bug replays.</strong> Red buttons rerun a classic mistake so you can watch it fail.</li>
+</ul>
+</section>
+</article>
+</main>
+</div>
+<script src="assets/js/core.js"></script>
+<script src="lib/mermaid.min.js"></script>
+<script src="assets/js/progress.js"></script>
+<script src="assets/js/home.js"></script>
+<script src="assets/js/diagrams.js"></script>
+</body>
+</html>

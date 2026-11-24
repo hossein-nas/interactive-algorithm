@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="04" data-pattern="Hash map">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>04 Hash tables: Map and Set | Algorithm guide</title>
+<meta name="description" content="Hash tables animated: hashing, collisions, resizing, Two Sum, anagrams, longest consecutive sequence and an LRU cache.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 04</span><span>Core patterns on arrays and strings</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Hash tables: Map and Set</h1>
+<p class="sub">Remember things so you never search twice.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 5 (hash tables: hash functions, use cases, collisions, performance). v2 covered this as "Map and Set: save information for later". Here it gets the full treatment, including how a hash table works inside, since interviewers ask.</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>You keep asking "have I seen this?", "how many?", "group by…", or "where is its partner?".</p></div><div><b>The big trick</b><p>Replace an inner search loop with a lookup: <code>O(n²)</code> becomes <code>O(n)</code>.</p></div><div><b>What it costs</b><p><code>O(1)</code> per operation on average, paid for with <code>O(n)</code> memory.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>Imagine a coat check at a theater. You hand over your coat and get ticket <strong>#47</strong>. Later you show ticket 47 and the attendant walks <em>straight</em> to hook 47. They never look through every coat.</p>
+<p>A <strong>hash table</strong> is that coat check. You give it a <em>key</em> (like a name). It runs the key through a <strong>hash function</strong>, which turns the key into a number (the hook). It stores your <em>value</em> at that spot. To get it back, it hashes the key again and goes straight there.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    K["Key: 'apple'"] --&gt; H["Hash function&lt;br/&gt;turns text into a number"]
+    H --&gt; N["Number: 3"]
+    N --&gt; S["Slot 3 in the array"]
+    S --&gt; V["Value: 0.67 dollars"]</pre></figure>
+<p>That is why lookup, insert, and delete take <strong><code>O(1)</code> on average</strong>: one hash, one jump.</p>
+<h3 id="the-three-jobs-a-hash-table-does-best">The three jobs a hash table does best</h3>
+<ol>
+<li><strong>Look things up fast.</strong> "What is this word's definition?" "What index did I see this number at?"</li>
+<li><strong>Detect duplicates.</strong> "Have I seen this before?" (a <code>Set</code>).</li>
+<li><strong>Count and group.</strong> "How many times does each letter appear?" "Which words are anagrams of each other?"</li>
+</ol>
+<p>When you hear a problem say <em>"have I seen…"</em>, <em>"count the…"</em>, <em>"group by…"</em>, <em>"find a pair…"</em>, or <em>"first non-repeating…"</em>, think hash table <strong>first</strong>.</p>
+</section>
+<section class="sec" id="how-it-works-inside-what-interviewers-may-ask">
+<h2>2. How it works inside (what interviewers may ask)</h2>
+<h3 id="a-good-hash-function">A good hash function</h3>
+<p>A good hash function must:</p>
+<ol>
+<li>Give the <strong>same output for the same input</strong> every time (otherwise you could never find your value again).</li>
+<li><strong>Spread keys evenly</strong> across the slots, so no slot gets crowded.</li>
+</ol>
+<h3 id="collisions-two-keys-one-slot">Collisions: two keys, one slot</h3>
+<p>What if two different keys hash to the same slot? That is a <strong>collision</strong>. It is not a bug; it is expected, because there are far more possible keys than slots.</p>
+<p>The simplest fix is <strong>chaining</strong>: each slot holds a small linked list of every key/value that landed there. On lookup, you hash to the slot, then walk that short list comparing keys.</p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    subgraph Table["Array of slots"]
+        S0["slot 0: empty"]
+        S1["slot 1"] --&gt; A1["apple: 0.67"]
+        A1 --&gt; A2["avocado: 1.49"]
+        S2["slot 2: empty"]
+        S3["slot 3"] --&gt; B1["banana: 0.25"]
+    end</pre></figure>
+<p>Here "apple" and "avocado" collide in slot 1. Lookups for either key go to slot 1 and walk a list of two.</p>
+<p>(The other main fix is <strong>open addressing</strong>: if the slot is taken, probe the next slot, and the next, until you find a free one. Go's <code>map</code> and many languages use cleverly tuned versions of these ideas. You do not need to implement either in an interview, but you should be able to describe chaining.)</p>
+<h3 id="load-factor-and-resizing">Load factor and resizing</h3>
+<p>The <strong>load factor</strong> is <code>items ÷ slots</code>. When the table is too full (commonly around 0.7–0.75), chains get long and lookups slow down. So the table <strong>resizes</strong>: it allocates a larger array (usually double) and re-inserts every item. That one resize costs <code>O(n)</code>, but it happens rarely, so the <em>amortized</em> cost of an insert stays <code>O(1)</code> (see the amortized section in file 02).</p>
+<p>Watch a small table work: hash, collide, chain, and resize when the load factor passes 0.75. The code is the hash set from exercise 5.</p>
+<div class="stage" id="st-hash" data-anim="hashSet" data-code="code-ex5" data-clone></div>
+<h3 id="performance-table">Performance table</h3>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Operation</th><th>Average</th><th>Worst case</th><th>Why the worst case happens</th></tr></thead><tbody>
+<tr><td>Insert</td><td><code>O(1)</code></td><td><code>O(n)</code></td><td>Everything collides into one chain, or a resize</td></tr>
+<tr><td>Lookup</td><td><code>O(1)</code></td><td><code>O(n)</code></td><td>Everything collides into one chain</td></tr>
+<tr><td>Delete</td><td><code>O(1)</code></td><td><code>O(n)</code></td><td>Same</td></tr>
+<tr><td>Iterate all</td><td><code>O(n)</code></td><td><code>O(n)</code></td><td>You must touch everything</td></tr>
+</tbody></table></div>
+<p>In interviews say: <em>"Hash map operations are <code>O(1)</code> on average."</em> If asked about the worst case, mention collisions.</p>
+<h3 id="what-can-be-a-key">What can be a key?</h3>
+<ul>
+<li><strong>TypeScript <code>Map</code>:</strong> any value, but objects and arrays are compared by <em>identity</em> (the same box in memory), not by contents. <code>[1,2]</code> and <code>[1,2]</code> are <em>different</em> keys. Turn them into strings (<code>"1,2"</code>).</li>
+<li><strong>Go <code>map</code>:</strong> any <em>comparable</em> type: numbers, strings, bools, arrays like <code>[26]int</code>, structs of comparable fields. <strong>Not</strong> slices, maps, or functions.</li>
+</ul>
+</section>
+<section class="sec" id="how-to-recognize-a-hash-table-problem">
+<h2>3. How to recognize a hash-table problem</h2>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    A["Read the problem"] --&gt; B{"Do I keep needing to ask&lt;br/&gt;'have I seen X?' or 'where was X?'"}
+    B --&gt;|Yes| C["Set or Map"]
+    B --&gt;|No| D{"Does it ask for counts&lt;br/&gt;or frequencies?"}
+    D --&gt;|Yes| E["Frequency map"]
+    D --&gt;|No| F{"Does it ask to group items&lt;br/&gt;that are 'the same' in some way?"}
+    F --&gt;|Yes| G["Map from a canonical key to a list"]
+    F --&gt;|No| H{"Is a nested loop searching&lt;br/&gt;for a matching partner?"}
+    H --&gt;|Yes| I["Replace the inner loop with a lookup"]
+    H --&gt;|No| J["Probably another pattern"]</pre></figure>
+<p>The most powerful hash-table trick is the <strong>"replace the inner loop"</strong> idea. If you have a nested loop where the inner loop searches for something, ask <em>"can I look that thing up instead?"</em> That turns <code>O(n²)</code> into <code>O(n)</code>, paying with <code>O(n)</code> memory.</p>
+<div class="quiz" data-quiz="hash04"></div>
+</section>
+<section class="sec" id="reusable-templates">
+<h2>4. Reusable templates</h2>
+<h3 id="template-a-frequency-count">Template A · Frequency count</h3>
+<div class="stage" id="st-freq" data-anim="frequencyOf" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts"><code class="language-ts">function frequencyOf&lt;T&gt;(items: T[]): Map&lt;T, number&gt; {
+  const freq = new Map&lt;T, number&gt;();
+  for (const item of items) freq.set(item, (freq.get(item) ?? 0) + 1);
+  return freq;
+}
+console.log(frequencyOf(["a", "b", "a"])); // Map(2) { 'a' =&gt; 2, 'b' =&gt; 1 }</code></pre>
+<pre data-lang="go"><code class="language-go">func frequencyOf[T comparable](items []T) map[T]int {
+	freq := make(map[T]int)
+	for _, item := range items {
+		freq[item]++
+	}
+	return freq
+}
+
+func exampleFrequencyOf() {
+	fmt.Println(frequencyOf([]string{"a", "b", "a"})) // map[a:2 b:1]
+}</code></pre>
+</div>
+<h3 id="template-b-seen-before-with-a-set">Template B · "Seen before?" with a Set</h3>
+<div class="stage" id="st-dup" data-anim="hasDuplicate" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function hasDuplicate(nums: number[]): boolean {
+  const seen = new Set&lt;number&gt;();
+  for (const x of nums) {
+    if (seen.has(x)) return true;
+    seen.add(x);
+  }
+  return false;
+}
+console.log(hasDuplicate([1, 2, 3, 1]), hasDuplicate([1, 2, 3])); // true false</code></pre>
+<pre data-lang="go"><code class="language-go">func hasDuplicate(nums []int) bool {
+	seen := make(map[int]struct{})
+	for _, x := range nums {
+		if _, ok := seen[x]; ok {
+			return true
+		}
+		seen[x] = struct{}{}
+	}
+	return false
+}
+
+func exampleHasDuplicate() {
+	fmt.Println(hasDuplicate([]int{1, 2, 3, 1}), hasDuplicate([]int{1, 2, 3})) // true false
+}</code></pre>
+</div>
+<h3 id="template-c-map-from-a-canonical-key-to-a-group">Template C · Map from a canonical key to a group</h3>
+<p>Many problems say "treat these as the same if…". Pick a <em>canonical form</em> (a signature that is identical for things you consider equal) and use it as the key.</p>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>5. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Two Sum (LeetCode 1, Easy)</h3>
+<p><strong>Task.</strong> Given <code>nums</code> and <code>target</code>, return the indexes of the two numbers that add up to <code>target</code>. Exactly one answer exists; you cannot use the same element twice.</p>
+<p>Example: <code>nums = [2, 7, 11, 15]</code>, <code>target = 9</code> → <code>[0, 1]</code>.</p>
+<p><strong>Brute force.</strong> Try every pair: <code>O(n²)</code> time, <code>O(1)</code> space.</p>
+<p><strong>The key insight.</strong> For each number <code>x</code>, the partner you need is <code>target - x</code>. The slow part is <em>searching</em> for that partner. A hash map answers "have I seen this value, and at which index?" in <code>O(1)</code>. So walk the array once; before storing <code>x</code>, ask the map whether <code>target - x</code> is already there.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["Take next number x at index i"] --&gt; B["need = target - x"]
+    B --&gt; C{"need in map?"}
+    C --&gt;|Yes| D["Answer: map[need], i"]
+    C --&gt;|No| E["map[x] = i"]
+    E --&gt; A</pre></figure>
+<p><strong>Trace.</strong> <code>nums = [2, 7, 11, 15]</code>, <code>target = 9</code></p>
+<div class="table-wrap"><table id="tbl-2" class="trace"><thead><tr><th>i</th><th>x</th><th>need = 9 − x</th><th>map before</th><th>Found?</th><th>map after</th></tr></thead><tbody>
+<tr><td>0</td><td>2</td><td>7</td><td><code>{}</code></td><td>no</td><td><code>{2:0}</code></td></tr>
+<tr><td>1</td><td>7</td><td>2</td><td><code>{2:0}</code></td><td><strong>yes</strong>, index 0</td><td>return <code>[0,1]</code></td></tr>
+</tbody></table></div>
+<p><strong>Why check before storing?</strong> For <code>[3, 3]</code> with target 6: at index 0 the map is empty, so we store <code>3→0</code>. At index 1 we need 3, find it at index 0, and return <code>[0,1]</code>. If we had stored first, at index 0 we would have found <em>ourselves</em> and wrongly paired an element with itself.</p>
+<div class="stage" id="st-p1" data-anim="twoSum" data-code="code-3" data-flow="fig-4"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function twoSum(nums: number[], target: number): number[] {
+  const indexOf = new Map&lt;number, number&gt;(); // value -&gt; index
+  for (let i = 0; i &lt; nums.length; i++) {
+    const partner = indexOf.get(target - nums[i]);
+    if (partner !== undefined) return [partner, i];
+    indexOf.set(nums[i], i);
+  }
+  return [];
+}
+console.log(twoSum([2, 7, 11, 15], 9)); // [ 0, 1 ]
+console.log(twoSum([3, 3], 6)); // [ 0, 1 ]
+console.log(twoSum([1, 2], 7)); // []</code></pre>
+<pre data-lang="go"><code class="language-go">func twoSum(nums []int, target int) []int {
+	indexOf := make(map[int]int) // value -&gt; index
+	for i, x := range nums {
+		if j, ok := indexOf[target-x]; ok {
+			return []int{j, i}
+		}
+		indexOf[x] = i
+	}
+	return []int{}
+}
+
+func exampleTwoSum() {
+	fmt.Println(twoSum([]int{2, 7, 11, 15}, 9)) // [0 1]
+	fmt.Println(twoSum([]int{3, 3}, 6))         // [0 1]
+	fmt.Println(twoSum([]int{1, 2}, 7))         // []
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>: one pass, each map step is <code>O(1)</code> on average. Space <code>O(n)</code>: the map can hold every number.</p>
+<p><strong>Interviewer follow-ups.</strong></p>
+<ul>
+<li><em>"What if the array were sorted and I want <code>O(1)</code> memory?"</em> → two pointers (file 05).</li>
+<li><em>"What if there can be many answers?"</em> → collect all pairs; handle duplicate values carefully.</li>
+<li><em>"What if the values are huge streams?"</em> → the map needs memory proportional to the stream; consider sorting on disk.</li>
+</ul>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Valid Anagram (LeetCode 242, Easy)</h3>
+<p><strong>Task.</strong> Return whether <code>t</code> is a rearrangement of the letters of <code>s</code>. Example: <code>"anagram"</code>, <code>"nagaram"</code> → <code>true</code>; <code>"rat"</code>, <code>"car"</code> → <code>false</code>.</p>
+<p><strong>Brute force.</strong> Sort both strings and compare: <code>O(n log n)</code>. Valid, and a fine first answer.</p>
+<p><strong>Better idea.</strong> Two words are anagrams exactly when <strong>every letter appears the same number of times</strong>. Count the letters of <code>s</code> going up; count <code>t</code> going down; if everything ends at zero, they match. For lowercase <code>a–z</code> a 26-slot array is the fastest "map".</p>
+<p><strong>Trace.</strong> <code>s = "aab"</code>, <code>t = "aba"</code></p>
+<div class="table-wrap"><table id="tbl-3" class="trace"><thead><tr><th>Step</th><th>Action</th><th>counts (a, b)</th></tr></thead><tbody>
+<tr><td>start</td><td></td><td>(0, 0)</td></tr>
+<tr><td>s[0]='a'</td><td>+1</td><td>(1, 0)</td></tr>
+<tr><td>s[1]='a'</td><td>+1</td><td>(2, 0)</td></tr>
+<tr><td>s[2]='b'</td><td>+1</td><td>(2, 1)</td></tr>
+<tr><td>t[0]='a'</td><td>−1</td><td>(1, 1)</td></tr>
+<tr><td>t[1]='b'</td><td>−1</td><td>(1, 0)</td></tr>
+<tr><td>t[2]='a'</td><td>−1</td><td>(0, 0)</td></tr>
+</tbody></table></div>
+<p>All zeros → anagram. If any count would go negative while subtracting, <code>t</code> has a letter <code>s</code> does not have enough of, so you can stop and return <code>false</code> early.</p>
+<div class="stage" id="st-p2" data-anim="isAnagram" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function isAnagram(s: string, t: string): boolean {
+  if (s.length !== t.length) return false; // different lengths can never match
+  const counts = new Map&lt;string, number&gt;(); // Map handles any characters, not only a-z
+  for (const ch of s) counts.set(ch, (counts.get(ch) ?? 0) + 1);
+  for (const ch of t) {
+    const left = counts.get(ch) ?? 0;
+    if (left === 0) return false; // t has more of ch than s does
+    counts.set(ch, left - 1);
+  }
+  return true;
+}
+console.log(isAnagram("anagram", "nagaram")); // true
+console.log(isAnagram("rat", "car")); // false
+console.log(isAnagram("", "")); // true</code></pre>
+<pre data-lang="go"><code class="language-go">func isAnagram(s, t string) bool {
+	if len(s) != len(t) {
+		return false
+	}
+	counts := make(map[rune]int) // rune handles any character, not only a-z
+	for _, ch := range s {
+		counts[ch]++
+	}
+	for _, ch := range t {
+		if counts[ch] == 0 {
+			return false
+		}
+		counts[ch]--
+	}
+	return true
+}
+
+func exampleIsAnagram() {
+	fmt.Println(isAnagram("anagram", "nagaram")) // true
+	fmt.Println(isAnagram("rat", "car"))         // false
+	fmt.Println(isAnagram("", ""))               // true
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>. Space <code>O(k)</code> where <code>k</code> is the number of distinct characters (at most 26 for lowercase English: effectively <code>O(1)</code>).</p>
+<p><strong>Follow-up.</strong> <em>"What if the input has Unicode?"</em> The map version already works; a fixed 26-array would not. In Go note that the length check uses bytes, which is still correct for equality of anagrams made of the same characters (same characters → same byte length).</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Group Anagrams (LeetCode 49, Medium)</h3>
+<p><strong>Task.</strong> Group the words that are anagrams of each other. <code>["eat","tea","tan","ate","nat","bat"]</code> → <code>[["eat","tea","ate"],["tan","nat"],["bat"]]</code> (any order).</p>
+<p><strong>Key insight.</strong> We need a <strong>signature</strong> that is <em>identical</em> for all anagrams and <em>different</em> otherwise. Two good signatures:</p>
+<ol>
+<li><strong>Sorted letters:</strong> <code>"eat"</code>, <code>"tea"</code>, <code>"ate"</code> all become <code>"aet"</code>. Cost per word: <code>O(L log L)</code>.</li>
+<li><strong>26 letter counts:</strong> <code>"eat"</code> → <code>1,0,0,0,1,...,1,...</code>. Cost per word: <code>O(L)</code>.</li>
+</ol>
+<p>Use the signature as the map key; the value is the list of words.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart LR
+    W1["eat"] --&gt; K1["key: aet"]
+    W2["tea"] --&gt; K1
+    W3["ate"] --&gt; K1
+    W4["tan"] --&gt; K2["key: ant"]
+    W5["nat"] --&gt; K2
+    W6["bat"] --&gt; K3["key: abt"]
+    K1 --&gt; G1["group: eat, tea, ate"]
+    K2 --&gt; G2["group: tan, nat"]
+    K3 --&gt; G3["group: bat"]</pre></figure>
+<div class="stage" id="st-p3" data-anim="groupAnagrams" data-code="code-5" data-flow="fig-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function groupAnagrams(words: string[]): string[][] {
+  const groups = new Map&lt;string, string[]&gt;();
+  for (const word of words) {
+    const key = [...word].sort().join(""); // signature: letters in order
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(word);
+    else groups.set(key, [word]);
+  }
+  return [...groups.values()];
+}
+console.log(groupAnagrams(["eat", "tea", "tan", "ate", "nat", "bat"]));
+// [ [ 'eat', 'tea', 'ate' ], [ 'tan', 'nat' ], [ 'bat' ] ]
+console.log(groupAnagrams([""])); // [ [ '' ] ]</code></pre>
+<pre data-lang="go"><code class="language-go">func groupAnagrams(words []string) [][]string {
+	groups := make(map[[26]int][]string) // an array of counts is a valid map key
+	order := [][26]int{}                 // remember first-seen order so output is stable
+	for _, word := range words {
+		var key [26]int
+		for i := 0; i &lt; len(word); i++ {
+			key[word[i]-'a']++
+		}
+		if _, ok := groups[key]; !ok {
+			order = append(order, key)
+		}
+		groups[key] = append(groups[key], word)
+	}
+	result := make([][]string, 0, len(groups))
+	for _, key := range order {
+		result = append(result, groups[key])
+	}
+	return result
+}
+
+func exampleGroupAnagrams() {
+	fmt.Println(groupAnagrams([]string{"eat", "tea", "tan", "ate", "nat", "bat"}))
+	// [[eat tea ate] [tan nat] [bat]]
+	fmt.Println(len(groupAnagrams([]string{""}))) // 1
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> With <code>m</code> words of maximum length <code>L</code>: TypeScript (sorted key) <code>O(m · L log L)</code>, Go (count key) <code>O(m · L)</code>. Space <code>O(m · L)</code> for the keys and groups.</p>
+<p><strong>Why a Go map iteration needs <code>order</code>:</strong> Go's map iteration order is random, so we keep a slice of keys in first-seen order to make our output predictable and easy to test. In an interview you can usually say "order does not matter", but stable output is easier to check.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Intersection of Two Arrays (LeetCode 349, Easy)</h3>
+<p><strong>Task.</strong> Return the <strong>distinct</strong> values that appear in both arrays. <code>[1,2,2,1]</code> and <code>[2,2]</code> → <code>[2]</code>.</p>
+<p><strong>Brute force.</strong> For each item in <code>a</code>, scan <code>b</code>: <code>O(a · b)</code>.</p>
+<p><strong>Better idea.</strong> Put <code>a</code> into a set. Walk <code>b</code>; whenever an item is in the set, add it to the answer <em>and remove it from the set</em> so it is not added twice.</p>
+<div class="stage" id="st-p4" data-anim="intersection" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function intersection(a: number[], b: number[]): number[] {
+  const pending = new Set(a); // values from a that we have not yet reported
+  const result: number[] = [];
+  for (const x of b) {
+    if (pending.has(x)) {
+      result.push(x);
+      pending.delete(x); // report each value only once
+    }
+  }
+  return result;
+}
+console.log(intersection([1, 2, 2, 1], [2, 2])); // [ 2 ]
+console.log(intersection([4, 9, 5], [9, 4, 9, 8, 4])); // [ 9, 4 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func intersection(a, b []int) []int {
+	pending := make(map[int]struct{}, len(a))
+	for _, x := range a {
+		pending[x] = struct{}{}
+	}
+	result := []int{}
+	for _, x := range b {
+		if _, ok := pending[x]; ok {
+			result = append(result, x)
+			delete(pending, x) // report each value only once
+		}
+	}
+	return result
+}
+
+func exampleIntersection() {
+	fmt.Println(intersection([]int{1, 2, 2, 1}, []int{2, 2}))       // [2]
+	fmt.Println(intersection([]int{4, 9, 5}, []int{9, 4, 9, 8, 4})) // [9 4]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(a + b)</code>, space <code>O(a)</code>.</p>
+<p><strong>Follow-up (very common).</strong> <em>"What if both arrays are already sorted?"</em> Use two pointers: no extra memory (file 05). <em>"What if <code>a</code> is tiny and <code>b</code> is huge?"</em> Put the <em>small</em> one in the set and stream the big one. <em>"What if you must keep duplicates (LeetCode 350)?"</em> Use a count map and decrement it on each match.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Longest Consecutive Sequence (LeetCode 128, Medium)</h3>
+<p><strong>Task.</strong> Given an unsorted array, return the length of the longest run of consecutive integers (like <code>100, 101, 102</code>), in <strong><code>O(n)</code></strong> time. <code>[100, 4, 200, 1, 3, 2]</code> → <code>4</code> (the run <code>1,2,3,4</code>).</p>
+<p><strong>Brute force.</strong> Sort and scan: <code>O(n log n)</code>. The problem demands <code>O(n)</code>, so sorting is not allowed.</p>
+<p><strong>The key insight, step by step.</strong></p>
+<ol>
+<li>Put every number in a set so "is <code>x+1</code> present?" is instant.</li>
+<li>For each number, we <em>could</em> count how far the run goes upward. But if we did that from <em>every</em> number, a long run like <code>1,2,3,…,n</code> would be counted over and over: <code>O(n²)</code>.</li>
+<li><strong>Only start counting from the beginning of a run.</strong> A number is a run's start if <code>x - 1</code> is <strong>not</strong> in the set. Skip all others.</li>
+<li>From each start, walk upward while <code>x + 1</code> exists.</li>
+</ol>
+<p>Each number is visited at most twice overall (once as a candidate, at most once inside one run), so the total is <code>O(n)</code>, even though there is a <code>while</code> inside a <code>for</code>.</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["For each x in the set"] --&gt; B{"Is x - 1 in the set?"}
+    B --&gt;|Yes| C["Skip: x is in the middle of a run"]
+    B --&gt;|No| D["x starts a run: count upward"]
+    D --&gt; E{"Is cur + 1 in the set?"}
+    E --&gt;|Yes| F["cur++, length++"] --&gt; E
+    E --&gt;|No| G["Update the best length"]</pre></figure>
+<p><strong>Trace.</strong> <code>[100, 4, 200, 1, 3, 2]</code>, set <code>{100, 4, 200, 1, 3, 2}</code></p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>x</th><th>x−1 in set?</th><th>Action</th><th>length</th></tr></thead><tbody>
+<tr><td>100</td><td>99 no</td><td>start: 101 not in set</td><td>1</td></tr>
+<tr><td>4</td><td>3 yes</td><td>skip</td><td>—</td></tr>
+<tr><td>200</td><td>199 no</td><td>start: 201 not in set</td><td>1</td></tr>
+<tr><td>1</td><td>0 no</td><td>start: 2, 3, 4 in set, 5 not</td><td><strong>4</strong></td></tr>
+<tr><td>3</td><td>2 yes</td><td>skip</td><td>—</td></tr>
+<tr><td>2</td><td>1 yes</td><td>skip</td><td>—</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p5" data-anim="longestConsecutive" data-code="code-7" data-flow="fig-6"></div>
+<div class="code-tabs" id="code-7">
+<pre data-lang="ts"><code class="language-ts">function longestConsecutive(nums: number[]): number {
+  const all = new Set(nums); // also removes duplicates
+  let best = 0;
+  for (const x of all) {
+    if (all.has(x - 1)) continue; // not the start of a run
+    let cur = x;
+    while (all.has(cur + 1)) cur++;
+    best = Math.max(best, cur - x + 1);
+  }
+  return best;
+}
+console.log(longestConsecutive([100, 4, 200, 1, 3, 2])); // 4
+console.log(longestConsecutive([0, 3, 7, 2, 5, 8, 4, 6, 0, 1])); // 9
+console.log(longestConsecutive([])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func longestConsecutive(nums []int) int {
+	all := make(map[int]struct{}, len(nums))
+	for _, x := range nums {
+		all[x] = struct{}{}
+	}
+	best := 0
+	for x := range all {
+		if _, ok := all[x-1]; ok {
+			continue // not the start of a run
+		}
+		cur := x
+		for {
+			if _, ok := all[cur+1]; !ok {
+				break
+			}
+			cur++
+		}
+		best = max(best, cur-x+1)
+	}
+	return best
+}
+
+func exampleLongestConsecutive() {
+	fmt.Println(longestConsecutive([]int{100, 4, 200, 1, 3, 2}))            // 4
+	fmt.Println(longestConsecutive([]int{0, 3, 7, 2, 5, 8, 4, 6, 0, 1})) // 9
+	fmt.Println(longestConsecutive(nil))                                    // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code> average. Space <code>O(n)</code>.</p>
+<p><strong>Why interviewers love this one.</strong> It tests whether you can explain <em>why a nested loop is still linear</em>. The magic sentence: <em>"I only start counting from numbers with no left neighbor, so each number is walked at most once."</em></p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · LRU Cache (LeetCode 146, Medium)</h3>
+<p><strong>Task.</strong> Design a cache with fixed capacity. <code>get(key)</code> returns the value (or <code>-1</code>); <code>put(key, value)</code> stores it. When full, <strong>evict the least recently used</strong> key. Both operations must be <code>O(1)</code>.</p>
+<p><strong>Why a hash map alone is not enough.</strong> A map finds a key instantly but cannot tell you which key is the <em>oldest</em>. <strong>A list alone is not enough either</strong>, because finding a key inside it takes <code>O(n)</code>.</p>
+<p><strong>Combine them.</strong> This is a classic combination from the book's ideas: a hash table for instant lookup, and a <em>doubly linked list</em> for instant reordering.</p>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart LR
+    subgraph Map["Hash map: key to list node"]
+        M1["k1"] 
+        M2["k2"]
+        M3["k3"]
+    end
+    subgraph List["Doubly linked list, newest on the left"]
+        direction LR
+        N3["k3 (most recent)"] &lt;--&gt; N1["k1"] &lt;--&gt; N2["k2 (least recent)"]
+    end
+    M1 -.-&gt; N1
+    M2 -.-&gt; N2
+    M3 -.-&gt; N3</pre></figure>
+<ul>
+<li><strong>On <code>get</code>:</strong> find the node via the map, move it to the front (most recent), return its value.</li>
+<li><strong>On <code>put</code>:</strong> if the key exists, update and move to front. If new, add at the front; if over capacity, remove the node at the back and delete its key from the map.</li>
+</ul>
+<p><strong>TypeScript shortcut.</strong> A JavaScript <code>Map</code> remembers insertion order. So "move to front" is just <em>delete the key, then set it again</em> (it goes to the end of the order). The <em>first</em> key in the map is then the least recently used.</p>
+<p><strong>Go.</strong> There is no ordered map, so we use <code>container/list</code> (a doubly linked list) plus a <code>map[int]*list.Element</code>.</p>
+<div class="stage" id="st-p6" data-anim="lruCache" data-code="code-8"></div>
+<div class="code-tabs" id="code-8">
+<pre data-lang="ts"><code class="language-ts">class LRUCache {
+  private store = new Map&lt;number, number&gt;(); // insertion order = recency order
+  constructor(private capacity: number) {}
+
+  get(key: number): number {
+    const value = this.store.get(key);
+    if (value === undefined) return -1;
+    this.store.delete(key); // refresh: remove then re-insert at the end
+    this.store.set(key, value);
+    return value;
+  }
+
+  put(key: number, value: number): void {
+    if (this.store.has(key)) this.store.delete(key);
+    this.store.set(key, value);
+    if (this.store.size &gt; this.capacity) {
+      const oldest = this.store.keys().next().value as number; // first key = least recent
+      this.store.delete(oldest);
+    }
+  }
+}
+
+const cache = new LRUCache(2);
+cache.put(1, 1);
+cache.put(2, 2);
+console.log(cache.get(1)); // 1
+cache.put(3, 3); // evicts key 2
+console.log(cache.get(2)); // -1
+cache.put(4, 4); // evicts key 1
+console.log(cache.get(1), cache.get(3), cache.get(4)); // -1 3 4</code></pre>
+<pre data-lang="go"><code class="language-go">type lruEntry struct{ key, value int }
+
+type LRUCache struct {
+	capacity int
+	order    *list.List            // front = most recent, back = least recent
+	nodes    map[int]*list.Element // key -&gt; its node in the list
+}
+
+func NewLRUCache(capacity int) *LRUCache {
+	return &amp;LRUCache{capacity: capacity, order: list.New(), nodes: make(map[int]*list.Element)}
+}
+
+func (c *LRUCache) Get(key int) int {
+	node, ok := c.nodes[key]
+	if !ok {
+		return -1
+	}
+	c.order.MoveToFront(node)
+	return node.Value.(*lruEntry).value
+}
+
+func (c *LRUCache) Put(key, value int) {
+	if node, ok := c.nodes[key]; ok {
+		node.Value.(*lruEntry).value = value
+		c.order.MoveToFront(node)
+		return
+	}
+	c.nodes[key] = c.order.PushFront(&amp;lruEntry{key, value})
+	if c.order.Len() &gt; c.capacity {
+		oldest := c.order.Back()
+		c.order.Remove(oldest)
+		delete(c.nodes, oldest.Value.(*lruEntry).key)
+	}
+}
+
+func exampleLRUCache() {
+	cache := NewLRUCache(2)
+	cache.Put(1, 1)
+	cache.Put(2, 2)
+	fmt.Println(cache.Get(1)) // 1
+	cache.Put(3, 3)           // evicts key 2
+	fmt.Println(cache.Get(2)) // -1
+	cache.Put(4, 4)           // evicts key 1
+	fmt.Println(cache.Get(1), cache.Get(3), cache.Get(4)) // -1 3 4
+}</code></pre>
+</div>
+<p><strong>Trace</strong> with capacity 2 (most recent first):</p>
+<div class="table-wrap"><table id="tbl-5" class="trace"><thead><tr><th>Operation</th><th>Order after</th><th>Map keys</th></tr></thead><tbody>
+<tr><td>put(1,1)</td><td>[1]</td><td>1</td></tr>
+<tr><td>put(2,2)</td><td>[2, 1]</td><td>1, 2</td></tr>
+<tr><td>get(1) → 1</td><td>[1, 2]</td><td>1, 2</td></tr>
+<tr><td>put(3,3) → evict 2</td><td>[3, 1]</td><td>1, 3</td></tr>
+<tr><td>get(2) → −1</td><td>[3, 1]</td><td>1, 3</td></tr>
+<tr><td>put(4,4) → evict 1</td><td>[4, 3]</td><td>3, 4</td></tr>
+</tbody></table></div>
+<p><strong>Complexity.</strong> <code>O(1)</code> time for both operations; <code>O(capacity)</code> space.</p>
+<p><strong>Follow-ups.</strong> <em>"Make it thread-safe"</em> → a mutex around every operation. <em>"LFU instead of LRU"</em> → count frequencies, which needs a second structure. <em>"Add expiry times"</em> → store a timestamp and discard lazily on <code>get</code>.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Checking truthiness instead of presence.</strong> In TypeScript <code>if (map.get(k))</code> fails when the stored value is <code>0</code>. In Go use the <code>v, ok</code> form when zero is a valid value.</li>
+<li><strong>Storing before checking</strong> in pair problems (pairing an item with itself).</li>
+<li><strong>Using an object or array as a TypeScript <code>Map</code> key</strong> and expecting content-based equality.</li>
+<li><strong>Relying on Go's map iteration order.</strong> It is intentionally random.</li>
+<li><strong>Mutating a collection while iterating over it.</strong></li>
+<li><strong>Forgetting about duplicates</strong> when converting an array to a set (it removes them, which may change counts).</li>
+<li><strong>Assuming <code>O(1)</code> is a guarantee.</strong> It is an <em>average</em>.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Explain collisions with the coat check</h3>
+<p>Explain to an imaginary friend, using the coat-check story, what a collision is and how chaining handles it.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>A model answer: "The attendant turns my name into a hook number. Sometimes two names give the same hook. That is a collision. With chaining, the hook holds a short list of coats; to find mine, the attendant goes to the hook and checks the few tags on it. As long as no hook gets crowded, it is still about one step. When the room gets too full, they move to a room with twice as many hooks and re-hang every coat." The animation in section 2 shows exactly this.</p></div></details>
+</div>
+<div class="exercise" id="ex2" data-track>
+<h3>2 · First non-repeating character</h3>
+<p>Solve "first non-repeating character in a string" with a frequency map in two passes. Why does it need two passes?</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>A character's count is only known after you have seen the whole string.</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Pass 1 counts every character. Pass 2 walks the string again in order and returns the first index whose count is 1. It needs two passes because when you first meet a character you cannot know whether it appears again later. <code>O(n)</code> time, <code>O(k)</code> space.</p><div class="stage" id="st-ex2" data-anim="firstUnique" data-code="code-ex2"></div>
+<div class="code-tabs" id="code-ex2">
+<pre data-lang="ts"><code class="language-ts">function firstUniqueChar(s: string): number {
+  const counts = new Map&lt;string, number&gt;();
+  for (const ch of s) counts.set(ch, (counts.get(ch) ?? 0) + 1); // pass 1: count everything
+  for (let i = 0; i &lt; s.length; i++) {
+    if (counts.get(s[i]) === 1) return i; // pass 2: the first character seen once
+  }
+  return -1;
+}
+console.log(firstUniqueChar("leetcode")); // 0
+console.log(firstUniqueChar("loveleetcode")); // 2
+console.log(firstUniqueChar("aabb")); // -1</code></pre>
+<pre data-lang="go"><code class="language-go">func firstUniqueChar(s string) int {
+	counts := make(map[byte]int)
+	for i := 0; i &lt; len(s); i++ {
+		counts[s[i]]++ // pass 1: count everything
+	}
+	for i := 0; i &lt; len(s); i++ {
+		if counts[s[i]] == 1 {
+			return i // pass 2: the first character seen once
+		}
+	}
+	return -1
+}
+
+func exampleFirstUniqueChar() {
+	fmt.Println(firstUniqueChar("leetcode"))     // 0
+	fmt.Println(firstUniqueChar("loveleetcode")) // 2
+	fmt.Println(firstUniqueChar("aabb"))         // -1
+}</code></pre>
+</div></div></details>
+</div>
+<div class="exercise" id="ex3" data-track>
+<h3>3 · Isomorphic strings</h3>
+<p>Given <code>s</code> and <code>t</code>, decide whether they are <em>isomorphic</em> (a one-to-one character mapping exists). Which two maps do you need, and why?</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>Try "badc" and "baba" with only one map. What goes wrong?</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>You need <strong>two maps</strong>: <code>s → t</code> makes sure each character of <code>s</code> always maps to the same character of <code>t</code>, and <code>t → s</code> makes sure no two characters of <code>s</code> map to the same character of <code>t</code>. With only the first map, "badc" and "baba" would pass, because <code>b → b</code> and <code>d → b</code> both look fine on their own.</p><div class="stage" id="st-ex3" data-anim="isomorphic" data-code="code-ex3"></div>
+<div class="code-tabs" id="code-ex3">
+<pre data-lang="ts"><code class="language-ts">function isIsomorphic(s: string, t: string): boolean {
+  if (s.length !== t.length) return false;
+  const sToT = new Map&lt;string, string&gt;(); // each s-char maps to one t-char
+  const tToS = new Map&lt;string, string&gt;(); // and no two s-chars share a t-char
+  for (let i = 0; i &lt; s.length; i++) {
+    const a = s[i], b = t[i];
+    if (sToT.has(a) &amp;&amp; sToT.get(a) !== b) return false;
+    if (tToS.has(b) &amp;&amp; tToS.get(b) !== a) return false;
+    sToT.set(a, b);
+    tToS.set(b, a);
+  }
+  return true;
+}
+console.log(isIsomorphic("egg", "add")); // true
+console.log(isIsomorphic("foo", "bar")); // false
+console.log(isIsomorphic("badc", "baba")); // false</code></pre>
+<pre data-lang="go"><code class="language-go">func isIsomorphic(s, t string) bool {
+	if len(s) != len(t) {
+		return false
+	}
+	sToT := make(map[byte]byte) // each s-char maps to one t-char
+	tToS := make(map[byte]byte) // and no two s-chars share a t-char
+	for i := 0; i &lt; len(s); i++ {
+		a, b := s[i], t[i]
+		if v, ok := sToT[a]; ok &amp;&amp; v != b {
+			return false
+		}
+		if v, ok := tToS[b]; ok &amp;&amp; v != a {
+			return false
+		}
+		sToT[a] = b
+		tToS[b] = a
+	}
+	return true
+}
+
+func exampleIsIsomorphic() {
+	fmt.Println(isIsomorphic("egg", "add"))   // true
+	fmt.Println(isIsomorphic("foo", "bar"))   // false
+	fmt.Println(isIsomorphic("badc", "baba")) // false
+}</code></pre>
+</div></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Why start only at run beginnings</h3>
+<p>Why does Longest Consecutive Sequence only start counting at numbers whose left neighbor is missing?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>If you counted upward from every number, a run of length <code>n</code> would be walked from each of its numbers: <code>n + (n−1) + … + 1</code>, which is <code>O(n²)</code>. Starting only where <code>x − 1</code> is missing walks each run exactly once, from its first number, so every number is visited at most twice in total: <code>O(n)</code>. Step through Problem 5's animation and watch the visit counter.</p></div></details>
+</div>
+<div class="exercise" id="ex5" data-track>
+<h3>5 · A HashSet with chaining</h3>
+<p>Design a <code>HashSet</code> class with <code>add</code>, <code>remove</code>, <code>contains</code> using only an array of arrays (chaining). What do you do on resize?</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>Store an array of buckets; the slot is key mod the number of buckets. What should happen when there are many more keys than buckets?</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Keep an array of buckets, each a small list. <code>add</code> hashes the key to a slot and appends it if it is not already in that chain; <code>contains</code> searches one chain; <code>remove</code> deletes from one chain. On resize, when <code>count / buckets</code> passes about 0.75, allocate twice as many buckets and <strong>re-insert every key</strong>, because a key's slot depends on the number of buckets. The resize is <code>O(n)</code> but rare, so operations stay amortized <code>O(1)</code>. The hash-table animation in section 2 runs this exact code.</p><div class="code-tabs" id="code-ex5">
+<pre data-lang="ts"><code class="language-ts">class MyHashSet {
+  private buckets: number[][] = Array.from({ length: 4 }, () =&gt; []);
+  private count = 0;
+
+  private slot(key: number): number {
+    const n = this.buckets.length;
+    return ((key % n) + n) % n; // positive modulo, so negative keys work too
+  }
+
+  add(key: number): void {
+    if (this.contains(key)) return;
+    this.buckets[this.slot(key)].push(key);
+    this.count++;
+    if (this.count / this.buckets.length &gt; 0.75) this.resize(); // keep chains short
+  }
+
+  remove(key: number): void {
+    const chain = this.buckets[this.slot(key)];
+    const i = chain.indexOf(key);
+    if (i &gt;= 0) {
+      chain.splice(i, 1);
+      this.count--;
+    }
+  }
+
+  contains(key: number): boolean {
+    return this.buckets[this.slot(key)].includes(key);
+  }
+
+  private resize(): void {
+    const old = this.buckets;
+    this.buckets = Array.from({ length: old.length * 2 }, () =&gt; []);
+    for (const chain of old) for (const key of chain) this.buckets[this.slot(key)].push(key); // re-insert everything
+  }
+}
+const hs = new MyHashSet();
+for (const k of [1, 5, 9, 2, 6]) hs.add(k);
+console.log(hs.contains(9), hs.contains(3)); // true false
+hs.remove(9);
+console.log(hs.contains(9)); // false</code></pre>
+<pre data-lang="go"><code class="language-go">type MyHashSet struct {
+	buckets [][]int
+	count   int
+}
+
+func NewMyHashSet() *MyHashSet {
+	return &amp;MyHashSet{buckets: make([][]int, 4)}
+}
+
+func (h *MyHashSet) slot(key int) int {
+	n := len(h.buckets)
+	return ((key % n) + n) % n // positive modulo, so negative keys work too
+}
+
+func (h *MyHashSet) Add(key int) {
+	if h.Contains(key) {
+		return
+	}
+	s := h.slot(key)
+	h.buckets[s] = append(h.buckets[s], key)
+	h.count++
+	if float64(h.count)/float64(len(h.buckets)) &gt; 0.75 {
+		h.resize() // keep chains short
+	}
+}
+
+func (h *MyHashSet) Remove(key int) {
+	s := h.slot(key)
+	chain := h.buckets[s]
+	for i, k := range chain {
+		if k == key {
+			h.buckets[s] = append(chain[:i], chain[i+1:]...)
+			h.count--
+			return
+		}
+	}
+}
+
+func (h *MyHashSet) Contains(key int) bool {
+	for _, k := range h.buckets[h.slot(key)] {
+		if k == key {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *MyHashSet) resize() {
+	old := h.buckets
+	h.buckets = make([][]int, len(old)*2)
+	for _, chain := range old {
+		for _, key := range chain {
+			s := h.slot(key) // re-insert everything
+			h.buckets[s] = append(h.buckets[s], key)
+		}
+	}
+}
+
+func exampleMyHashSet() {
+	hs := NewMyHashSet()
+	for _, k := range []int{1, 5, 9, 2, 6} {
+		hs.Add(k)
+	}
+	fmt.Println(hs.Contains(9), hs.Contains(3)) // true false
+	hs.Remove(9)
+	fmt.Println(hs.Contains(9)) // false
+}</code></pre>
+</div></div></details>
+</div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/04.js"></script>
+</body>
+</html>

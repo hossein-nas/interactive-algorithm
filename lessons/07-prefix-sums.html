@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="07" data-pattern="Prefix sums">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>07 Prefix sums | Algorithm guide</title>
+<meta name="description" content="Prefix sums animated: range queries, product except self, subarray sum equals k, 2D prefix sums and difference arrays.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 07</span><span>Core patterns on arrays and strings</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Prefix sums</h1>
+<p class="sub">Answer any range by subtracting two running totals.</p>
+<blockquote><p><strong>Book link:</strong> not a chapter in <em>Grokking Algorithms</em>, but it is the same spirit as chapter 5 (hash tables): spend a little memory up front to avoid repeating work later. It also leads straight into dynamic programming (chapter 11): a prefix-sum table is the simplest DP table. This file replaces the prefix-sum part of v2 file 09.</p></blockquote>
+<div class="glance"><div><b>The formula</b><p><code>prefix[0] = 0</code>; sum of <code>nums[l..r]</code> = <code>prefix[r+1] − prefix[l]</code>.</p></div><div><b>With a map</b><p>Count subarrays with sum k by looking up <code>prefix − k</code>. Works with negatives.</p></div><div><b>What it costs</b><p><code>O(n)</code> to build once, then <code>O(1)</code> per range query.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>You walk along a road and write down your <strong>odometer reading</strong> at every mile marker. Later someone asks: <em>"How far is it from marker 3 to marker 7?"</em> You do not re-drive the road. You just subtract: <code>reading at 7 − reading at 3</code>.</p>
+<p>A <strong>prefix sum</strong> array is that odometer. <code>prefix[i]</code> = the total of the first <code>i</code> numbers. To get the sum of any stretch, you subtract two odometer readings.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    A["nums:   2   4   1   3   5"] --&gt; B["prefix: 0  2  6  7  10  15"]
+    B --&gt; C["sum of nums[1..3] = 4 + 1 + 3&lt;br/&gt;= prefix[4] - prefix[1]&lt;br/&gt;= 10 - 2 = 8"]</pre></figure>
+<p><strong>The one formula to memorize</strong></p>
+<blockquote><p><code>prefix[0] = 0</code>, and <code>prefix[i + 1] = prefix[i] + nums[i]</code>. Sum of <code>nums[l..r]</code> (both inclusive) = <code>prefix[r + 1] − prefix[l]</code>.</p></blockquote>
+<p><strong>Why start with a leading <code>0</code>?</strong> It makes the formula work even when <code>l = 0</code> (the range starts at the very beginning) with no special case. Without that extra zero you need an <code>if</code> and it is a classic off-by-one source.</p>
+<h3 id="cost">Cost</h3>
+<div class="table-wrap"><table id="tbl-1" class="trace"><thead><tr><th>Step</th><th>Time</th><th>Space</th></tr></thead><tbody>
+<tr><td>Build the prefix array</td><td><code>O(n)</code> once</td><td><code>O(n)</code></td></tr>
+<tr><td>Each range-sum query</td><td><strong><code>O(1)</code></strong></td><td></td></tr>
+<tr><td>Without prefix sums (loop each time)</td><td><code>O(n)</code> per query</td><td><code>O(1)</code></td></tr>
+</tbody></table></div>
+<p>If you will answer <strong>many</strong> range queries, build the prefix array once. If you only answer one, a plain loop is just as good.</p>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>2. How to recognize it</h2>
+<ul>
+<li>"Sum of elements between index <code>i</code> and <code>j</code>" asked <strong>many times</strong>.</li>
+<li>"<strong>Number of subarrays</strong> whose sum equals <code>k</code>" (also with negative numbers!).</li>
+<li>"Largest/shortest subarray with equal 0s and 1s", or "sum divisible by <code>k</code>".</li>
+<li>"Apply many range updates, then read the final array" → the <strong>difference array</strong> (a cousin).</li>
+<li>"Product of everything except the current item" → <em>prefix and suffix products</em>.</li>
+<li>Grid version: "sum of a rectangle" → <strong>2D prefix sums</strong>.</li>
+</ul>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    A["Question about a contiguous range"] --&gt; B{"Many queries on a fixed array?"}
+    B --&gt;|Yes| C["Prefix sums: O(1) per query"]
+    B --&gt;|No| D{"Count or find subarrays with a target sum?"}
+    D --&gt;|"Yes, any numbers"| E["Prefix sums + hash map"]
+    D --&gt;|"Positive numbers only, longest or shortest"| F["Sliding window (file 06)"]
+    D --&gt;|"Many range additions"| G["Difference array"]</pre></figure>
+<h3 id="the-key-trick-for-subarray-sum-equals-k">The key trick for "subarray sum equals K"</h3>
+<p>A subarray from <code>l</code> to <code>r</code> has sum <code>k</code> exactly when <code>prefix[r+1] − prefix[l] = k</code>, which means</p>
+<blockquote><p><code>prefix[l] = prefix[r+1] − k</code>.</p></blockquote>
+<p>So as you walk right, ask: "<strong>how many earlier prefix values equal <code>current prefix − k</code>?</strong>" A hash map of <em>prefix value → how many times seen</em> answers that in <code>O(1)</code>. This works with negative numbers, where sliding windows fail.</p>
+<div class="quiz" data-quiz="prefix07"></div>
+</section>
+<section class="sec" id="reusable-templates">
+<h2>3. Reusable templates</h2>
+<div class="stage" id="st-basics" data-anim="prefixBasics" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="build a prefix array, answer ranges, and the &quot;count subarrays&quot; skeleton"><code class="language-ts">function buildPrefix(nums: number[]): number[] {
+  const prefix = new Array&lt;number&gt;(nums.length + 1).fill(0);
+  for (let i = 0; i &lt; nums.length; i++) prefix[i + 1] = prefix[i] + nums[i];
+  return prefix;
+}
+function rangeSum(prefix: number[], l: number, r: number): number {
+  return prefix[r + 1] - prefix[l]; // inclusive on both ends
+}
+
+const p = buildPrefix([2, 4, 1, 3, 5]);
+console.log(p); // [ 0, 2, 6, 7, 10, 15 ]
+console.log(rangeSum(p, 1, 3)); // 8
+console.log(rangeSum(p, 0, 4)); // 15</code></pre>
+<pre data-lang="go" data-caption="build a prefix array, answer ranges"><code class="language-go">func buildPrefix(nums []int) []int {
+	prefix := make([]int, len(nums)+1)
+	for i, x := range nums {
+		prefix[i+1] = prefix[i] + x
+	}
+	return prefix
+}
+
+func rangeSum(prefix []int, l, r int) int {
+	return prefix[r+1] - prefix[l] // inclusive on both ends
+}
+
+func examplePrefixBasics() {
+	p := buildPrefix([]int{2, 4, 1, 3, 5})
+	fmt.Println(p)                 // [0 2 6 7 10 15]
+	fmt.Println(rangeSum(p, 1, 3)) // 8
+	fmt.Println(rangeSum(p, 0, 4)) // 15
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>4. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Range Sum Query, Immutable (LeetCode 303, Easy)</h3>
+<p><strong>Task.</strong> Build a class that gets an array once, then answers many <code>sumRange(left, right)</code> calls quickly.</p>
+<p><strong>Brute force.</strong> Each query loops from <code>left</code> to <code>right</code>: <code>O(n)</code> per query. With a million queries on a million items, that is a trillion steps.</p>
+<p><strong>Idea.</strong> Build the prefix array in the constructor; each query is one subtraction.</p>
+<div class="stage" id="st-p1" data-anim="numArray" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">class NumArray {
+  private prefix: number[];
+  constructor(nums: number[]) {
+    this.prefix = new Array&lt;number&gt;(nums.length + 1).fill(0);
+    for (let i = 0; i &lt; nums.length; i++) this.prefix[i + 1] = this.prefix[i] + nums[i];
+  }
+  sumRange(left: number, right: number): number {
+    return this.prefix[right + 1] - this.prefix[left];
+  }
+}
+const numArray = new NumArray([-2, 0, 3, -5, 2, -1]);
+console.log(numArray.sumRange(0, 2)); // 1
+console.log(numArray.sumRange(2, 5)); // -1
+console.log(numArray.sumRange(0, 5)); // -3</code></pre>
+<pre data-lang="go"><code class="language-go">type NumArray struct{ prefix []int }
+
+func NewNumArray(nums []int) *NumArray {
+	prefix := make([]int, len(nums)+1)
+	for i, x := range nums {
+		prefix[i+1] = prefix[i] + x
+	}
+	return &amp;NumArray{prefix: prefix}
+}
+
+func (a *NumArray) SumRange(left, right int) int {
+	return a.prefix[right+1] - a.prefix[left]
+}
+
+func exampleNumArray() {
+	na := NewNumArray([]int{-2, 0, 3, -5, 2, -1})
+	fmt.Println(na.SumRange(0, 2)) // 1
+	fmt.Println(na.SumRange(2, 5)) // -1
+	fmt.Println(na.SumRange(0, 5)) // -3
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Constructor <code>O(n)</code>, each query <code>O(1)</code>, space <code>O(n)</code>.</p>
+<p><strong>Follow-up.</strong> <em>"What if values can change (Range Sum Query – Mutable, LeetCode 307)?"</em> A prefix array would need <code>O(n)</code> to rebuild after every update. Use a <strong>Fenwick tree</strong> or <strong>segment tree</strong> (<code>O(log n)</code> for both) — a good thing to name.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Product of Array Except Self (LeetCode 238, Medium)</h3>
+<p><strong>Task.</strong> For each position, return the product of <strong>all other</strong> numbers. No division allowed; <code>O(n)</code> time. <code>[1, 2, 3, 4]</code> → <code>[24, 12, 8, 6]</code>.</p>
+<p><strong>Why not divide?</strong> There might be zeros (division by zero) and the problem forbids it.</p>
+<p><strong>Idea: prefix products and suffix products.</strong> The product of everything except <code>i</code> is</p>
+<blockquote><p>(product of everything to the <strong>left</strong> of <code>i</code>) × (product of everything to the <strong>right</strong> of <code>i</code>).</p></blockquote>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart LR
+    subgraph L["Left product of each index"]
+        direction LR
+        L0["1"] --&gt; L1["1"] --&gt; L2["2"] --&gt; L3["6"]
+    end
+    subgraph R["Right product of each index"]
+        direction LR
+        R0["24"] --&gt; R1["12"] --&gt; R2["4"] --&gt; R3["1"]
+    end
+    L --&gt;|"multiply position by position"| ANS["24, 12, 8, 6"]
+    R --&gt; ANS</pre></figure>
+<p><strong>Space trick.</strong> Fill the answer array with the left products first. Then sweep from the right with one running variable <code>suffix</code> and multiply it in. No second array.</p>
+<p><strong>Trace.</strong> <code>[1, 2, 3, 4]</code></p>
+<div class="table-wrap"><table id="tbl-2" class="trace"><thead><tr><th>Step</th><th>answer array</th></tr></thead><tbody>
+<tr><td>after left pass (each = product of items to the left)</td><td><code>[1, 1, 2, 6]</code></td></tr>
+<tr><td><code>i=3</code>: multiply by suffix 1, then suffix = 4</td><td><code>[1, 1, 2, 6]</code></td></tr>
+<tr><td><code>i=2</code>: multiply by suffix 4 → 8, then suffix = 12</td><td><code>[1, 1, 8, 6]</code></td></tr>
+<tr><td><code>i=1</code>: multiply by suffix 12 → 12, then suffix = 24</td><td><code>[1, 12, 8, 6]</code></td></tr>
+<tr><td><code>i=0</code>: multiply by suffix 24 → 24</td><td><code>[24, 12, 8, 6]</code></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p2" data-anim="productExceptSelf" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function productExceptSelf(nums: number[]): number[] {
+  const n = nums.length;
+  const answer = new Array&lt;number&gt;(n).fill(1);
+  let left = 1;
+  for (let i = 0; i &lt; n; i++) {
+    answer[i] = left; // product of everything left of i
+    left *= nums[i];
+  }
+  let right = 1;
+  for (let i = n - 1; i &gt;= 0; i--) {
+    answer[i] *= right; // multiply in the product of everything right of i
+    right *= nums[i];
+  }
+  return answer;
+}
+console.log(productExceptSelf([1, 2, 3, 4])); // [ 24, 12, 8, 6 ]
+console.log(productExceptSelf([-1, 1, 0, -3, 3])); // [ -0, 0, 9, -0, 0 ]
+// JavaScript has a negative zero: 0 * -1 gives -0. It is === 0, so tests pass, but it prints as -0.
+console.log(-0 === 0, Object.is(-0, 0)); // true false</code></pre>
+<pre data-lang="go"><code class="language-go">func productExceptSelf(nums []int) []int {
+	n := len(nums)
+	answer := make([]int, n)
+	left := 1
+	for i := 0; i &lt; n; i++ {
+		answer[i] = left // product of everything left of i
+		left *= nums[i]
+	}
+	right := 1
+	for i := n - 1; i &gt;= 0; i-- {
+		answer[i] *= right // multiply in the product of everything right of i
+		right *= nums[i]
+	}
+	return answer
+}
+
+func exampleProductExceptSelf() {
+	fmt.Println(productExceptSelf([]int{1, 2, 3, 4}))      // [24 12 8 6]
+	fmt.Println(productExceptSelf([]int{-1, 1, 0, -3, 3})) // [0 0 9 0 0]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, extra space <code>O(1)</code> (not counting the output).</p>
+<p><strong>Interview note.</strong> With a zero in the array, only the position holding the zero can be non-zero. The two-pass method handles this automatically; that is a major reason to prefer it over "total product ÷ item".</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Subarray Sum Equals K (LeetCode 560, Medium)</h3>
+<p><strong>Task.</strong> Count the contiguous subarrays whose sum is exactly <code>k</code>. Numbers may be <strong>negative</strong> or zero. <code>[1, 1, 1]</code>, <code>k = 2</code> → <code>2</code>. <code>[1, 2, 3]</code>, <code>k = 3</code> → <code>2</code> (<code>[1,2]</code> and <code>[3]</code>).</p>
+<p><strong>Why a sliding window fails.</strong> With negatives, adding an item may <em>lower</em> the sum, so "shrink when too big" is no longer valid.</p>
+<p><strong>Idea.</strong> Keep a running <code>prefix</code> total. At each position ask: <em>"how many earlier prefix totals equal <code>prefix − k</code>?"</em> Each one marks a start position whose subarray ends here with sum exactly <code>k</code>.</p>
+<p>Store <code>count[prefixValue]</code> in a map. <strong>Initialize with <code>{0: 1}</code></strong>, meaning the empty prefix before the array begins (so subarrays that start at index 0 are counted).</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["Read x, prefix += x"] --&gt; B["ans += count of (prefix - k) in the map"]
+    B --&gt; C["map[prefix] += 1"]
+    C --&gt; A</pre></figure>
+<p>Order matters: first <strong>look up</strong>, then <strong>store</strong> the current prefix. If you stored first, with <code>k = 0</code> an item would pair with itself.</p>
+<p><strong>Trace.</strong> <code>[1, 2, 3]</code>, <code>k = 3</code></p>
+<div class="table-wrap"><table id="tbl-3" class="trace"><thead><tr><th>x</th><th>prefix</th><th>look up prefix − 3</th><th>found</th><th>ans</th><th>map after</th></tr></thead><tbody>
+<tr><td>(start)</td><td>0</td><td></td><td></td><td>0</td><td><code>{0:1}</code></td></tr>
+<tr><td>1</td><td>1</td><td>−2</td><td>0</td><td>0</td><td><code>{0:1, 1:1}</code></td></tr>
+<tr><td>2</td><td>3</td><td>0</td><td><strong>1</strong> (empty prefix: subarray <code>[1,2]</code>)</td><td>1</td><td><code>{0:1, 1:1, 3:1}</code></td></tr>
+<tr><td>3</td><td>6</td><td>3</td><td><strong>1</strong> (prefix 3: subarray <code>[3]</code>)</td><td>2</td><td><code>{0:1,1:1,3:1,6:1}</code></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p3" data-anim="subarraySum" data-code="code-4" data-flow="fig-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function subarraySum(nums: number[], k: number): number {
+  const seen = new Map&lt;number, number&gt;([[0, 1]]); // the empty prefix has been seen once
+  let prefix = 0, count = 0;
+  for (const x of nums) {
+    prefix += x;
+    count += seen.get(prefix - k) ?? 0; // how many starts give a sum of exactly k?
+    seen.set(prefix, (seen.get(prefix) ?? 0) + 1);
+  }
+  return count;
+}
+console.log(subarraySum([1, 1, 1], 2)); // 2
+console.log(subarraySum([1, 2, 3], 3)); // 2
+console.log(subarraySum([1, -1, 0], 0)); // 3</code></pre>
+<pre data-lang="go"><code class="language-go">func subarraySum(nums []int, k int) int {
+	seen := map[int]int{0: 1} // the empty prefix has been seen once
+	prefix, count := 0, 0
+	for _, x := range nums {
+		prefix += x
+		count += seen[prefix-k] // how many starts give a sum of exactly k?
+		seen[prefix]++
+	}
+	return count
+}
+
+func exampleSubarraySum() {
+	fmt.Println(subarraySum([]int{1, 1, 1}, 2))  // 2
+	fmt.Println(subarraySum([]int{1, 2, 3}, 3))  // 2
+	fmt.Println(subarraySum([]int{1, -1, 0}, 0)) // 3
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(n)</code>.</p>
+<p><strong>Variants worth knowing (same skeleton):</strong></p>
+<ul>
+<li><em>Longest</em> subarray with sum <code>k</code>: store the <strong>first index</strong> of each prefix value instead of a count.</li>
+<li><em>Subarray sums divisible by <code>k</code> (LeetCode 974)</em>: key the map by <code>prefix mod k</code> (use the positive-modulo form from file 03).</li>
+</ul>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Contiguous Array (LeetCode 525, Medium)</h3>
+<p><strong>Task.</strong> In a binary array, find the longest subarray with an <strong>equal number of 0s and 1s</strong>. <code>[0, 1, 0]</code> → <code>2</code>; <code>[0, 0, 1, 0, 0, 0, 1, 1]</code> → <code>6</code>.</p>
+<p><strong>The clever transformation.</strong> Replace every <code>0</code> by <code>−1</code>. Now "equal numbers of 0s and 1s" means "<strong>the sum is 0</strong>", and we want the <em>longest</em> subarray with sum 0. That is the "longest subarray with sum <code>k</code>" variant, with <code>k = 0</code>:</p>
+<blockquote><p>If the running sum at index <code>j</code> equals the running sum at an earlier index <code>i</code>, then everything between <code>i + 1</code> and <code>j</code> adds to 0.</p></blockquote>
+<p>So store the <strong>first</strong> index where each running sum appeared, and, on a repeat, measure the distance.</p>
+<p><strong>Trace.</strong> <code>[0, 1, 0]</code> → treat as <code>−1, +1, −1</code></p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>index</th><th>value</th><th>running sum</th><th>first seen at</th><th>length candidate</th></tr></thead><tbody>
+<tr><td>(start)</td><td></td><td>0</td><td>−1 (before the array)</td><td></td></tr>
+<tr><td>0</td><td>−1</td><td>−1</td><td>0</td><td></td></tr>
+<tr><td>1</td><td>+1</td><td>0</td><td>already at −1</td><td>1 − (−1) = <strong>2</strong></td></tr>
+<tr><td>2</td><td>−1</td><td>−1</td><td>already at 0</td><td>2 − 0 = <strong>2</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p4" data-anim="contiguousArray" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function findMaxLength(nums: number[]): number {
+  const firstIndex = new Map&lt;number, number&gt;([[0, -1]]); // running sum 0 "before" index 0
+  let sum = 0, best = 0;
+  for (let i = 0; i &lt; nums.length; i++) {
+    sum += nums[i] === 1 ? 1 : -1; // treat 0 as -1
+    const earlier = firstIndex.get(sum);
+    if (earlier !== undefined) best = Math.max(best, i - earlier);
+    else firstIndex.set(sum, i); // remember only the FIRST time, to keep the longest span
+  }
+  return best;
+}
+console.log(findMaxLength([0, 1, 0])); // 2
+console.log(findMaxLength([0, 0, 1, 0, 0, 0, 1, 1])); // 6
+console.log(findMaxLength([1, 1, 1])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func findMaxLength(nums []int) int {
+	firstIndex := map[int]int{0: -1} // running sum 0 "before" index 0
+	sum, best := 0, 0
+	for i, x := range nums {
+		if x == 1 {
+			sum++
+		} else {
+			sum-- // treat 0 as -1
+		}
+		if earlier, ok := firstIndex[sum]; ok {
+			best = max(best, i-earlier)
+		} else {
+			firstIndex[sum] = i // remember only the FIRST time, to keep the longest span
+		}
+	}
+	return best
+}
+
+func exampleFindMaxLength() {
+	fmt.Println(findMaxLength([]int{0, 1, 0}))                   // 2
+	fmt.Println(findMaxLength([]int{0, 0, 1, 0, 0, 0, 1, 1})) // 6
+	fmt.Println(findMaxLength([]int{1, 1, 1}))                   // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(n)</code>.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Range Sum Query 2D, Immutable (LeetCode 304, Medium)</h3>
+<p><strong>Task.</strong> For a matrix, answer many "sum of the rectangle from <code>(r1, c1)</code> to <code>(r2, c2)</code>" queries in <code>O(1)</code> each.</p>
+<p><strong>Idea.</strong> Let <code>P[r][c]</code> = the sum of the rectangle from the top-left corner <code>(0,0)</code> to <code>(r−1, c−1)</code>. Build with <strong>inclusion–exclusion</strong>: add the block above, add the block to the left, subtract the overlap that got counted twice, add the new cell.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["Building P[r+1][c+1]"] --&gt; B["+ P[r][c+1]  (block above)"]
+    A --&gt; C["+ P[r+1][c]  (block to the left)"]
+    A --&gt; D["- P[r][c]  (overlap counted twice)"]
+    A --&gt; E["+ matrix[r][c]  (the new cell)"]</pre></figure>
+<p>For a query, the target rectangle = big block − block above − block left + overlap added back:</p>
+<blockquote><p><code>sum = P[r2+1][c2+1] − P[r1][c2+1] − P[r2+1][c1] + P[r1][c1]</code></p></blockquote>
+<div class="stage" id="st-p5" data-anim="numMatrix" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">class NumMatrix {
+  private P: number[][];
+  constructor(matrix: number[][]) {
+    const rows = matrix.length, cols = rows ? matrix[0].length : 0;
+    this.P = Array.from({ length: rows + 1 }, () =&gt; new Array&lt;number&gt;(cols + 1).fill(0));
+    for (let r = 0; r &lt; rows; r++) {
+      for (let c = 0; c &lt; cols; c++) {
+        this.P[r + 1][c + 1] = this.P[r][c + 1] + this.P[r + 1][c] - this.P[r][c] + matrix[r][c];
+      }
+    }
+  }
+  sumRegion(r1: number, c1: number, r2: number, c2: number): number {
+    const P = this.P;
+    return P[r2 + 1][c2 + 1] - P[r1][c2 + 1] - P[r2 + 1][c1] + P[r1][c1];
+  }
+}
+const nm = new NumMatrix([
+  [3, 0, 1, 4, 2],
+  [5, 6, 3, 2, 1],
+  [1, 2, 0, 1, 5],
+  [4, 1, 0, 1, 7],
+  [1, 0, 3, 0, 5],
+]);
+console.log(nm.sumRegion(2, 1, 4, 3)); // 8
+console.log(nm.sumRegion(1, 1, 2, 2)); // 11
+console.log(nm.sumRegion(1, 2, 2, 4)); // 12</code></pre>
+<pre data-lang="go"><code class="language-go">type NumMatrix struct{ P [][]int }
+
+func NewNumMatrix(matrix [][]int) *NumMatrix {
+	rows := len(matrix)
+	cols := 0
+	if rows &gt; 0 {
+		cols = len(matrix[0])
+	}
+	P := make([][]int, rows+1)
+	for r := range P {
+		P[r] = make([]int, cols+1)
+	}
+	for r := 0; r &lt; rows; r++ {
+		for c := 0; c &lt; cols; c++ {
+			P[r+1][c+1] = P[r][c+1] + P[r+1][c] - P[r][c] + matrix[r][c]
+		}
+	}
+	return &amp;NumMatrix{P: P}
+}
+
+func (m *NumMatrix) SumRegion(r1, c1, r2, c2 int) int {
+	P := m.P
+	return P[r2+1][c2+1] - P[r1][c2+1] - P[r2+1][c1] + P[r1][c1]
+}
+
+func exampleNumMatrix() {
+	nm := NewNumMatrix([][]int{
+		{3, 0, 1, 4, 2},
+		{5, 6, 3, 2, 1},
+		{1, 2, 0, 1, 5},
+		{4, 1, 0, 1, 7},
+		{1, 0, 3, 0, 5},
+	})
+	fmt.Println(nm.SumRegion(2, 1, 4, 3)) // 8
+	fmt.Println(nm.SumRegion(1, 1, 2, 2)) // 11
+	fmt.Println(nm.SumRegion(1, 2, 2, 4)) // 12
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Build <code>O(rows × cols)</code>, query <code>O(1)</code>, space <code>O(rows × cols)</code>.</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · Corporate Flight Bookings / Range Updates with a Difference Array (LeetCode 1109, Medium)</h3>
+<p><strong>Task.</strong> There are <code>n</code> flights. Each booking <code>[first, last, seats]</code> adds <code>seats</code> seats to <em>every</em> flight from <code>first</code> to <code>last</code> (1-based). Return the final seat count for each flight. <code>n = 5</code>, bookings <code>[[1,2,10],[2,3,20],[2,5,25]]</code> → <code>[10, 55, 45, 25, 25]</code>.</p>
+<p><strong>Brute force.</strong> For each booking, loop over its range: <code>O(bookings × n)</code>.</p>
+<p><strong>The difference array: the <em>reverse</em> of a prefix sum.</strong> Instead of touching every flight in <code>[first, last]</code>, mark only the two <strong>edges</strong>:</p>
+<ul>
+<li>At <code>first</code>, "the amount goes <strong>up</strong> by <code>seats</code> from here on": <code>diff[first] += seats</code>.</li>
+<li>Right after <code>last</code>, "it goes back <strong>down</strong>": <code>diff[last + 1] -= seats</code>.</li>
+</ul>
+<p>At the end, a single prefix-sum pass over <code>diff</code> turns the edge marks into the real values.</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart LR
+    A["booking 2 to 5, +25"] --&gt; B["diff[2] += 25"]
+    A --&gt; C["diff[6] -= 25  (past the end, ignore)"]
+    B --&gt; D["After all bookings: run a prefix sum over diff"]
+    C --&gt; D
+    D --&gt; E["Final answer per flight"]</pre></figure>
+<p><strong>Trace.</strong> Using 1-based flights; <code>diff</code> has size <code>n + 2</code> so <code>last + 1</code> is always valid.</p>
+<div class="table-wrap"><table id="tbl-5" class="trace"><thead><tr><th>Booking</th><th>diff after (index 1..5)</th></tr></thead><tbody>
+<tr><td>start</td><td><code>[0, 0, 0, 0, 0]</code></td></tr>
+<tr><td><code>[1,2,10]</code></td><td><code>diff[1] += 10, diff[3] -= 10</code> → <code>[10, 0, -10, 0, 0]</code></td></tr>
+<tr><td><code>[2,3,20]</code></td><td><code>diff[2] += 20, diff[4] -= 20</code> → <code>[10, 20, -10, -20, 0]</code></td></tr>
+<tr><td><code>[2,5,25]</code></td><td><code>diff[2] += 25</code> (and diff[6] −= 25, ignored) → <code>[10, 45, -10, -20, 0]</code></td></tr>
+<tr><td>prefix sum</td><td><code>10, 55, 45, 25, 25</code> ✔</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p6" data-anim="flightBookings" data-code="code-7"></div>
+<div class="code-tabs" id="code-7">
+<pre data-lang="ts"><code class="language-ts">function corpFlightBookings(bookings: number[][], n: number): number[] {
+  const diff = new Array&lt;number&gt;(n + 2).fill(0); // 1-based, plus one spare slot
+  for (const [first, last, seats] of bookings) {
+    diff[first] += seats; // the amount rises here
+    diff[last + 1] -= seats; // and falls just after the range
+  }
+  const result: number[] = [];
+  let running = 0;
+  for (let flight = 1; flight &lt;= n; flight++) {
+    running += diff[flight]; // prefix sum turns edges into values
+    result.push(running);
+  }
+  return result;
+}
+console.log(corpFlightBookings([[1, 2, 10], [2, 3, 20], [2, 5, 25]], 5)); // [ 10, 55, 45, 25, 25 ]
+console.log(corpFlightBookings([[1, 2, 10], [2, 2, 15]], 2)); // [ 10, 25 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func corpFlightBookings(bookings [][]int, n int) []int {
+	diff := make([]int, n+2) // 1-based, plus one spare slot
+	for _, b := range bookings {
+		first, last, seats := b[0], b[1], b[2]
+		diff[first] += seats  // the amount rises here
+		diff[last+1] -= seats // and falls just after the range
+	}
+	result := make([]int, 0, n)
+	running := 0
+	for flight := 1; flight &lt;= n; flight++ {
+		running += diff[flight] // prefix sum turns edges into values
+		result = append(result, running)
+	}
+	return result
+}
+
+func exampleCorpFlightBookings() {
+	fmt.Println(corpFlightBookings([][]int{{1, 2, 10}, {2, 3, 20}, {2, 5, 25}}, 5)) // [10 55 45 25 25]
+	fmt.Println(corpFlightBookings([][]int{{1, 2, 10}, {2, 2, 15}}, 2))              // [10 25]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(bookings + n)</code>, space <code>O(n)</code>.</p>
+<p><strong>Same trick, other disguises:</strong> Meeting rooms (count overlapping meetings: <code>+1</code> at start, <code>−1</code> at end; file 24), Car Pooling (LeetCode 1094), Range Addition (LeetCode 370).</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Forgetting the leading zero</strong> in <code>prefix</code> (off-by-one on ranges that start at index 0).</li>
+<li><strong>Mixing inclusive and exclusive ends.</strong> Decide once and write it in a comment: <code>sum(l..r) = prefix[r+1] − prefix[l]</code>.</li>
+<li><strong>Not seeding the map with <code>{0: 1}</code></strong> (misses subarrays that start at the very beginning).</li>
+<li><strong>Storing before looking up</strong> in the count-subarrays loop.</li>
+<li><strong>For "longest", overwriting the first index</strong> of a prefix value. Only record the <em>first</em> time.</li>
+<li><strong>Integer overflow</strong> in totals of many large numbers (JavaScript loses exactness above 2⁵³).</li>
+<li><strong>Using prefix sums when the array changes between queries.</strong> It needs a Fenwick tree for that.</li>
+</ul>
+<div class="callout bug"><b>Watch these bugs happen</b><div class="presets"><button class="chip bug" data-bug="st-p3:0">No {0: 1} seed</button><button class="chip bug" data-bug="st-p3:1">Storing before looking up</button></div></div>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Why both ends are included</h3>
+<p>Explain why <code>prefix[r + 1] − prefix[l]</code> includes both <code>l</code> and <code>r</code>.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><code>prefix[r + 1]</code> is the total of <code>nums[0..r]</code>, which includes <code>r</code>. <code>prefix[l]</code> is the total of <code>nums[0..l−1]</code>, which stops just before <code>l</code>. Subtracting removes exactly the items before <code>l</code>, so what remains is <code>nums[l..r]</code> with both ends.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Why the map starts as {0: 1}</h3>
+<p>Why does "Subarray Sum Equals K" need the map to start as <code>{0: 1}</code>? Show a one-element example.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The seed stands for the empty prefix before the array. Without it, a subarray that starts at index 0 has nothing to match. Example: <code>[5]</code>, <code>k = 5</code>. At index 0, prefix = 5 and we look up 5 − 5 = 0. With the seed we find it once and count the subarray <code>[5]</code>; without it the answer is 0, which is wrong. Use the "No {0: 1} seed" replay in Problem 3 to watch it fail.</p></div></details>
+</div>
+<div class="exercise" id="ex3" data-track>
+<h3>3 · Find Pivot Index</h3>
+<p>Solve <em>Find Pivot Index</em> (LeetCode 724): the position where the sum to the left equals the sum to the right.</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>If you know the total and the sum to the left of i, what is the sum to the right?</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Compute the total once. Walk left to right keeping <code>leftSum</code>; the right side is <code>total − leftSum − nums[i]</code>. Return the first <code>i</code> where they are equal. <code>O(n)</code> time, <code>O(1)</code> space.</p><div class="stage" id="st-ex3" data-anim="pivotIndex" data-code="code-ex3"></div>
+<div class="code-tabs" id="code-ex3">
+<pre data-lang="ts"><code class="language-ts">function pivotIndex(nums: number[]): number {
+  const total = nums.reduce((a, b) =&gt; a + b, 0);
+  let leftSum = 0; // sum of everything before i
+  for (let i = 0; i &lt; nums.length; i++) {
+    if (leftSum === total - leftSum - nums[i]) return i; // left side equals right side
+    leftSum += nums[i];
+  }
+  return -1;
+}
+console.log(pivotIndex([1, 7, 3, 6, 5, 6])); // 3
+console.log(pivotIndex([1, 2, 3])); // -1
+console.log(pivotIndex([2, 1, -1])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func pivotIndex(nums []int) int {
+	total := 0
+	for _, x := range nums {
+		total += x
+	}
+	leftSum := 0 // sum of everything before i
+	for i, x := range nums {
+		if leftSum == total-leftSum-x {
+			return i // left side equals right side
+		}
+		leftSum += x
+	}
+	return -1
+}
+
+func examplePivotIndex() {
+	fmt.Println(pivotIndex([]int{1, 7, 3, 6, 5, 6})) // 3
+	fmt.Println(pivotIndex([]int{1, 2, 3}))          // -1
+	fmt.Println(pivotIndex([]int{2, 1, -1}))         // 0
+}</code></pre>
+</div></div></details>
+</div>
+<div class="exercise" id="ex4" data-track>
+<h3>4 · Subarray Sums Divisible by K</h3>
+<p>Solve <em>Subarray Sums Divisible by K</em> (LeetCode 974). Which two details from this file do you need?</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>Two subarray boundaries give a sum divisible by k exactly when their prefixes have the same remainder.</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Two details from this lesson: the map seeded with remainder 0 seen once (the empty prefix), and the <strong>positive modulo</strong> <code>((prefix % k) + k) % k</code> from lesson 03, because a negative prefix would otherwise give a negative remainder that never matches. Count how many earlier prefixes have the same remainder.</p><div class="code-tabs" id="code-ex4">
+<pre data-lang="ts"><code class="language-ts">function subarraysDivByK(nums: number[], k: number): number {
+  const seen = new Map&lt;number, number&gt;([[0, 1]]); // the empty prefix, remainder 0
+  let prefix = 0, count = 0;
+  for (const x of nums) {
+    prefix += x;
+    const r = ((prefix % k) + k) % k; // positive remainder, even for negative sums
+    count += seen.get(r) ?? 0; // same remainder earlier: the subarray between is divisible by k
+    seen.set(r, (seen.get(r) ?? 0) + 1);
+  }
+  return count;
+}
+console.log(subarraysDivByK([4, 5, 0, -2, -3, 1], 5)); // 7
+console.log(subarraysDivByK([5], 9)); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func subarraysDivByK(nums []int, k int) int {
+	seen := map[int]int{0: 1} // the empty prefix, remainder 0
+	prefix, count := 0, 0
+	for _, x := range nums {
+		prefix += x
+		r := ((prefix % k) + k) % k // positive remainder, even for negative sums
+		count += seen[r]            // same remainder earlier: the subarray between is divisible by k
+		seen[r]++
+	}
+	return count
+}
+
+func exampleSubarraysDivByK() {
+	fmt.Println(subarraysDivByK([]int{4, 5, 0, -2, -3, 1}, 5)) // 7
+	fmt.Println(subarraysDivByK([]int{5}, 9))                  // 0
+}</code></pre>
+</div></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Why the difference array is fast</h3>
+<p>Why can the difference array turn a thousand range updates into thousand <code>O(1)</code> steps plus one sweep?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Each update touches only its two edges, <code>diff[first] += v</code> and <code>diff[last + 1] −= v</code>, no matter how long the range is: <code>O(1)</code> per update. One prefix-sum pass at the end (<code>O(n)</code>) turns the edges into actual values. A thousand updates cost a thousand constant steps plus one sweep, instead of up to a thousand times n.</p></div></details>
+</div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/07.js"></script>
+</body>
+</html>

@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="03" data-pattern="Language toolkit">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>03 Language toolkit: TypeScript and Go | Algorithm guide</title>
+<meta name="description" content="TypeScript and Go side by side: arrays, slices, strings, maps, queues, heaps and integer gotchas, with animated traps.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 03</span><span>Foundations</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Language toolkit: TypeScript and Go</h1>
+<p class="sub">The moves you need in a coding round, side by side, and the gotchas that cost minutes.</p>
+
+<div class="glance"><div><b>Sequences</b><p>TS arrays copy on <code>slice</code>; Go sub-slices share memory until you <code>copy</code>.</p></div><div><b>Lookups</b><p>TS <code>Map</code> keeps insertion order; Go maps are random and return zero for missing keys.</p></div><div><b>Priority</b><p>TypeScript has no heap, so you write one; Go has <code>container/heap</code>.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<p>You can know the best algorithm and still lose ten minutes fighting your language. This file is a <strong>side-by-side cheat sheet</strong> of everything that comes up in coding rounds: arrays, strings, maps, sets, stacks, queues, heaps, integers, and the classic gotchas. Every snippet was compiled and run.</p>
+<blockquote><p><strong>Versions assumed:</strong> TypeScript in <code>strict</code> mode (Node 20+), Go 1.22+ with the standard library only. The built-in <code>min</code> and <code>max</code> functions in Go need Go 1.21+.</p></blockquote>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    A["Need to store a sequence"] --&gt; B["TS: Array&lt;br/&gt;Go: slice"]
+    C["Need a lookup by key"] --&gt; D["TS: Map and Set&lt;br/&gt;Go: map"]
+    E["Need newest-first"] --&gt; F["Stack: array push/pop&lt;br/&gt;both languages"]
+    G["Need oldest-first"] --&gt; H["Queue: array + head index&lt;br/&gt;Go: slice + head index"]
+    I["Need smallest or largest first"] --&gt; J["Heap&lt;br/&gt;TS: write one&lt;br/&gt;Go: container/heap"]</pre></figure>
+<section class="sec" id="arrays-and-slices">
+<h2>1. Arrays and slices</h2>
+<p><strong>Plain English:</strong> an <em>array</em> in TypeScript is a growable list. In Go, the everyday type is a <em>slice</em>: a small window onto an underlying array, which also grows when you <code>append</code>.</p>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Task</th><th>TypeScript</th><th>Go</th></tr></thead><tbody>
+<tr><td>Create empty</td><td><code>const a: number[] = []</code></td><td><code>a := []int{}</code> or <code>var a []int</code></td></tr>
+<tr><td>Create <code>n</code> zeros</td><td><code>new Array&lt;number&gt;(n).fill(0)</code></td><td><code>make([]int, n)</code></td></tr>
+<tr><td>Length</td><td><code>a.length</code></td><td><code>len(a)</code></td></tr>
+<tr><td>Append</td><td><code>a.push(x)</code></td><td><code>a = append(a, x)</code></td></tr>
+<tr><td>Remove last</td><td><code>a.pop()</code></td><td><code>a = a[:len(a)-1]</code></td></tr>
+<tr><td>Last item</td><td><code>a[a.length-1]</code> or <code>a.at(-1)</code></td><td><code>a[len(a)-1]</code></td></tr>
+<tr><td>Copy</td><td><code>[...a]</code> or <code>a.slice()</code></td><td><code>b := make([]int, len(a)); copy(b, a)</code></td></tr>
+<tr><td>Sub-range <code>[i, j)</code></td><td><code>a.slice(i, j)</code> (copies)</td><td><code>a[i:j]</code> (<strong>shares memory</strong>, no copy)</td></tr>
+<tr><td>Sort numbers</td><td><code>a.sort((x, y) =&gt; x - y)</code></td><td><code>sort.Ints(a)</code> or <code>slices.Sort(a)</code></td></tr>
+<tr><td>Reverse in place</td><td><code>a.reverse()</code></td><td><code>slices.Reverse(a)</code></td></tr>
+<tr><td>Contains</td><td><code>a.includes(x)</code></td><td><code>slices.Contains(a, x)</code></td></tr>
+</tbody></table></div>
+<h3 id="the-two-classic-array-traps">The two classic array traps</h3>
+<p><strong>TypeScript: <code>fill([])</code> shares one inner array.</strong> <code>Array(3).fill([])</code> puts the <em>same</em> inner list in all three slots. Use <code>Array.from</code>.</p>
+<p><strong>Go: a sub-slice shares memory with the original.</strong> Appending to the sub-slice can overwrite the original's data. When you need an independent copy (saving a path in backtracking is the big one), call <code>copy</code> explicitly.</p>
+<h3 id="2d-arrays-grids-dp-tables">2D arrays (grids, DP tables)</h3>
+<p>Watch both traps happen. The first version is the TypeScript one; switch to the second for Go.</p>
+<div class="stage" id="st-traps" data-anim="fillTrap,sliceAlias" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="grids and the shared-row trap"><code class="language-ts">function makeGrid(rows: number, cols: number, fillValue = 0): number[][] {
+  return Array.from({ length: rows }, () =&gt; new Array&lt;number&gt;(cols).fill(fillValue));
+}
+
+const bad = Array(3).fill([] as number[]); // all three rows are the SAME array
+bad[0].push(1);
+console.log(bad); // [ [ 1 ], [ 1 ], [ 1 ] ]  &lt;- surprise
+
+const good = makeGrid(2, 3, 7);
+good[0][1] = 9;
+console.log(good); // [ [ 7, 9, 7 ], [ 7, 7, 7 ] ]
+
+// A numeric sort needs a comparator. The default sort compares as text.
+console.log([10, 9, 1].sort()); // [ 1, 10, 9 ]
+console.log([10, 9, 1].sort((a, b) =&gt; a - b)); // [ 1, 9, 10 ]</code></pre>
+<pre data-lang="go" data-caption="grids and the shared-memory trap"><code class="language-go">func makeGrid(rows, cols, fill int) [][]int {
+	grid := make([][]int, rows)
+	for r := range grid {
+		grid[r] = make([]int, cols) // each row is its own slice
+		for c := range grid[r] {
+			grid[r][c] = fill
+		}
+	}
+	return grid
+}
+
+func exampleGridsAndSlices() {
+	g := makeGrid(2, 3, 7)
+	g[0][1] = 9
+	fmt.Println(g) // [[7 9 7] [7 7 7]]
+
+	// Sub-slice trap: b shares memory with a.
+	a := []int{1, 2, 3, 4}
+	b := a[:2]
+	b = append(b, 99) // overwrites a[2]!
+	fmt.Println(a, b) // [1 2 99 4] [1 2 99]
+
+	// Safe copy.
+	c := make([]int, 2)
+	copy(c, a[:2])
+	c = append(c, 100)
+	fmt.Println(a, c) // [1 2 99 4] [1 2 100]
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="strings">
+<h2>2. Strings</h2>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Task</th><th>TypeScript</th><th>Go</th></tr></thead><tbody>
+<tr><td>Length</td><td><code>s.length</code> (UTF-16 units)</td><td><code>len(s)</code> (<strong>bytes</strong>)</td></tr>
+<tr><td>Character at <code>i</code></td><td><code>s[i]</code> (a one-char string)</td><td><code>s[i]</code> (a <strong>byte</strong>)</td></tr>
+<tr><td>Char code</td><td><code>s.charCodeAt(i)</code></td><td><code>int(s[i])</code></td></tr>
+<tr><td>Letter index 0–25</td><td><code>s.charCodeAt(i) - 97</code></td><td><code>int(s[i] - 'a')</code></td></tr>
+<tr><td>Split to chars</td><td><code>[...s]</code> or <code>s.split("")</code></td><td><code>[]rune(s)</code> or <code>[]byte(s)</code></td></tr>
+<tr><td>Join pieces</td><td><code>parts.join("")</code></td><td><code>strings.Join(parts, "")</code></td></tr>
+<tr><td>Build in a loop</td><td>collect in array, then <code>join</code></td><td><code>strings.Builder</code></td></tr>
+<tr><td>Compare</td><td><code>===</code>, <code>&lt;</code>, <code>localeCompare</code></td><td><code>==</code>, <code>&lt;</code>, <code>strings.Compare</code></td></tr>
+<tr><td>Reverse</td><td><code>[...s].reverse().join("")</code></td><td>reverse a <code>[]rune</code>, convert back</td></tr>
+<tr><td>Substring <code>[i,j)</code></td><td><code>s.slice(i, j)</code></td><td><code>s[i:j]</code> (bytes; no copy)</td></tr>
+<tr><td>Upper / lower</td><td><code>s.toUpperCase()</code></td><td><code>strings.ToUpper(s)</code></td></tr>
+</tbody></table></div>
+<p><strong>Key difference:</strong> a Go <code>string</code> is a read-only sequence of <strong>bytes</strong>. For plain English letters that is the same as characters. For anything with accents or emoji, convert to <code>[]rune</code> first, or your <code>len</code> and indexing will be wrong.</p>
+<div class="stage" id="st-letters" data-anim="letterCounts" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts" data-caption="strings recipes"><code class="language-ts">function reverseString(s: string): string {
+  return [...s].reverse().join("");
+}
+
+// Count letters a..z with a 26-slot array (faster and simpler than a Map).
+function letterCounts(s: string): number[] {
+  const counts = new Array&lt;number&gt;(26).fill(0);
+  for (let i = 0; i &lt; s.length; i++) counts[s.charCodeAt(i) - 97]++;
+  return counts;
+}
+
+console.log(reverseString("hello")); // olleh
+console.log(letterCounts("banana").slice(0, 3)); // [ 3, 1, 0 ]  (a=3, b=1, c=0)
+
+// Never build a big string with += in a loop; use an array and join.
+const pieces: string[] = [];
+for (let i = 0; i &lt; 5; i++) pieces.push(String(i));
+console.log(pieces.join("-")); // 0-1-2-3-4</code></pre>
+<pre data-lang="go" data-caption="strings recipes"><code class="language-go">func reverseString(s string) string {
+	r := []rune(s)
+	for i, j := 0, len(r)-1; i &lt; j; i, j = i+1, j-1 {
+		r[i], r[j] = r[j], r[i]
+	}
+	return string(r)
+}
+
+func letterCounts(s string) [26]int {
+	var counts [26]int // an array (not a slice) is comparable with == and usable as a map key
+	for i := 0; i &lt; len(s); i++ {
+		counts[s[i]-'a']++
+	}
+	return counts
+}
+
+func exampleStringRecipes() {
+	fmt.Println(reverseString("hello"))             // olleh
+	c := letterCounts("banana")
+	fmt.Println(c[0], c[1], c[2])                   // 3 1 0
+	fmt.Println(len("héllo"), len([]rune("héllo"))) // 6 5   (bytes vs characters)
+
+	var sb strings.Builder
+	for i := 0; i &lt; 5; i++ {
+		if i &gt; 0 {
+			sb.WriteByte('-')
+		}
+		sb.WriteString(strconv.Itoa(i))
+	}
+	fmt.Println(sb.String()) // 0-1-2-3-4
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="maps-and-sets">
+<h2>3. Maps and sets</h2>
+<p><strong>Plain English:</strong> a map stores <em>key → value</em> pairs and finds a key in about one step on average. A set is a map where you only care that the key is <em>present</em>.</p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Task</th><th>TypeScript</th><th>Go</th></tr></thead><tbody>
+<tr><td>Create map</td><td><code>new Map&lt;string, number&gt;()</code></td><td><code>make(map[string]int)</code></td></tr>
+<tr><td>Set value</td><td><code>m.set(k, v)</code></td><td><code>m[k] = v</code></td></tr>
+<tr><td>Get value</td><td><code>m.get(k)</code> (may be <code>undefined</code>)</td><td><code>m[k]</code> (zero value if missing)</td></tr>
+<tr><td>Has key?</td><td><code>m.has(k)</code></td><td><code>_, ok := m[k]</code></td></tr>
+<tr><td>Delete</td><td><code>m.delete(k)</code></td><td><code>delete(m, k)</code></td></tr>
+<tr><td>Count</td><td><code>m.size</code></td><td><code>len(m)</code></td></tr>
+<tr><td>Count up</td><td><code>m.set(k, (m.get(k) ?? 0) + 1)</code></td><td><code>m[k]++</code></td></tr>
+<tr><td>Create set</td><td><code>new Set&lt;number&gt;()</code></td><td><code>map[int]struct{}</code> or <code>map[int]bool</code></td></tr>
+<tr><td>Add / has</td><td><code>s.add(x)</code> / <code>s.has(x)</code></td><td><code>s[x] = struct{}{}</code> / <code>_, ok := s[x]</code></td></tr>
+<tr><td>Iterate</td><td><code>for (const [k, v] of m)</code></td><td><code>for k, v := range m</code></td></tr>
+<tr><td>Iteration order</td><td><strong>insertion order</strong> (guaranteed)</td><td><strong>random</strong> (do not rely on it)</td></tr>
+</tbody></table></div>
+<p><strong>Keys that are arrays or structs.</strong> In TypeScript, a <code>Map</code> compares object keys by <em>identity</em>, so <code>[1,2]</code> and <code>[1,2]</code> are two different keys. Convert to a string key such as <code>"1,2"</code>. In Go, you can use an array like <code>[26]int</code> or a struct of comparable fields directly as a key (this makes "group anagrams" easy), but not a slice.</p>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts" data-caption="map and set recipes"><code class="language-ts">function frequency(nums: number[]): Map&lt;number, number&gt; {
+  const freq = new Map&lt;number, number&gt;();
+  for (const x of nums) freq.set(x, (freq.get(x) ?? 0) + 1);
+  return freq;
+}
+
+console.log(frequency([1, 2, 2, 3, 3, 3])); // Map(3) { 1 =&gt; 1, 2 =&gt; 2, 3 =&gt; 3 }
+
+// Map.get may legitimately return 0, so test with `=== undefined`, not truthiness.
+const m = new Map&lt;string, number&gt;([["zero", 0]]);
+console.log(m.get("zero") ? "found" : "missing"); // missing   &lt;- bug if you meant "found"
+console.log(m.get("zero") !== undefined ? "found" : "missing"); // found
+
+// Arrays as keys are compared by identity, so use a string key.
+const groups = new Map&lt;string, string[]&gt;();
+for (const w of ["eat", "tea", "tan"]) {
+  const key = [...w].sort().join("");
+  const list = groups.get(key) ?? [];
+  list.push(w);
+  groups.set(key, list);
+}
+console.log([...groups.values()]); // [ [ 'eat', 'tea' ], [ 'tan' ] ]
+
+const seen = new Set&lt;number&gt;([1, 2, 3]);
+console.log(seen.has(2), seen.size); // true 3</code></pre>
+<pre data-lang="go" data-caption="map and set recipes"><code class="language-go">func frequency(nums []int) map[int]int {
+	freq := make(map[int]int)
+	for _, x := range nums {
+		freq[x]++ // a missing key reads as 0, so this just works
+	}
+	return freq
+}
+
+func exampleMapRecipes() {
+	fmt.Println(frequency([]int{1, 2, 2, 3, 3, 3})) // map[1:1 2:2 3:3]  (fmt prints maps sorted)
+
+	// A missing key and a stored zero look the same; use the comma-ok form to tell them apart.
+	m := map[string]int{"zero": 0}
+	v, ok := m["zero"]
+	w, ok2 := m["nope"]
+	fmt.Println(v, ok, w, ok2) // 0 true 0 false
+
+	// An array can be a map key: group anagrams without sorting strings.
+	groups := make(map[[26]int][]string)
+	for _, word := range []string{"eat", "tea", "tan"} {
+		var key [26]int
+		for i := 0; i &lt; len(word); i++ {
+			key[word[i]-'a']++
+		}
+		groups[key] = append(groups[key], word)
+	}
+	fmt.Println(len(groups)) // 2
+
+	seen := map[int]struct{}{1: {}, 2: {}, 3: {}}
+	_, has := seen[2]
+	fmt.Println(has, len(seen)) // true 3
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="stack-queue-and-deque">
+<h2>4. Stack, queue, and deque</h2>
+<p><strong>Stack (last in, first out)</strong>: both languages use an array/slice and work at the end.</p>
+<p><strong>Queue (first in, first out)</strong>: <em>do not</em> use <code>shift()</code> in TypeScript (it is <code>O(n)</code>). Keep a <code>head</code> index and just move it forward. In Go, <code>q = q[1:]</code> is <code>O(1)</code>, but a <code>head</code> index is clearer and avoids holding old memory.</p>
+<div class="stage" id="st-queue" data-anim="queueHead" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts" data-caption="stack and queue"><code class="language-ts">// Stack
+const stack: number[] = [];
+stack.push(1);
+stack.push(2);
+console.log(stack.pop(), stack[stack.length - 1]); // 2 1
+
+// Queue with a head index: O(1) per operation, no shifting.
+class Queue&lt;T&gt; {
+  private items: T[] = [];
+  private head = 0;
+  push(x: T): void {
+    this.items.push(x);
+  }
+  shift(): T | undefined {
+    if (this.head &gt;= this.items.length) return undefined;
+    return this.items[this.head++];
+  }
+  get size(): number {
+    return this.items.length - this.head;
+  }
+}
+
+const q = new Queue&lt;string&gt;();
+q.push("a");
+q.push("b");
+console.log(q.shift(), q.size); // a 1</code></pre>
+<pre data-lang="go" data-caption="stack, queue, and deque"><code class="language-go">func exampleStackQueue() {
+	// Stack
+	stack := []int{}
+	stack = append(stack, 1)
+	stack = append(stack, 2)
+	top := stack[len(stack)-1]
+	stack = stack[:len(stack)-1]
+	fmt.Println(top, stack) // 2 [1]
+
+	// Queue: take from the front by moving the start of the slice.
+	queue := []string{"a", "b"}
+	front := queue[0]
+	queue = queue[1:]
+	fmt.Println(front, len(queue)) // a 1
+
+	// Deque: container/list is a doubly linked list.
+	dq := list.New()
+	dq.PushBack(1)
+	dq.PushFront(0)
+	fmt.Println(dq.Front().Value, dq.Back().Value, dq.Len()) // 0 1 2
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="the-heap-priority-queue">
+<h2>5. The heap (priority queue)</h2>
+<p><strong>Plain English:</strong> a heap lets you add items and always remove the <strong>smallest</strong> (min-heap) or <strong>largest</strong> (max-heap) in <code>O(log n)</code>. It is the tool behind "top K", "merge K sorted lists", "scheduling", and Dijkstra.</p>
+<ul>
+<li><strong>TypeScript has no built-in heap.</strong> You write a small one. It is worth practicing until you can type it in two minutes.</li>
+<li><strong>Go has <code>container/heap</code>.</strong> You supply five methods and Go does the sifting. It is verbose but standard.</li>
+</ul>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    A["Min-heap in an array&lt;br/&gt;[1, 3, 2, 7, 4]"] --&gt; B["Index 0: 1 (root, smallest)"]
+    B --&gt; C["Index 1: 3 (left child of 0)"]
+    B --&gt; D["Index 2: 2 (right child of 0)"]
+    C --&gt; E["Index 3: 7"]
+    C --&gt; F["Index 4: 4"]
+    G["Rule: parent index = (i - 1) / 2&lt;br/&gt;children = 2i + 1 and 2i + 2&lt;br/&gt;parent is always &lt;= both children"]</pre></figure>
+<div class="stage" id="st-heap" data-anim="minHeap" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts" data-caption="a reusable generic min-heap"><code class="language-ts">class MinHeap&lt;T&gt; {
+  private data: T[] = [];
+  constructor(private less: (a: T, b: T) =&gt; boolean) {}
+
+  get size(): number {
+    return this.data.length;
+  }
+  peek(): T | undefined {
+    return this.data[0];
+  }
+
+  push(item: T): void {
+    this.data.push(item);
+    let i = this.data.length - 1;
+    while (i &gt; 0) {
+      const parent = (i - 1) &gt;&gt; 1;
+      if (!this.less(this.data[i], this.data[parent])) break;
+      [this.data[i], this.data[parent]] = [this.data[parent], this.data[i]];
+      i = parent;
+    }
+  }
+
+  pop(): T | undefined {
+    if (this.data.length === 0) return undefined;
+    const top = this.data[0];
+    const last = this.data.pop()!;
+    if (this.data.length &gt; 0) {
+      this.data[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r = 2 * i + 2;
+        let smallest = i;
+        if (l &lt; this.data.length &amp;&amp; this.less(this.data[l], this.data[smallest])) smallest = l;
+        if (r &lt; this.data.length &amp;&amp; this.less(this.data[r], this.data[smallest])) smallest = r;
+        if (smallest === i) break;
+        [this.data[i], this.data[smallest]] = [this.data[smallest], this.data[i]];
+        i = smallest;
+      }
+    }
+    return top;
+  }
+}
+
+const minHeap = new MinHeap&lt;number&gt;((a, b) =&gt; a &lt; b);
+[5, 1, 4, 2].forEach((x) =&gt; minHeap.push(x));
+console.log(minHeap.pop(), minHeap.pop(), minHeap.peek()); // 1 2 4
+
+// Max-heap: flip the comparison. Pairs: order by the first field.
+const maxHeap = new MinHeap&lt;[number, string]&gt;((a, b) =&gt; a[0] &gt; b[0]);
+maxHeap.push([3, "c"]);
+maxHeap.push([9, "z"]);
+console.log(maxHeap.pop()); // [ 9, 'z' ]</code></pre>
+<pre data-lang="go" data-caption="container/heap for ints and for pairs"><code class="language-go">// 1) A min-heap of ints: five methods.
+type IntHeap []int
+
+func (h IntHeap) Len() int           { return len(h) }
+func (h IntHeap) Less(i, j int) bool { return h[i] &lt; h[j] } // flip to &gt; for a max-heap
+func (h IntHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h *IntHeap) Push(x any)        { *h = append(*h, x.(int)) }
+func (h *IntHeap) Pop() any {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[:n-1]
+	return x
+}
+
+// 2) A heap of pairs, ordered by dist. This is the Dijkstra shape.
+type Item struct {
+	node, dist int
+}
+type ItemHeap []Item
+
+func (h ItemHeap) Len() int           { return len(h) }
+func (h ItemHeap) Less(i, j int) bool { return h[i].dist &lt; h[j].dist }
+func (h ItemHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h *ItemHeap) Push(x any)        { *h = append(*h, x.(Item)) }
+func (h *ItemHeap) Pop() any {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[:n-1]
+	return x
+}
+
+func exampleHeaps() {
+	h := &amp;IntHeap{5, 1, 4}
+	heap.Init(h) // O(n) heapify
+	heap.Push(h, 2)
+	fmt.Println(heap.Pop(h), heap.Pop(h), (*h)[0]) // 1 2 4
+
+	ih := &amp;ItemHeap{}
+	heap.Push(ih, Item{node: 7, dist: 30})
+	heap.Push(ih, Item{node: 3, dist: 10})
+	fmt.Println(heap.Pop(ih).(Item)) // {3 10}
+}</code></pre>
+</div>
+<p><strong>Go heap gotchas:</strong> call <code>heap.Push(h, x)</code> and <code>heap.Pop(h)</code> (the <em>package</em> functions), not <code>h.Push</code> or <code>h.Pop</code> (those are the raw methods the package uses). <code>heap.Pop</code> returns <code>any</code>, so you must type-assert (<code>.(int)</code>).</p>
+</section>
+<section class="sec" id="integers-overflow-and-number-tricks">
+<h2>6. Integers, overflow, and number tricks</h2>
+<div class="table-wrap"><table id="tbl-4"><thead><tr><th>Topic</th><th>TypeScript</th><th>Go</th></tr></thead><tbody>
+<tr><td>Integer type</td><td><code>number</code> (a 64-bit float)</td><td><code>int</code> (64-bit on modern machines)</td></tr>
+<tr><td>Exact integers up to</td><td><code>Number.MAX_SAFE_INTEGER</code> = 2⁵³ − 1</td><td>2⁶³ − 1</td></tr>
+<tr><td>Beyond that</td><td><code>BigInt</code> (<code>123n</code>)</td><td><code>math/big</code> (rare)</td></tr>
+<tr><td>Integer divide</td><td><code>Math.floor(a / b)</code> or <code>Math.trunc</code></td><td><code>a / b</code> (truncates toward zero)</td></tr>
+<tr><td>Remainder</td><td><code>a % b</code> (sign follows <code>a</code>)</td><td><code>a % b</code> (sign follows <code>a</code>)</td></tr>
+<tr><td>Positive modulo</td><td><code>((a % b) + b) % b</code></td><td><code>((a % b) + b) % b</code></td></tr>
+<tr><td>Infinity</td><td><code>Infinity</code>, <code>-Infinity</code></td><td><code>math.MaxInt</code>, <code>math.MinInt</code></td></tr>
+<tr><td>Min / max</td><td><code>Math.min(a, b)</code></td><td><code>min(a, b)</code> (built in since Go 1.21)</td></tr>
+<tr><td>Absolute value</td><td><code>Math.abs(x)</code></td><td>write it (<code>math.Abs</code> is for floats)</td></tr>
+<tr><td>Bit ops</td><td>work on <strong>32-bit</strong> ints</td><td>work on <code>int</code> width</td></tr>
+<tr><td>Floor of a/2</td><td><code>a &gt;&gt; 1</code> (32-bit) or <code>Math.floor(a/2)</code></td><td><code>a &gt;&gt; 1</code> or <code>a / 2</code></td></tr>
+</tbody></table></div>
+<p><strong>Two interview-relevant surprises:</strong></p>
+<ol>
+<li><strong>Midpoint overflow.</strong> <code>(lo + hi) / 2</code> can overflow in languages with fixed-size ints. The safe form is <code>lo + (hi - lo) / 2</code>. In Go with 64-bit <code>int</code> it rarely matters but is still good style. JavaScript does not overflow here but its division is floating point, so always floor it.</li>
+<li><strong>Negative modulo.</strong> <code>-7 % 3</code> is <code>-1</code> in both languages (not <code>2</code>). If you wrap around an array (rotation, circular buffers) use the positive-modulo form.</li>
+</ol>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts" data-caption="number recipes"><code class="language-ts">function mid(lo: number, hi: number): number {
+  return lo + Math.floor((hi - lo) / 2);
+}
+function positiveMod(a: number, b: number): number {
+  return ((a % b) + b) % b;
+}
+
+console.log(mid(0, 7)); // 3
+console.log(-7 % 3, positiveMod(-7, 3)); // -1 2
+console.log(Number.MAX_SAFE_INTEGER); // 9007199254740991
+console.log(2 ** 53 === 2 ** 53 + 1); // true  &lt;- precision is gone
+console.log(2n ** 64n); // 18446744073709551616n
+console.log(7 / 2, Math.floor(7 / 2), Math.trunc(-7 / 2)); // 3.5 3 -3
+console.log(1 &lt;&lt; 31, 2 ** 31 | 0); // -2147483648 -2147483648  &lt;- bit ops are 32-bit</code></pre>
+<pre data-lang="go" data-caption="number recipes"><code class="language-go">func mid(lo, hi int) int { return lo + (hi-lo)/2 }
+
+func positiveMod(a, b int) int { return ((a % b) + b) % b }
+
+func abs(x int) int {
+	if x &lt; 0 {
+		return -x
+	}
+	return x
+}
+
+func exampleNumberRecipes() {
+	fmt.Println(mid(0, 7))                    // 3
+	fmt.Println(-7%3, positiveMod(-7, 3))     // -1 2
+	fmt.Println(math.MaxInt64)                // 9223372036854775807
+	fmt.Println(7/2, -7/2)                    // 3 -3  (integer division truncates toward zero)
+	fmt.Println(abs(-5), min(3, 9), max(3, 9)) // 5 3 9
+	var big int64 = math.MaxInt64
+	big++ // wraps around silently, with no error
+	fmt.Println(big) // -9223372036854775808
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="structs-and-linked-structures-used-in-problems">
+<h2>7. Structs and linked structures used in problems</h2>
+<p>Linked lists, trees, and graphs appear everywhere. Here are the usual definitions, so you do not fumble them.</p>
+<div class="code-tabs" id="code-7">
+<pre data-lang="ts" data-caption="nodes and builders"><code class="language-ts">class ListNode {
+  constructor(public val: number, public next: ListNode | null = null) {}
+}
+class TreeNode {
+  constructor(
+    public val: number,
+    public left: TreeNode | null = null,
+    public right: TreeNode | null = null,
+  ) {}
+}
+
+function listFromArray(values: number[]): ListNode | null {
+  const dummy = new ListNode(0);
+  let tail = dummy;
+  for (const v of values) {
+    tail.next = new ListNode(v);
+    tail = tail.next;
+  }
+  return dummy.next;
+}
+function listToArray(head: ListNode | null): number[] {
+  const out: number[] = [];
+  for (let n = head; n !== null; n = n.next) out.push(n.val);
+  return out;
+}
+
+const list3 = listFromArray([1, 2, 3]);
+console.log(listToArray(list3)); // [ 1, 2, 3 ]
+const tree = new TreeNode(1, new TreeNode(2), new TreeNode(3));
+console.log(tree.left?.val, tree.right?.val); // 2 3
+
+// Adjacency list for a graph with n nodes.
+const n = 4;
+const adj: number[][] = Array.from({ length: n }, () =&gt; []);
+adj[0].push(1);
+adj[1].push(2);
+console.log(adj); // [ [ 1 ], [ 2 ], [], [] ]</code></pre>
+<pre data-lang="go" data-caption="nodes and builders"><code class="language-go">type ListNode struct {
+	Val  int
+	Next *ListNode
+}
+type TreeNode struct {
+	Val         int
+	Left, Right *TreeNode
+}
+
+func listFromSlice(values []int) *ListNode {
+	dummy := &amp;ListNode{}
+	tail := dummy
+	for _, v := range values {
+		tail.Next = &amp;ListNode{Val: v}
+		tail = tail.Next
+	}
+	return dummy.Next
+}
+func listToSlice(head *ListNode) []int {
+	out := []int{}
+	for n := head; n != nil; n = n.Next {
+		out = append(out, n.Val)
+	}
+	return out
+}
+
+func exampleStructs() {
+	fmt.Println(listToSlice(listFromSlice([]int{1, 2, 3}))) // [1 2 3]
+	tree := &amp;TreeNode{Val: 1, Left: &amp;TreeNode{Val: 2}, Right: &amp;TreeNode{Val: 3}}
+	fmt.Println(tree.Left.Val, tree.Right.Val) // 2 3
+
+	n := 4
+	adj := make([][]int, n) // nil slices are fine to append to
+	adj[0] = append(adj[0], 1)
+	adj[1] = append(adj[1], 2)
+	fmt.Println(adj) // [[1] [2] [] []]
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="sorting-with-custom-rules">
+<h2>8. Sorting with custom rules</h2>
+<p>Many problems say "sort by this, then by that" (intervals by start, words by length, pairs by count).</p>
+<div class="code-tabs" id="code-8">
+<pre data-lang="ts" data-caption="sort by several keys"><code class="language-ts">const people: [string, number][] = [["bob", 30], ["amy", 30], ["cat", 25]];
+// Oldest first; ties broken by name A to Z.
+people.sort((a, b) =&gt; b[1] - a[1] || a[0].localeCompare(b[0]));
+console.log(people); // [ [ 'amy', 30 ], [ 'bob', 30 ], [ 'cat', 25 ] ]
+
+// Always copy first if the caller's array must stay in its original order.
+const original = [3, 1, 2];
+const sorted = [...original].sort((a, b) =&gt; a - b);
+console.log(original, sorted); // [ 3, 1, 2 ] [ 1, 2, 3 ]</code></pre>
+<pre data-lang="go" data-caption="sort by several keys"><code class="language-go">func exampleCustomSort() {
+	type person struct {
+		name string
+		age  int
+	}
+	people := []person{{"bob", 30}, {"amy", 30}, {"cat", 25}}
+	sort.Slice(people, func(i, j int) bool {
+		if people[i].age != people[j].age {
+			return people[i].age &gt; people[j].age // oldest first
+		}
+		return people[i].name &lt; people[j].name // then name A to Z
+	})
+	fmt.Println(people) // [{amy 30} {bob 30} {cat 25}]
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="recursion-limits">
+<h2>9. Recursion limits</h2>
+<ul>
+<li><strong>JavaScript</strong> has a fixed call-stack size (roughly 10,000 frames, depending on the frame size). A recursive walk on a chain of 100,000 nodes will throw <code>RangeError: Maximum call stack size exceeded</code>. For deep inputs use an explicit stack (a loop with your own array).</li>
+<li><strong>Go</strong> stacks grow dynamically (up to 1 GB by default), so deep recursion is rarely a problem, but it still costs memory.</li>
+</ul>
+<p>A good interview line: <em>"Recursion is clearest here. If the input could be a very long chain, I would convert it to an explicit stack."</em></p>
+</section>
+<section class="sec" id="quick-mistake-table">
+<h2>10. Quick mistake table</h2>
+<div class="table-wrap"><table id="tbl-5"><thead><tr><th>Mistake</th><th>In TypeScript</th><th>In Go</th></tr></thead><tbody>
+<tr><td>Default sort</td><td>Sorts as <em>text</em>: <code>[10, 9, 1]</code> → <code>[1, 10, 9]</code></td><td>N/A</td></tr>
+<tr><td>Missing key</td><td><code>undefined</code> (check <code>!== undefined</code>)</td><td>zero value (use <code>ok</code> form)</td></tr>
+<tr><td>Popping from an empty array</td><td><code>pop()</code> gives <code>undefined</code></td><td><strong>panics</strong> (index out of range)</td></tr>
+<tr><td>Map iteration order</td><td>insertion order</td><td><strong>random</strong></td></tr>
+<tr><td>Integer division</td><td><code>/</code> gives a float</td><td><code>/</code> truncates</td></tr>
+<tr><td>Shared row in grid</td><td><code>fill([])</code></td><td>sub-slices share memory</td></tr>
+<tr><td>Loop variable capture</td><td><code>let</code> is per-iteration</td><td>per-iteration since Go 1.22</td></tr>
+<tr><td>Modifying while iterating</td><td>skips items</td><td>skips items or panics</td></tr>
+<tr><td>Strings</td><td>UTF-16 code units</td><td>bytes; use runes for Unicode</td></tr>
+<tr><td>Comparing arrays</td><td><code>===</code> compares identity</td><td><code>==</code> works on arrays, not on slices</td></tr>
+<tr><td>Max safe integer</td><td>2⁵³ − 1</td><td>2⁶³ − 1, wraps silently</td></tr>
+</tbody></table></div>
+<div class="quiz" data-quiz="toolkit03"></div>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1" data-track>
+<h3>1 · Write a heap from memory</h3>
+<p>Without the file, write a TypeScript <code>MinHeap</code> with <code>push</code> and <code>pop</code>. Then write the five methods for a Go <code>IntHeap</code>.</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>Push: append, then swap with the parent while smaller. Pop: save the root, move the last item to the root, then swap with the smaller child while bigger.</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Compare your code with section 5 line by line. The parts people forget: the parent index <code>(i - 1) &gt;&gt; 1</code>; checking that a child exists before comparing it; handling the case where the heap had one item (after <code>pop</code> the array is empty, so do not write to index 0). In Go: <code>Len</code>, <code>Less</code>, <code>Swap</code>, and pointer-receiver <code>Push</code> and <code>Pop</code>, where <code>Pop</code> removes the <em>last</em> element.</p><p>Step through the heap animation above and predict each swap before you press next.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · From shift() to a head index</h3>
+<p>Convert a "queue using <code>shift()</code>" into the version with a head index. Why is the original <code>O(n²)</code> overall?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Keep the array and an integer <code>head</code>. <code>push</code> appends; <code>shift</code> returns <code>items[head]</code> and increments <code>head</code>; the size is <code>items.length - head</code>. The original is <code>O(n²)</code> overall because each <code>shift()</code> moves every remaining item one slot left, which is <code>(n−1) + (n−2) + … + 1</code> moves for <code>n</code> shifts. Lesson 02, Problem A animates exactly that.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Letter counts for banana</h3>
+<p>Count letter frequencies for <code>"banana"</code> using a 26-slot array in both languages.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>a = 3, b = 1, n = 2, every other slot 0. Slot index = character code minus the code of <code>'a'</code>: <code>s.charCodeAt(i) - 97</code> in TypeScript, <code>s[i] - 'a'</code> in Go. The letter-count animation in section 2 shows it step by step.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · What heap.Pop returns</h3>
+<p>What does <code>heap.Pop(h)</code> return in Go, and how do you turn it into an <code>int</code>?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><code>heap.Pop(h)</code> returns a value of type <code>any</code> (the empty interface). Turn it into an <code>int</code> with a type assertion: <code>x := heap.Pop(h).(int)</code>. For a heap of structs it is <code>heap.Pop(h).(Item)</code>. Call the package function <code>heap.Pop(h)</code>, not the method <code>h.Pop()</code>, which skips the sifting.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Two ways a sub-slice corrupts data</h3>
+<p>Show two ways a Go sub-slice can corrupt data, and how you would prevent it.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><ol><li><strong>Appending to a sub-slice with spare capacity</strong> writes into the original's backing array: <code>b := a[:2]; b = append(b, 99)</code> overwrites <code>a[2]</code>. Prevent it with an explicit copy, or limit the capacity with a full slice expression <code>a[:2:2]</code>, which forces <code>append</code> to allocate.</li><li><strong>Saving a slice that you keep modifying</strong>, such as appending the current path to the results in backtracking and then changing the path. Every saved result shares the same memory and changes with it. Save <code>append([]int(nil), path...)</code> or a <code>copy</code> instead.</li></ol></div></details>
+</div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/03.js"></script>
+</body>
+</html>

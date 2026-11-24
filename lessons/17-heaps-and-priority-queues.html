@@ -1,0 +1,721 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="17" data-pattern="Heap / top K">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>17 Heaps and priority queues | Algorithm guide</title>
+<meta name="description" content="Heaps animated: sift up and down in the tree and the array at once, heapify and heap sort, top K, merging K lists, meeting rooms and the two-heap median.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 17</span><span>Data structures</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Heaps and priority queues</h1>
+<p class="sub">Always know the smallest, cheaply.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 13 mentions min heaps and priority queues as a "where to go next" topic; chapters 7–9 use the same idea inside Huffman coding and Dijkstra's algorithm. This file replaces v2 file 07 (Kth Largest, Merge K Sorted, Meeting Rooms) and adds Top-K Frequent, Kth Smallest in a Matrix, and the streaming median.</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>"K largest / smallest / closest", "merge K sorted", "the next earliest event", or a running median.</p></div><div><b>How it works</b><p>A complete tree stored in an array: children of i at 2i+1 and 2i+2. Push sifts up; pop sifts down.</p></div><div><b>What it costs</b><p>Push and pop <code>O(log n)</code>; peek <code>O(1)</code>; heapify <code>O(n)</code>.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>An emergency room does <strong>not</strong> treat patients in the order they arrive. It always treats the <strong>most urgent</strong> one next. A <strong>priority queue</strong> is that waiting room: you can <code>add</code> anyone at any time, and you can always <code>take</code> the most urgent person quickly.</p>
+<p>A <strong>heap</strong> is the standard way to build a priority queue. It does not keep everything sorted (that would be wasteful). It keeps just enough order that the <strong>smallest</strong> (min-heap) or <strong>largest</strong> (max-heap) item is always on top.</p>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Operation</th><th>Cost</th></tr></thead><tbody>
+<tr><td>Look at the top (<code>peek</code>)</td><td><code>O(1)</code></td></tr>
+<tr><td>Add an item (<code>push</code>)</td><td><code>O(log n)</code></td></tr>
+<tr><td>Remove the top (<code>pop</code>)</td><td><code>O(log n)</code></td></tr>
+<tr><td>Build a heap from <code>n</code> items</td><td><code>O(n)</code></td></tr>
+<tr><td>Search for an arbitrary item</td><td><code>O(n)</code> (heaps are bad at this)</td></tr>
+</tbody></table></div>
+<p><strong>Compare with sorting.</strong> Sorting everything costs <code>O(n log n)</code> and gives you <em>all</em> the order. A heap costs <code>O(log n)</code> per item and gives you only <em>the next one</em>. If you only need the top few, or items keep arriving, a heap is far cheaper.</p>
+</section>
+<section class="sec" id="how-a-heap-works-inside">
+<h2>2. How a heap works inside</h2>
+<h3 id="a-tree-stored-in-an-array">A tree stored in an array</h3>
+<p>A heap is a <strong>complete binary tree</strong> (every level full except possibly the last, which fills from the left). Because of that shape, it needs no pointers: store it in an array and compute parent/child positions with arithmetic.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart TD
+    A["index 0: 1"] --&gt; B["index 1: 3"]
+    A --&gt; C["index 2: 2"]
+    B --&gt; D["index 3: 7"]
+    B --&gt; E["index 4: 4"]
+    C --&gt; F["index 5: 9"]</pre></figure>
+<p>The array is <code>[1, 3, 2, 7, 4, 9]</code>. For the item at index <code>i</code>:</p>
+<ul>
+<li><strong>parent</strong> = <code>(i − 1) / 2</code> (integer division)</li>
+<li><strong>left child</strong> = <code>2i + 1</code></li>
+<li><strong>right child</strong> = <code>2i + 2</code></li>
+</ul>
+<p><strong>The heap rule (min-heap):</strong> every parent is <code>≤</code> both its children. That is all. Notice that siblings (3 and 2) are in no particular order. Only the parent-versus-child relationship matters, which is why a heap is cheaper to maintain than a fully sorted structure.</p>
+<h3 id="push-add-at-the-end-then-sift-up">Push: add at the end, then "sift up"</h3>
+<p>Put the new item in the first free slot (the end of the array). It might be smaller than its parent, which breaks the rule, so <strong>swap it upward</strong> until it is no longer smaller than its parent. The path from the bottom to the top has at most <code>log n</code> steps.</p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    A["Add 0 at the end"] --&gt; B{"0 &lt; its parent?"}
+    B --&gt;|Yes| C["swap with the parent"]
+    C --&gt; B
+    B --&gt;|No or at the root| D["Done: the heap rule holds again"]</pre></figure>
+<h3 id="pop-take-the-root-move-the-last-item-up-then-sift-down">Pop: take the root, move the last item up, then "sift down"</h3>
+<p>The top is the answer. To fill the hole, take the <strong>last</strong> item of the array and put it at the root (so the shape stays complete). It is probably too big, so <strong>swap it downward</strong> with its <strong>smaller child</strong> until both children are bigger. Again at most <code>log n</code> steps.</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    A["Remove the root (the answer)"] --&gt; B["Move the last item to the root"]
+    B --&gt; C{"Is it bigger than its smaller child?"}
+    C --&gt;|Yes| D["swap with the smaller child"]
+    D --&gt; C
+    C --&gt;|No| E["Done"]</pre></figure>
+<div class="stage" id="st-ops" data-anim="heapOps" data-code="code-1"></div>
+<h3 id="building-a-heap-in-o-n-a-favorite-trick-question">Building a heap in <code>O(n)</code> (a favorite trick question)</h3>
+<p>Pushing <code>n</code> items one by one costs <code>O(n log n)</code>. But if you already have all the items in an array, you can <strong>heapify</strong> in <code>O(n)</code>: start from the <strong>last parent</strong> and sift down each node, going backward to the root.</p>
+<p><strong>Why only <code>O(n)</code>?</strong> Most nodes are near the bottom, where sifting down is cheap. About half the nodes are leaves (0 steps), a quarter can move 1 level, an eighth can move 2 levels, and so on. The total work is</p>
+<p><code>n/4·1 + n/8·2 + n/16·3 + … ≤ n</code>.</p>
+<p>That is the "halving with work" pattern from file 02: the sum converges to a constant times <code>n</code>.</p>
+<h3 id="heap-sort">Heap sort</h3>
+<p>Heapify, then pop the top <code>n</code> times: <code>O(n log n)</code>, in place, not stable.</p>
+</section>
+<section class="sec" id="implementation-you-can-type-in-an-interview">
+<h2>3. Implementation you can type in an interview</h2>
+<p>Neither language has a ready-to-use heap in the form you want (TypeScript has none; Go has <code>container/heap</code>, which needs five boilerplate methods). Below is a small <strong>generic heap</strong> with a <code>less</code> function in each language. Every problem on this page uses it.</p>
+<p><strong>To get a max-heap:</strong> flip the comparison (<code>a &gt; b</code>). <strong>To heap pairs or objects:</strong> compare the field you care about.</p>
+<div class="stage" id="st-build" data-anim="heapify" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="generic heap (min by default)"><code class="language-ts">class Heap&lt;T&gt; {
+  private data: T[] = [];
+  constructor(private less: (a: T, b: T) =&gt; boolean) {}
+
+  get size(): number {
+    return this.data.length;
+  }
+  peek(): T | undefined {
+    return this.data[0];
+  }
+
+  push(item: T): void {
+    this.data.push(item);
+    let i = this.data.length - 1;
+    while (i &gt; 0) {
+      const parent = (i - 1) &gt;&gt; 1;
+      if (!this.less(this.data[i], this.data[parent])) break;
+      [this.data[i], this.data[parent]] = [this.data[parent], this.data[i]];
+      i = parent;
+    }
+  }
+
+  pop(): T | undefined {
+    if (this.data.length === 0) return undefined;
+    const top = this.data[0];
+    const last = this.data.pop()!;
+    if (this.data.length &gt; 0) {
+      this.data[0] = last;
+      this.siftDown(0);
+    }
+    return top;
+  }
+
+  private siftDown(i: number): void {
+    const n = this.data.length;
+    for (;;) {
+      const l = 2 * i + 1, r = 2 * i + 2;
+      let best = i;
+      if (l &lt; n &amp;&amp; this.less(this.data[l], this.data[best])) best = l;
+      if (r &lt; n &amp;&amp; this.less(this.data[r], this.data[best])) best = r;
+      if (best === i) return;
+      [this.data[i], this.data[best]] = [this.data[best], this.data[i]];
+      i = best;
+    }
+  }
+
+  // Build in O(n): sift down every parent, from the last one back to the root.
+  static from&lt;T&gt;(items: T[], less: (a: T, b: T) =&gt; boolean): Heap&lt;T&gt; {
+    const heap = new Heap&lt;T&gt;(less);
+    heap.data = [...items];
+    for (let i = (heap.data.length &gt;&gt; 1) - 1; i &gt;= 0; i--) heap.siftDown(i);
+    return heap;
+  }
+}
+
+const numHeap = Heap.from([5, 1, 4, 2, 9, 3], (a, b) =&gt; a &lt; b);
+const sortedOut: number[] = [];
+while (numHeap.size &gt; 0) sortedOut.push(numHeap.pop()!);
+console.log(sortedOut); // [ 1, 2, 3, 4, 5, 9 ]   (that is heap sort)</code></pre>
+<pre data-lang="go" data-caption="generic heap (min by default)"><code class="language-go">type Heap[T any] struct {
+	data []T
+	less func(a, b T) bool
+}
+
+func NewHeap[T any](less func(a, b T) bool) *Heap[T] { return &amp;Heap[T]{less: less} }
+
+func (h *Heap[T]) Len() int { return len(h.data) }
+func (h *Heap[T]) Peek() T  { return h.data[0] }
+
+func (h *Heap[T]) Push(item T) {
+	h.data = append(h.data, item)
+	i := len(h.data) - 1
+	for i &gt; 0 {
+		parent := (i - 1) / 2
+		if !h.less(h.data[i], h.data[parent]) {
+			break
+		}
+		h.data[i], h.data[parent] = h.data[parent], h.data[i]
+		i = parent
+	}
+}
+
+func (h *Heap[T]) Pop() T {
+	top := h.data[0]
+	last := len(h.data) - 1
+	h.data[0] = h.data[last]
+	h.data = h.data[:last]
+	if len(h.data) &gt; 0 {
+		h.siftDown(0)
+	}
+	return top
+}
+
+func (h *Heap[T]) siftDown(i int) {
+	n := len(h.data)
+	for {
+		l, r := 2*i+1, 2*i+2
+		best := i
+		if l &lt; n &amp;&amp; h.less(h.data[l], h.data[best]) {
+			best = l
+		}
+		if r &lt; n &amp;&amp; h.less(h.data[r], h.data[best]) {
+			best = r
+		}
+		if best == i {
+			return
+		}
+		h.data[i], h.data[best] = h.data[best], h.data[i]
+		i = best
+	}
+}
+
+// HeapFrom builds a heap in O(n): sift down every parent, from the last one back to the root.
+func HeapFrom[T any](items []T, less func(a, b T) bool) *Heap[T] {
+	h := &amp;Heap[T]{data: append([]T(nil), items...), less: less}
+	for i := len(h.data)/2 - 1; i &gt;= 0; i-- {
+		h.siftDown(i)
+	}
+	return h
+}
+
+func exampleHeapSort() {
+	h := HeapFrom([]int{5, 1, 4, 2, 9, 3}, func(a, b int) bool { return a &lt; b })
+	sorted := []int{}
+	for h.Len() &gt; 0 {
+		sorted = append(sorted, h.Pop())
+	}
+	fmt.Println(sorted) // [1 2 3 4 5 9]   (that is heap sort)
+}</code></pre>
+</div>
+<p><strong>Go note.</strong> The standard library's <code>container/heap</code> works too (file 03 shows the five-method version); a hand-written generic heap is shorter to read in an interview and avoids the <code>any</code> type assertions.</p>
+</section>
+<section class="sec" id="how-to-recognize-a-heap-problem">
+<h2>4. How to recognize a heap problem</h2>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["Read the problem"] --&gt; B{"Asks for the K largest / smallest / most frequent?"}
+    B --&gt;|Yes| C["Heap of size K"]
+    B --&gt;|No| D{"Repeatedly needs the current min or max&lt;br/&gt;while items are added or removed?"}
+    D --&gt;|Yes| E["Heap as a priority queue"]
+    D --&gt;|No| F{"Merging several sorted sources?"}
+    F --&gt;|Yes| G["Heap holding one item from each source"]
+    F --&gt;|No| H{"Scheduling by earliest end or highest priority?"}
+    H --&gt;|Yes| E
+    H --&gt;|No| I{"Running median of a stream?"}
+    I --&gt;|Yes| J["Two heaps: a max-heap and a min-heap"]
+    I --&gt;|No| K["Probably another pattern"]</pre></figure>
+<h3 id="the-size-k-trick-which-heap-min-or-max">The "size K" trick: which heap, min or max?</h3>
+<p>To keep the <strong>K largest</strong> items, use a <strong>min-heap of size K</strong>. Its top is the <em>smallest of the K winners</em>, the one that would be knocked out first. A new item beats it only if it is bigger, so compare with the top, and if bigger, replace. (To keep the K smallest, use a max-heap.) Most people get this backwards on the first try.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart LR
+    A["New number x"] --&gt; B["push x into the min-heap"]
+    B --&gt; C{"heap size &gt; k ?"}
+    C --&gt;|Yes| D["pop the smallest (it can not be among the k largest)"]
+    C --&gt;|No| E["keep it"]</pre></figure>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>5. Practice problems (easy → hard)</h2>
+<p>All of these use the <code>Heap</code> class above (TypeScript) and <code>Heap[T]</code> (Go). They are shown as separate, runnable snippets for each language; in a real interview you would define the heap once.</p>
+<section class="problem" id="p1">
+<h3>Problem 1 · Kth Largest Element in an Array (LeetCode 215, Medium; v2 list)</h3>
+<p><strong>Task.</strong> Return the <code>k</code>-th <strong>largest</strong> value (counting duplicates). <code>[3, 2, 1, 5, 6, 4]</code>, <code>k = 2</code> → <code>5</code>.</p>
+<p><strong>Options (say all three):</strong> sort <code>O(n log n)</code>; quickselect <code>O(n)</code> average (file 09); <strong>min-heap of size <code>k</code></strong> <code>O(n log k)</code>, which also works on a <em>stream</em> and uses only <code>O(k)</code> memory.</p>
+<p><strong>Trace.</strong> <code>[3, 2, 1, 5, 6, 4]</code>, <code>k = 2</code> (min-heap, show contents)</p>
+<div class="table-wrap"><table id="tbl-2" class="trace"><thead><tr><th>x</th><th>after push</th><th>size &gt; 2?</th><th>after pop</th><th>heap</th></tr></thead><tbody>
+<tr><td>3</td><td>{3}</td><td>no</td><td></td><td>{3}</td></tr>
+<tr><td>2</td><td>{2,3}</td><td>no</td><td></td><td>{2,3}</td></tr>
+<tr><td>1</td><td>{1,2,3}</td><td>yes</td><td>pop 1</td><td>{2,3}</td></tr>
+<tr><td>5</td><td>{2,3,5}</td><td>yes</td><td>pop 2</td><td>{3,5}</td></tr>
+<tr><td>6</td><td>{3,5,6}</td><td>yes</td><td>pop 3</td><td>{5,6}</td></tr>
+<tr><td>4</td><td>{4,5,6}</td><td>yes</td><td>pop 4</td><td>{5,6}</td></tr>
+</tbody></table></div>
+<p>Top of the heap = <strong>5</strong> = second largest ✔</p>
+<div class="stage" id="st-p1" data-anim="kthLargest" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function findKthLargest(nums: number[], k: number): number {
+  const heap = new Heap&lt;number&gt;((a, b) =&gt; a &lt; b); // min-heap
+  for (const x of nums) {
+    heap.push(x);
+    if (heap.size &gt; k) heap.pop(); // drop the smallest: it cannot be among the k largest
+  }
+  return heap.peek()!;
+}
+console.log(findKthLargest([3, 2, 1, 5, 6, 4], 2)); // 5
+console.log(findKthLargest([3, 2, 3, 1, 2, 4, 5, 5, 6], 4)); // 4
+console.log(findKthLargest([1], 1)); // 1</code></pre>
+<pre data-lang="go"><code class="language-go">func findKthLargest(nums []int, k int) int {
+	h := NewHeap(func(a, b int) bool { return a &lt; b }) // min-heap
+	for _, x := range nums {
+		h.Push(x)
+		if h.Len() &gt; k {
+			h.Pop() // drop the smallest: it cannot be among the k largest
+		}
+	}
+	return h.Peek()
+}
+
+func exampleFindKthLargest() {
+	fmt.Println(findKthLargest([]int{3, 2, 1, 5, 6, 4}, 2))             // 5
+	fmt.Println(findKthLargest([]int{3, 2, 3, 1, 2, 4, 5, 5, 6}, 4)) // 4
+	fmt.Println(findKthLargest([]int{1}, 1))                           // 1
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log k)</code>, space <code>O(k)</code>.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Top K Frequent Elements (LeetCode 347, Medium; v2 list)</h3>
+<p><strong>Task.</strong> Return the <code>k</code> most frequent values. <code>[1,1,1,2,2,3]</code>, <code>k = 2</code> → <code>[1, 2]</code>.</p>
+<p><strong>Idea.</strong> (1) Count frequencies with a map (file 04). (2) Keep a <strong>min-heap of size <code>k</code></strong> ordered by <strong>frequency</strong>; when it grows past <code>k</code>, pop the least frequent. What remains are the <code>k</code> most frequent.</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart LR
+    A["numbers"] --&gt; B["count map: value to frequency"]
+    B --&gt; C["push (value, frequency) into a min-heap by frequency"]
+    C --&gt; D{"size &gt; k ?"}
+    D --&gt;|Yes| E["pop the least frequent"]
+    D --&gt;|No| F["continue"]
+    E --&gt; G["heap now holds the k most frequent"]
+    F --&gt; G</pre></figure>
+<p><strong>Faster alternative to mention:</strong> <strong>bucket sort by frequency</strong>. A value can appear at most <code>n</code> times, so make <code>n + 1</code> buckets (index = frequency), drop values in, and read from the highest bucket down: <code>O(n)</code> total.</p>
+<div class="stage" id="st-p2" data-anim="topK" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function topKFrequent(nums: number[], k: number): number[] {
+  const freq = new Map&lt;number, number&gt;();
+  for (const x of nums) freq.set(x, (freq.get(x) ?? 0) + 1);
+  const heap = new Heap&lt;[number, number]&gt;((a, b) =&gt; a[1] &lt; b[1]); // [value, count], least frequent on top
+  for (const entry of freq) {
+    heap.push(entry);
+    if (heap.size &gt; k) heap.pop();
+  }
+  const result: number[] = [];
+  while (heap.size &gt; 0) result.push(heap.pop()![0]);
+  return result.reverse(); // most frequent first
+}
+console.log(topKFrequent([1, 1, 1, 2, 2, 3], 2)); // [ 1, 2 ]
+console.log(topKFrequent([1], 1)); // [ 1 ]
+console.log(topKFrequent([4, 4, 4, 4, 5, 5, 5, 6, 6, 7], 3)); // [ 4, 5, 6 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func topKFrequent(nums []int, k int) []int {
+	freq := make(map[int]int)
+	for _, x := range nums {
+		freq[x]++
+	}
+	type entry struct{ value, count int }
+	h := NewHeap(func(a, b entry) bool { return a.count &lt; b.count }) // least frequent on top
+	for value, count := range freq {
+		h.Push(entry{value, count})
+		if h.Len() &gt; k {
+			h.Pop()
+		}
+	}
+	result := make([]int, h.Len())
+	for i := len(result) - 1; i &gt;= 0; i-- { // fill from the back: most frequent first
+		result[i] = h.Pop().value
+	}
+	return result
+}
+
+func exampleTopKFrequent() {
+	fmt.Println(topKFrequent([]int{1, 1, 1, 2, 2, 3}, 2))                // [1 2]
+	fmt.Println(topKFrequent([]int{1}, 1))                               // [1]
+	fmt.Println(topKFrequent([]int{4, 4, 4, 4, 5, 5, 5, 6, 6, 7}, 3)) // [4 5 6]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log k)</code>, space <code>O(n)</code> for the map. (Ties between equal frequencies can be returned in any order; the problem guarantees a unique answer.)</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Merge K Sorted Arrays (like LeetCode 23, Hard; v2 "merge K sorted")</h3>
+<p><strong>Task.</strong> Merge <code>k</code> sorted arrays into one sorted array. <code>[[1,4,5],[1,3,4],[2,6]]</code> → <code>[1,1,2,3,4,4,5,6]</code>. (LeetCode 23 uses linked lists; the algorithm is identical, with node pointers instead of indexes.)</p>
+<p><strong>Naive ideas.</strong> Concatenate and sort: <code>O(N log N)</code>. Merge pairwise: <code>O(N·k)</code>.</p>
+<p><strong>Heap idea.</strong> The overall smallest remaining value must be the <strong>front</strong> of one of the <code>k</code> arrays. So keep a min-heap of at most <code>k</code> items: the current front of each array. Pop the smallest, add it to the output, and push the <strong>next</strong> item from the same array.</p>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["Heap holds the front of each array"] --&gt; B["pop the smallest item (value, which array, position)"]
+    B --&gt; C["append value to output"]
+    C --&gt; D{"does that array have a next item?"}
+    D --&gt;|Yes| E["push the next item of the same array"]
+    D --&gt;|No| F["nothing to push"]
+    E --&gt; A
+    F --&gt; A</pre></figure>
+<p><strong>Trace.</strong> <code>[[1,4,5],[1,3,4],[2,6]]</code></p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Heap before pop (value@array)</th><th>pop</th><th>output</th><th>push</th></tr></thead><tbody>
+<tr><td>1@0, 1@1, 2@2</td><td>1@0</td><td>1</td><td>4@0</td></tr>
+<tr><td>4@0, 1@1, 2@2</td><td>1@1</td><td>1,1</td><td>3@1</td></tr>
+<tr><td>4@0, 3@1, 2@2</td><td>2@2</td><td>1,1,2</td><td>6@2</td></tr>
+<tr><td>4@0, 3@1, 6@2</td><td>3@1</td><td>…,3</td><td>4@1</td></tr>
+<tr><td>…</td><td>…</td><td>1,1,2,3,4,4,5,6</td><td></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p3" data-anim="mergeK" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function mergeKSorted(arrays: number[][]): number[] {
+  // each heap item: [value, which array, index inside that array]
+  const heap = new Heap&lt;[number, number, number]&gt;((a, b) =&gt; a[0] &lt; b[0]);
+  arrays.forEach((arr, i) =&gt; {
+    if (arr.length &gt; 0) heap.push([arr[0], i, 0]); // the front of every array
+  });
+  const merged: number[] = [];
+  while (heap.size &gt; 0) {
+    const [value, which, idx] = heap.pop()!;
+    merged.push(value);
+    if (idx + 1 &lt; arrays[which].length) heap.push([arrays[which][idx + 1], which, idx + 1]);
+  }
+  return merged;
+}
+console.log(mergeKSorted([[1, 4, 5], [1, 3, 4], [2, 6]])); // [ 1, 1, 2, 3, 4, 4, 5, 6 ]
+console.log(mergeKSorted([])); // []
+console.log(mergeKSorted([[], [1]])); // [ 1 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func mergeKSorted(arrays [][]int) []int {
+	type item struct{ value, which, idx int }
+	h := NewHeap(func(a, b item) bool { return a.value &lt; b.value })
+	for i, arr := range arrays {
+		if len(arr) &gt; 0 {
+			h.Push(item{arr[0], i, 0}) // the front of every array
+		}
+	}
+	merged := []int{}
+	for h.Len() &gt; 0 {
+		cur := h.Pop()
+		merged = append(merged, cur.value)
+		if cur.idx+1 &lt; len(arrays[cur.which]) {
+			h.Push(item{arrays[cur.which][cur.idx+1], cur.which, cur.idx + 1})
+		}
+	}
+	return merged
+}
+
+func exampleMergeKSorted() {
+	fmt.Println(mergeKSorted([][]int{{1, 4, 5}, {1, 3, 4}, {2, 6}})) // [1 1 2 3 4 4 5 6]
+	fmt.Println(mergeKSorted(nil))                                   // []
+	fmt.Println(mergeKSorted([][]int{{}, {1}}))                      // [1]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(N log k)</code> where <code>N</code> is the total number of items; space <code>O(k)</code> for the heap (plus the output).</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Kth Smallest Element in a Sorted Matrix (LeetCode 378, Medium; v2 list)</h3>
+<p><strong>Task.</strong> An <code>n × n</code> matrix has every row and every column sorted ascending. Find the <code>k</code>-th smallest value. <code>[[1,5,9],[10,11,13],[12,13,15]]</code>, <code>k = 8</code> → <code>13</code>.</p>
+<p><strong>Idea.</strong> This is "merge <code>n</code> sorted lists" in disguise: each <strong>row</strong> is a sorted list. Put the <strong>first item of each row</strong> into a min-heap, then pop <code>k</code> times; after popping <code>(r, c)</code>, push its right neighbor <code>(r, c+1)</code>. The <code>k</code>-th pop is the answer.</p>
+<p><strong>Trace.</strong> <code>[[1,5,9],[10,11,13],[12,13,15]]</code></p>
+<div class="table-wrap"><table id="tbl-4"><thead><tr><th>Pop #</th><th>Value popped</th><th>Pushed neighbor</th></tr></thead><tbody>
+<tr><td>1</td><td>1 (0,0)</td><td>5 (0,1)</td></tr>
+<tr><td>2</td><td>5 (0,1)</td><td>9 (0,2)</td></tr>
+<tr><td>3</td><td>9 (0,2)</td><td>none</td></tr>
+<tr><td>4</td><td>10 (1,0)</td><td>11 (1,1)</td></tr>
+<tr><td>5</td><td>11 (1,1)</td><td>13 (1,2)</td></tr>
+<tr><td>6</td><td>12 (2,0)</td><td>13 (2,1)</td></tr>
+<tr><td>7</td><td>13 (1,2)</td><td>none</td></tr>
+<tr><td>8</td><td><strong>13</strong> (2,1)</td><td>→ answer</td></tr>
+</tbody></table></div>
+<p><strong>Alternative worth naming:</strong> binary search on the <strong>value</strong> (file 08): for a candidate <code>x</code>, count how many matrix values are <code>≤ x</code> by walking from a corner in <code>O(n)</code>; find the smallest <code>x</code> whose count is <code>≥ k</code>. That costs <code>O(n log(max − min))</code> and <code>O(1)</code> memory.</p>
+<div class="stage" id="st-p4" data-anim="kthMatrix" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function kthSmallestInMatrix(matrix: number[][], k: number): number {
+  const n = matrix.length;
+  const heap = new Heap&lt;[number, number, number]&gt;((a, b) =&gt; a[0] &lt; b[0]); // [value, row, col]
+  for (let r = 0; r &lt; Math.min(n, k); r++) heap.push([matrix[r][0], r, 0]); // first of each row
+  let value = -1;
+  for (let i = 0; i &lt; k; i++) {
+    const [v, r, c] = heap.pop()!;
+    value = v;
+    if (c + 1 &lt; n) heap.push([matrix[r][c + 1], r, c + 1]); // the next in the same row
+  }
+  return value;
+}
+console.log(kthSmallestInMatrix([[1, 5, 9], [10, 11, 13], [12, 13, 15]], 8)); // 13
+console.log(kthSmallestInMatrix([[-5]], 1)); // -5
+console.log(kthSmallestInMatrix([[1, 2], [1, 3]], 2)); // 1</code></pre>
+<pre data-lang="go"><code class="language-go">func kthSmallestInMatrix(matrix [][]int, k int) int {
+	n := len(matrix)
+	type cell struct{ value, row, col int }
+	h := NewHeap(func(a, b cell) bool { return a.value &lt; b.value })
+	for r := 0; r &lt; min(n, k); r++ {
+		h.Push(cell{matrix[r][0], r, 0}) // first of each row
+	}
+	value := -1
+	for i := 0; i &lt; k; i++ {
+		cur := h.Pop()
+		value = cur.value
+		if cur.col+1 &lt; n {
+			h.Push(cell{matrix[cur.row][cur.col+1], cur.row, cur.col + 1}) // the next in the same row
+		}
+	}
+	return value
+}
+
+func exampleKthSmallestInMatrix() {
+	fmt.Println(kthSmallestInMatrix([][]int{{1, 5, 9}, {10, 11, 13}, {12, 13, 15}}, 8)) // 13
+	fmt.Println(kthSmallestInMatrix([][]int{{-5}}, 1))                                  // -5
+	fmt.Println(kthSmallestInMatrix([][]int{{1, 2}, {1, 3}}, 2))                        // 1
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(min(n, k) + k log min(n, k))</code>, space <code>O(min(n, k))</code>.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Meeting Rooms II (LeetCode 253, Medium; v2 "minimum rooms")</h3>
+<p><strong>Task.</strong> Given meeting time intervals <code>[start, end]</code>, find the <strong>minimum number of rooms</strong> so no two overlapping meetings share a room. <code>[[0,30],[5,10],[15,20]]</code> → <code>2</code>.</p>
+<p><strong>Thinking.</strong> Process meetings <strong>in order of start time</strong>. Keep a <strong>min-heap of the end times of the meetings currently using a room</strong>. For a new meeting starting at <code>s</code>:</p>
+<ul>
+<li>If the <strong>earliest-ending</strong> meeting (heap top) has already ended (<code>top ≤ s</code>), its room is free: <strong>reuse</strong> it (pop that end time).</li>
+<li>Push the new meeting's end time.</li>
+<li>The heap's size is the number of rooms in use; the answer is the <strong>largest</strong> size ever reached.</li>
+</ul>
+<figure class="diagram" id="fig-8"><pre class="mermaid-src">flowchart TD
+    A["Sort meetings by start time"] --&gt; B["For each meeting [s, e]"]
+    B --&gt; C{"heap non-empty and earliest end &lt;= s ?"}
+    C --&gt;|Yes| D["pop it: that room is free again"]
+    C --&gt;|No| E["a new room is needed"]
+    D --&gt; F["push e"]
+    E --&gt; F
+    F --&gt; G["rooms = max(rooms, heap size)"]</pre></figure>
+<p><strong>Trace.</strong> <code>[[0,30],[5,10],[15,20]]</code></p>
+<div class="table-wrap"><table id="tbl-5"><thead><tr><th>Meeting</th><th>heap of end times before</th><th>Earliest end ≤ start?</th><th>heap after</th><th>rooms</th></tr></thead><tbody>
+<tr><td>[0,30]</td><td>{}</td><td></td><td>{30}</td><td>1</td></tr>
+<tr><td>[5,10]</td><td>{30}</td><td>30 ≤ 5? no, new room</td><td>{10, 30}</td><td>2</td></tr>
+<tr><td>[15,20]</td><td>{10, 30}</td><td>10 ≤ 15 yes: reuse</td><td>{20, 30}</td><td>2</td></tr>
+</tbody></table></div>
+<p>Answer <strong>2</strong>.</p>
+<p><strong>Related idea without a heap</strong> (file 24): split starts and ends into two sorted lists and sweep, counting <code>+1</code> at a start and <code>−1</code> at an end. It is also <code>O(n log n)</code> but only sorts.</p>
+<div class="stage" id="st-p5" data-anim="rooms" data-code="code-6" data-flow="fig-8"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function minMeetingRooms(intervals: number[][]): number {
+  const sorted = [...intervals].sort((a, b) =&gt; a[0] - b[0]); // by start time
+  const endTimes = new Heap&lt;number&gt;((a, b) =&gt; a &lt; b); // end times of meetings in progress
+  let rooms = 0;
+  for (const [start, end] of sorted) {
+    if (endTimes.size &gt; 0 &amp;&amp; endTimes.peek()! &lt;= start) endTimes.pop(); // reuse a freed room
+    endTimes.push(end);
+    rooms = Math.max(rooms, endTimes.size);
+  }
+  return rooms;
+}
+console.log(minMeetingRooms([[0, 30], [5, 10], [15, 20]])); // 2
+console.log(minMeetingRooms([[7, 10], [2, 4]])); // 1
+console.log(minMeetingRooms([[1, 5], [2, 6], [3, 7]])); // 3
+console.log(minMeetingRooms([])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func minMeetingRooms(intervals [][]int) int {
+	sorted := append([][]int(nil), intervals...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i][0] &lt; sorted[j][0] }) // by start time
+	endTimes := NewHeap(func(a, b int) bool { return a &lt; b }) // end times of meetings in progress
+	rooms := 0
+	for _, m := range sorted {
+		start, end := m[0], m[1]
+		if endTimes.Len() &gt; 0 &amp;&amp; endTimes.Peek() &lt;= start {
+			endTimes.Pop() // reuse a freed room
+		}
+		endTimes.Push(end)
+		rooms = max(rooms, endTimes.Len())
+	}
+	return rooms
+}
+
+func exampleMinMeetingRooms() {
+	fmt.Println(minMeetingRooms([][]int{{0, 30}, {5, 10}, {15, 20}})) // 2
+	fmt.Println(minMeetingRooms([][]int{{7, 10}, {2, 4}}))            // 1
+	fmt.Println(minMeetingRooms([][]int{{1, 5}, {2, 6}, {3, 7}}))     // 3
+	fmt.Println(minMeetingRooms(nil))                                 // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log n)</code>, space <code>O(n)</code>.</p>
+<p><strong>Edge case to say aloud:</strong> a meeting ending at 10 and another starting at 10 do <strong>not</strong> conflict (<code>end ≤ start</code> frees the room). Ask the interviewer.</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · Find Median from a Data Stream (LeetCode 295, Hard)</h3>
+<p><strong>Task.</strong> Numbers arrive one at a time. After each, you must be able to report the <strong>median</strong> fast. <code>addNum(1)</code>, <code>addNum(2)</code> → median <code>1.5</code>; <code>addNum(3)</code> → median <code>2</code>.</p>
+<p><strong>Why it is hard.</strong> The median is the <em>middle</em> of the sorted data, and the data keeps changing. A sorted array costs <code>O(n)</code> per insert. We need <code>O(log n)</code> insert and <code>O(1)</code> median.</p>
+<p><strong>The big idea: split the data into a lower half and an upper half.</strong> The median lives at the <strong>boundary</strong> between the halves, so we only need quick access to the <strong>largest of the lower half</strong> and the <strong>smallest of the upper half</strong>. That is:</p>
+<ul>
+<li>a <strong>max-heap</strong> <code>low</code> holding the lower half (its top is the biggest of the small numbers),</li>
+<li>a <strong>min-heap</strong> <code>high</code> holding the upper half (its top is the smallest of the big numbers).</li>
+</ul>
+<p><strong>Invariants to maintain:</strong></p>
+<ol>
+<li>Every number in <code>low</code> is <code>≤</code> every number in <code>high</code>.</li>
+<li>Sizes: <code>low.size</code> equals <code>high.size</code>, or <code>low</code> has exactly <strong>one more</strong>.</li>
+</ol>
+<p>Then: if sizes are equal, the median is the average of the two tops; otherwise the median is the top of <code>low</code>.</p>
+<figure class="diagram" id="fig-9"><pre class="mermaid-src">flowchart LR
+    subgraph Low["low: max-heap (the smaller half)"]
+        L["top = largest of the small numbers"]
+    end
+    subgraph High["high: min-heap (the larger half)"]
+        H["top = smallest of the large numbers"]
+    end
+    L --- M(("median sits between the two tops")) --- H</pre></figure>
+<p><strong>Adding a number (the safe three-step dance):</strong></p>
+<ol>
+<li>Push the number into <code>low</code>.</li>
+<li>Move <code>low</code>'s top into <code>high</code> (this guarantees every <code>low</code> item ≤ every <code>high</code> item).</li>
+<li>If <code>high</code> now has more items than <code>low</code>, move <code>high</code>'s top back into <code>low</code> (restore the size rule).</li>
+</ol>
+<p><strong>Trace.</strong> add 1, add 2, add 3</p>
+<div class="table-wrap"><table id="tbl-6"><thead><tr><th>Add</th><th>after step 1 (low)</th><th>after step 2 (move top of low to high)</th><th>after step 3 (rebalance)</th><th>low</th><th>high</th><th>median</th></tr></thead><tbody>
+<tr><td>1</td><td>{1}</td><td>low {}, high {1}</td><td>high bigger: move 1 back</td><td>{1}</td><td>{}</td><td>1</td></tr>
+<tr><td>2</td><td>{1,2}</td><td>move 2 to high</td><td>sizes: low {1}, high {2}: ok</td><td>{1}</td><td>{2}</td><td>(1+2)/2 = 1.5</td></tr>
+<tr><td>3</td><td>{1,3}</td><td>move 3 to high → high {2,3}</td><td>high bigger: move 2 back</td><td>{1,2}</td><td>{3}</td><td>2</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p6" data-anim="median" data-code="code-7"></div>
+<div class="code-tabs" id="code-7">
+<pre data-lang="ts"><code class="language-ts">class MedianFinder {
+  private low = new Heap&lt;number&gt;((a, b) =&gt; a &gt; b); // max-heap: the smaller half
+  private high = new Heap&lt;number&gt;((a, b) =&gt; a &lt; b); // min-heap: the larger half
+
+  addNum(num: number): void {
+    this.low.push(num); // 1. into the lower half
+    this.high.push(this.low.pop()!); // 2. its biggest goes to the upper half
+    if (this.high.size &gt; this.low.size) this.low.push(this.high.pop()!); // 3. keep low &gt;= high in size
+  }
+
+  findMedian(): number {
+    if (this.low.size &gt; this.high.size) return this.low.peek()!;
+    return (this.low.peek()! + this.high.peek()!) / 2;
+  }
+}
+const mf = new MedianFinder();
+mf.addNum(1);
+mf.addNum(2);
+console.log(mf.findMedian()); // 1.5
+mf.addNum(3);
+console.log(mf.findMedian()); // 2
+mf.addNum(-5);
+console.log(mf.findMedian()); // 1.5</code></pre>
+<pre data-lang="go"><code class="language-go">type MedianFinder struct {
+	low  *Heap[int] // max-heap: the smaller half
+	high *Heap[int] // min-heap: the larger half
+}
+
+func NewMedianFinder() *MedianFinder {
+	return &amp;MedianFinder{
+		low:  NewHeap(func(a, b int) bool { return a &gt; b }),
+		high: NewHeap(func(a, b int) bool { return a &lt; b }),
+	}
+}
+
+func (m *MedianFinder) AddNum(num int) {
+	m.low.Push(num)              // 1. into the lower half
+	m.high.Push(m.low.Pop())     // 2. its biggest goes to the upper half
+	if m.high.Len() &gt; m.low.Len() {
+		m.low.Push(m.high.Pop()) // 3. keep low &gt;= high in size
+	}
+}
+
+func (m *MedianFinder) FindMedian() float64 {
+	if m.low.Len() &gt; m.high.Len() {
+		return float64(m.low.Peek())
+	}
+	return float64(m.low.Peek()+m.high.Peek()) / 2
+}
+
+func exampleMedianFinder() {
+	mf := NewMedianFinder()
+	mf.AddNum(1)
+	mf.AddNum(2)
+	fmt.Println(mf.FindMedian()) // 1.5
+	mf.AddNum(3)
+	fmt.Println(mf.FindMedian()) // 2
+	mf.AddNum(-5)
+	fmt.Println(mf.FindMedian()) // 1.5
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> <code>addNum</code> <code>O(log n)</code>, <code>findMedian</code> <code>O(1)</code>, space <code>O(n)</code>.</p>
+<p><strong>Follow-ups interviewers love.</strong> <em>"All numbers are between 0 and 100."</em> Keep a count array of size 101 and walk it: <code>O(1)</code>. <em>"99% of numbers are between 0 and 100."</em> Same array plus two overflow heaps. <em>"Sliding window median (LeetCode 480)."</em> The heaps need lazy deletion, or a balanced BST / sorted structure.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Using the wrong kind of heap for "top K".</strong> K largest → <strong>min</strong>-heap of size K.</li>
+<li><strong>Forgetting JavaScript has no built-in heap</strong>; the default <code>Array.sort</code> is not a priority queue.</li>
+<li><strong>Sorting after every insert</strong> (turns <code>O(n log n)</code> into <code>O(n² log n)</code>).</li>
+<li><strong>Comparator returns a number in TypeScript but <code>less</code> expects a boolean</strong> (copying <code>sort</code> comparators into a heap).</li>
+<li><strong>In Go, calling the wrong push/pop</strong> if you use <code>container/heap</code> (use <code>heap.Push(h, x)</code>, not <code>h.Push(x)</code>).</li>
+<li><strong>Breaking ties wrongly</strong> (for example Dijkstra or meeting rooms: <code>≤</code> vs <code>&lt;</code> on end/start times).</li>
+<li><strong>Assuming a heap iterates in sorted order.</strong> It does not; only the top is ordered.</li>
+<li><strong>Counting <code>heapify</code> as <code>O(n log n)</code>.</strong> It is <code>O(n)</code>.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Draw it, then insert 1</h3>
+<p>Draw <code>[2, 5, 3, 9, 6, 4]</code> as a tree. Is it a valid min-heap? Insert <code>1</code> and show the sift-up swaps.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Index 0 is 2 with children 5 and 3; 5 has children 9 and 6; 3 has child 4. Every parent ≤ its children, so it <strong>is</strong> a valid min-heap. Insert 1 at index 6 (under 3). 1 &lt; 3: swap, 1 is at index 2. 1 &lt; 2: swap, 1 is the root. Result: <code>[1, 5, 2, 9, 6, 4, 3]</code>. Run the second preset of the push-and-pop animation to watch the two swaps.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · K largest, min-heap</h3>
+<p>Why does <em>"K largest"</em> use a <strong>min</strong>-heap?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Keep the k largest seen so far. When a new value arrives, the one to evict is the <em>smallest</em> of those k, so it must be on top: a <strong>min</strong>-heap. Its top is also the answer (the kth largest). Cost <code>O(n log k)</code> and <code>O(k)</code> memory.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Why heapify is O(n)</h3>
+<p>Explain <code>O(n)</code> heapify using "half the nodes are leaves".</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Sift-down costs the height <em>below</em> a node, not above it. Half the nodes are leaves (cost 0), a quarter sit one level up (cost ≤ 1), an eighth cost ≤ 2, and so on: n/4·1 + n/8·2 + n/16·3 + … ≤ n. Pushing items one by one would instead pay up to log n for most of them: <code>O(n log n)</code>.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Last Stone Weight</h3>
+<p><em>Last Stone Weight</em> (LeetCode 1046): which heap, and what do you push back each round?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>A <strong>max</strong>-heap of the stones. Each round pop the two heaviest, x ≥ y. If x &gt; y, push back <code>x − y</code>; if equal, push nothing. When at most one stone is left, return it (or 0). <code>O(n log n)</code>.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · K Closest Points</h3>
+<p><em>K Closest Points to the Origin</em> (LeetCode 973): what do you store in the heap, and is it a min- or max-heap?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Store <code>[squaredDistance, point]</code> (no square root needed) in a <strong>max</strong>-heap of size k. Push each point; when the size passes k, pop the farthest. What remains are the k closest: <code>O(n log k)</code>. It is the K-largest pattern turned around: keep the k smallest, so evict the biggest.</p></div></details>
+</div>
+<div class="exercise" id="ex6">
+<h3>6 · Reorganize String and Task Scheduler</h3>
+<p><em>Reorganize String</em> (LeetCode 767) and <em>Task Scheduler</em> (LeetCode 621): both use a max-heap by frequency. Describe the greedy rule.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Both are greedy with a max-heap of counts. <strong>Reorganize String:</strong> always place the most frequent letter that is not the one you just placed (pop the top two, use one each, push them back with count − 1). If one letter has more than ⌈n/2⌉, it is impossible. <strong>Task Scheduler:</strong> in each window of <code>n + 1</code> slots run the most frequent distinct tasks, idle for the rest, then push back the leftovers. Shortcut: the answer is <code>max(tasks, (maxCount − 1)·(n + 1) + numberOfTasksWithMaxCount)</code>.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="heap17"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/17.js"></script>
+</body>
+</html>

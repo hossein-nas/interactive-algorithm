@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="10" data-pattern="Recursion">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10 Recursion and the call stack | Algorithm guide</title>
+<meta name="description" content="Recursion animated: the call stack as sticky notes, fast power, Pascal&#x27;s triangle, nested lists, Decode String and the Tower of Hanoi.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 10</span><span>Recursion family</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Recursion and the call stack</h1>
+<p class="sub">Trust the smaller problem.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 3 (recursion, base case and recursive case, the stack). The book uses the "boxes inside boxes" story and a stack of sticky notes. I keep both ideas and add the interview angle: how to <em>think</em> recursively, how deep recursion can crash, and how to convert recursion to a loop.</p></blockquote>
+<div class="glance"><div><b>Every recursion has</b><p>A base case answered directly, and a recursive case on a strictly smaller input.</p></div><div><b>The mental trick</b><p>Write the contract, then trust that the smaller call already works.</p></div><div><b>What it costs</b><p>Time = number of calls; extra memory = the deepest the stack gets.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p><strong>The key hunt (book story).</strong> You must find a key. You are given a box. Inside the box there may be <em>smaller boxes</em>, and inside those, more boxes. A natural rule is:</p>
+<blockquote><p>"Look through the box. If you find a key, done. If you find a smaller box, <strong>do the same thing to that box</strong>."</p></blockquote>
+<p>That rule <em>uses itself</em>. That is recursion: a function that solves a problem by calling <strong>itself</strong> on a <strong>smaller piece</strong> of the same problem.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart TD
+    A["lookForKey(box)"] --&gt; B{"For each item in the box"}
+    B --&gt;|"item is a key"| C["Done: return the key"]
+    B --&gt;|"item is a smaller box"| D["lookForKey(that smaller box)"]
+    D --&gt; B</pre></figure>
+<h3 id="the-two-parts-every-recursive-function-needs">The two parts every recursive function needs</h3>
+<ol>
+<li><strong>Base case.</strong> The situation so small you can answer without more calls ("the box has no smaller boxes", "the list is empty", "n is 0"). Without it the function calls itself forever.</li>
+<li><strong>Recursive case.</strong> Do a small step, then call yourself on a <strong>strictly smaller</strong> problem, and combine.</li>
+</ol>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart LR
+    A["function f(problem)"] --&gt; B{"Is the problem tiny?"}
+    B --&gt;|Yes| C["BASE CASE&lt;br/&gt;return the answer directly"]
+    B --&gt;|No| D["RECURSIVE CASE&lt;br/&gt;make the problem smaller&lt;br/&gt;result = f(smaller)&lt;br/&gt;build my answer from result"]</pre></figure>
+<blockquote><p><strong>A mental trick that makes recursion easy:</strong> <em>Trust the function.</em> Assume <code>f(smaller problem)</code> already works and returns the right answer. Your only job is: "if I had the answer for the smaller one, how would I get the answer for mine?" Do not try to trace every nested call in your head. Prove it by induction: base case right + step right = everything right.</p></blockquote>
+</section>
+<section class="sec" id="the-call-stack-explained-like-a-stack-of-sticky-notes">
+<h2>2. The call stack, explained like a stack of sticky notes</h2>
+<p>When a function calls another function, the computer must remember <strong>where it was and what its variables were</strong>, so it can continue after the call returns. It does this on the <strong>call stack</strong>: a pile where you can only add to the top and remove from the top (last in, first out).</p>
+<p><strong>Sticky-note story (from the book).</strong> You are cooking dinner and write notes: "make salad" and "set the table" go on the pile. Then you start "make salad", which needs "chop tomatoes": a new note goes on <strong>top</strong>. You finish the top note first, throw it away, and the note beneath becomes the top again. Each paused task waits on its own note.</p>
+<p>Here is <code>factorial(3)</code> (3 × 2 × 1) as it really runs:</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">sequenceDiagram
+    participant Main
+    participant F3 as factorial(3)
+    participant F2 as factorial(2)
+    participant F1 as factorial(1)
+    Main-&gt;&gt;F3: call, n = 3
+    F3-&gt;&gt;F2: needs factorial(2) first, n = 3 waits
+    F2-&gt;&gt;F1: needs factorial(1) first, n = 2 waits
+    F1--&gt;&gt;F2: base case, returns 1
+    F2--&gt;&gt;F3: returns 2 x 1 = 2
+    F3--&gt;&gt;Main: returns 3 x 2 = 6</pre></figure>
+<p>The stack at its deepest moment looks like this (top is the active call):</p>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Stack position</th><th>Call</th><th>Waiting for</th></tr></thead><tbody>
+<tr><td>top</td><td><code>factorial(1)</code></td><td>nothing: base case</td></tr>
+<tr><td>middle</td><td><code>factorial(2)</code></td><td><code>factorial(1)</code></td></tr>
+<tr><td>bottom</td><td><code>factorial(3)</code></td><td><code>factorial(2)</code></td></tr>
+</tbody></table></div>
+<p>Then calls finish from the top downward, each returning its answer to the one beneath.</p>
+<h3 id="what-the-stack-costs">What the stack costs</h3>
+<ul>
+<li><strong>Memory:</strong> every waiting call holds its variables. <code>n</code> levels deep means <code>O(n)</code> extra memory, even if you create no arrays.</li>
+<li><strong>Limit:</strong> the stack is finite. Too deep → <strong>stack overflow</strong>. In JavaScript the limit is roughly ten thousand frames (the exact number depends on the frame size and engine); the error is <code>RangeError: Maximum call stack size exceeded</code>. Go's stack grows on demand up to a large cap (1 GB by default), so overflow is rare but infinite recursion still crashes.</li>
+<li><strong>No tail-call help:</strong> a "tail call" (the recursive call is the very last thing done) <em>could</em> reuse the frame, but neither JavaScript (in practice) nor Go does this. So do not rely on tail recursion to save memory in these languages.</li>
+</ul>
+</section>
+<section class="sec" id="a-checklist-for-writing-any-recursive-function">
+<h2>3. A checklist for writing any recursive function</h2>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["1. Define what f(input) returns, in one sentence"] --&gt; B["2. Find the base case(s): the smallest inputs"]
+    B --&gt; C["3. Find the recursive step: how does f(input) use f(smaller input)?"]
+    C --&gt; D["4. Check the input really gets smaller every call"]
+    D --&gt; E["5. Check every path returns a value"]
+    E --&gt; F["6. Estimate depth (stack) and number of calls (time)"]</pre></figure>
+<p>Step 1 is the most skipped and the most important. Write the <em>contract</em> ("<code>sumList(list)</code> returns the sum of all numbers in <code>list</code>") before any code.</p>
+</section>
+<section class="sec" id="when-to-use-recursion-when-to-use-a-loop">
+<h2>4. When to use recursion, when to use a loop</h2>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Use recursion when…</th><th>Prefer a loop when…</th></tr></thead><tbody>
+<tr><td>The data is <strong>nested</strong> (trees, folders, JSON, nested lists)</td><td>The work is a plain pass over a flat list</td></tr>
+<tr><td>The problem <strong>splits into similar sub-problems</strong> (divide &amp; conquer, backtracking)</td><td>The depth could be very large (100,000+) and you are in JavaScript</td></tr>
+<tr><td>The recursive version is far clearer</td><td>You want the lowest memory use</td></tr>
+</tbody></table></div>
+<p><strong>Converting to a loop:</strong> replace the call stack by your own array used as a stack. Push the "work still to do", loop while it is not empty, pop one item, process it, push its sub-work. This is exactly what DFS with an explicit stack does (file 19).</p>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>5. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Factorial and a sum of a list (the book warm-ups)</h3>
+<p><strong>Task.</strong> (a) <code>factorial(n)</code>: <code>n × (n−1) × … × 1</code>. (b) <code>sumList(list)</code>: the sum of a list, <strong>without a loop</strong>.</p>
+<p><strong>Thinking.</strong></p>
+<ul>
+<li><code>factorial(n) = n × factorial(n − 1)</code>, base <code>factorial(0) = 1</code>.</li>
+<li><code>sumList(list) = list[0] + sumList(list without its first item)</code>, base: empty list has sum <code>0</code>.</li>
+</ul>
+<p><strong>Trace</strong> of <code>sumList([2, 4, 6])</code>:</p>
+<div class="table-wrap"><table id="tbl-3" class="trace"><thead><tr><th>Call</th><th>Does</th><th>Returns</th></tr></thead><tbody>
+<tr><td><code>sumList([2,4,6])</code></td><td>2 + <code>sumList([4,6])</code></td><td>12</td></tr>
+<tr><td><code>sumList([4,6])</code></td><td>4 + <code>sumList([6])</code></td><td>10</td></tr>
+<tr><td><code>sumList([6])</code></td><td>6 + <code>sumList([])</code></td><td>6</td></tr>
+<tr><td><code>sumList([])</code></td><td>base case</td><td>0</td></tr>
+</tbody></table></div>
+<p>Watch the stack grow and shrink. Each box is one call; the column on the left is the stack, newest on top.</p>
+<div class="stage" id="st-p1" data-anim="factorial,sumList" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts"><code class="language-ts">function factorial(n: number): number {
+  if (n &lt;= 1) return 1; // base case (also protects against n = 0)
+  return n * factorial(n - 1);
+}
+
+// Pass an index instead of slicing, so each call is O(1) rather than copying the array.
+function sumList(list: number[], start = 0): number {
+  if (start === list.length) return 0; // base case: nothing left
+  return list[start] + sumList(list, start + 1);
+}
+
+console.log(factorial(5)); // 120
+console.log(factorial(0)); // 1
+console.log(sumList([2, 4, 6])); // 12
+console.log(sumList([])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func factorial(n int) int {
+	if n &lt;= 1 {
+		return 1 // base case (also protects against n = 0)
+	}
+	return n * factorial(n-1)
+}
+
+// A sub-slice is just a window (no copy), so list[1:] is O(1) in Go.
+func sumList(list []int) int {
+	if len(list) == 0 {
+		return 0 // base case: nothing left
+	}
+	return list[0] + sumList(list[1:])
+}
+
+func exampleFactorialAndSum() {
+	fmt.Println(factorial(5))             // 120
+	fmt.Println(factorial(0))             // 1
+	fmt.Println(sumList([]int{2, 4, 6})) // 12
+	fmt.Println(sumList([]int{}))        // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>; stack space <code>O(n)</code>. A loop would use <code>O(1)</code> space.</p>
+<p><strong>Follow-up.</strong> <em>"What happens with <code>factorial(100000)</code>?"</em> In JavaScript: stack overflow (and the result is <code>Infinity</code> anyway because a <code>number</code> cannot hold it). In Go: the stack is fine but the <code>int</code> overflows silently. Good habits: think about <em>depth</em> and <em>value size</em>.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Pow(x, n), fast exponentiation (LeetCode 50, Medium)</h3>
+<p><strong>Task.</strong> Compute <code>x</code> raised to the power <code>n</code> (<code>n</code> may be negative). <code>pow(2, 10) = 1024</code>, <code>pow(2, −2) = 0.25</code>.</p>
+<p><strong>Brute force.</strong> Multiply <code>x</code> by itself <code>n</code> times: <code>O(n)</code>. For <code>n</code> = a billion that is too slow.</p>
+<p><strong>Idea: halve the exponent.</strong> <code>x^n = (x^(n/2))²</code> when <code>n</code> is even, and <code>x · (x^((n−1)/2))²</code> when odd. That cuts the exponent in half every call: <code>O(log n)</code> calls. Compute the half <strong>once</strong> and reuse it. (Writing <code>pow(x, n/2) * pow(x, n/2)</code> computes it twice and kills the benefit.)</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["pow(2, 10)"] --&gt; B["half = pow(2, 5)"]
+    B --&gt; C["half = pow(2, 2) and one extra 2"]
+    C --&gt; D["half = pow(2, 1) squared"]
+    D --&gt; E["half = pow(2, 0) = 1 and one extra 2"]
+    E --&gt; F["answers climb back: 2, 4, 32, 1024"]</pre></figure>
+<p><strong>Negative exponents.</strong> <code>x^(−n) = 1 / x^n</code>: compute with the positive exponent, then take the reciprocal.</p>
+<div class="stage" id="st-p2" data-anim="myPow" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function myPow(x: number, n: number): number {
+  if (n &lt; 0) return 1 / myPow(x, -n);
+  if (n === 0) return 1; // base case
+  const half = myPow(x, Math.floor(n / 2)); // compute the half ONCE
+  return n % 2 === 0 ? half * half : half * half * x;
+}
+console.log(myPow(2, 10)); // 1024
+console.log(myPow(2, -2)); // 0.25
+console.log(myPow(2.1, 3).toFixed(3)); // 9.261
+console.log(myPow(5, 0)); // 1</code></pre>
+<pre data-lang="go"><code class="language-go">func myPow(x float64, n int) float64 {
+	if n &lt; 0 {
+		return 1 / myPow(x, -n)
+	}
+	if n == 0 {
+		return 1 // base case
+	}
+	half := myPow(x, n/2) // compute the half ONCE
+	if n%2 == 0 {
+		return half * half
+	}
+	return half * half * x
+}
+
+func exampleMyPow() {
+	fmt.Println(myPow(2, 10))                    // 1024
+	fmt.Println(myPow(2, -2))                    // 0.25
+	fmt.Printf("%.3f\n", myPow(2.1, 3))          // 9.261
+	fmt.Println(myPow(5, 0))                     // 1
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(log n)</code>, stack <code>O(log n)</code>.</p>
+<p><strong>Edge case to mention:</strong> in Go the most negative <code>int</code> cannot be negated (<code>-MinInt == MinInt</code>); in an interview with 32-bit limits, convert to a wider type first.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Pascal's Triangle (LeetCode 118, Easy; v2 list #8)</h3>
+<p><strong>Task.</strong> Return the first <code>numRows</code> rows of Pascal's triangle, where each inner number is the sum of the two numbers above it. <code>numRows = 5</code> → <code>[[1],[1,1],[1,2,1],[1,3,3,1],[1,4,6,4,1]]</code>.</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    R1["row 1:      1"] --&gt; R2["row 2:     1  1"]
+    R2 --&gt; R3["row 3:    1  2  1"]
+    R3 --&gt; R4["row 4:   1  3  3  1"]
+    R4 --&gt; R5["row 5:  1  4  6  4  1"]</pre></figure>
+<p><strong>Thinking.</strong> <em>Contract:</em> <code>pascal(n)</code> returns the first <code>n</code> rows. <em>Base:</em> <code>n = 0</code> returns an empty list. <em>Step:</em> get <code>pascal(n − 1)</code>, look at its last row, build the next row from it, and append. Each inner value is <code>prev[i − 1] + prev[i]</code>; the two edge values are <code>1</code>.</p>
+<div class="stage" id="st-p3" data-anim="pascal" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function generatePascal(numRows: number): number[][] {
+  if (numRows === 0) return []; // base case
+  const rows = generatePascal(numRows - 1); // trust: the first numRows - 1 rows are right
+  const prev = rows.length ? rows[rows.length - 1] : [];
+  const row = [1];
+  for (let i = 1; i &lt; prev.length; i++) row.push(prev[i - 1] + prev[i]);
+  if (prev.length &gt; 0) row.push(1);
+  rows.push(row);
+  return rows;
+}
+console.log(generatePascal(5));
+// [ [ 1 ], [ 1, 1 ], [ 1, 2, 1 ], [ 1, 3, 3, 1 ], [ 1, 4, 6, 4, 1 ] ]
+console.log(generatePascal(1)); // [ [ 1 ] ]</code></pre>
+<pre data-lang="go"><code class="language-go">func generatePascal(numRows int) [][]int {
+	if numRows == 0 {
+		return [][]int{} // base case
+	}
+	rows := generatePascal(numRows - 1) // trust: the first numRows-1 rows are right
+	row := []int{1}
+	if len(rows) &gt; 0 {
+		prev := rows[len(rows)-1]
+		for i := 1; i &lt; len(prev); i++ {
+			row = append(row, prev[i-1]+prev[i])
+		}
+		row = append(row, 1)
+	}
+	return append(rows, row)
+}
+
+func examplePascal() {
+	fmt.Println(generatePascal(5)) // [[1] [1 1] [1 2 1] [1 3 3 1] [1 4 6 4 1]]
+	fmt.Println(generatePascal(1)) // [[1]]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n²)</code> (the output has <code>n(n+1)/2</code> numbers), stack depth <code>O(n)</code>.</p>
+<p><strong>Link to DP:</strong> this is the simplest "build the next layer from the previous layer" table (file 25).</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Flatten a Nested List (recursion on nested data)</h3>
+<p><strong>Task.</strong> Given a list that may contain numbers or other lists (to any depth), return one flat list. <code>[1, [2, [3, 4]], 5]</code> → <code>[1, 2, 3, 4, 5]</code>.</p>
+<p>This is the natural home of recursion: the <em>shape</em> of the data is recursive, so the code mirrors it. It is the same idea as the box-and-key story, with boxes as lists and keys as numbers.</p>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["flatten([1, [2, [3, 4]], 5])"] --&gt; B["1 is a number: keep"]
+    A --&gt; C["[2, [3, 4]] is a list: flatten it"]
+    A --&gt; D["5 is a number: keep"]
+    C --&gt; E["2: keep"]
+    C --&gt; F["[3, 4] is a list: flatten it -&gt; 3, 4"]</pre></figure>
+<div class="stage" id="st-p4" data-anim="flatten" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">type Nested = number | Nested[];
+
+function flatten(items: Nested[]): number[] {
+  const out: number[] = [];
+  for (const item of items) {
+    if (typeof item === "number") out.push(item); // a key: keep it
+    else out.push(...flatten(item)); // a smaller box: do the same thing to it
+  }
+  return out;
+}
+console.log(flatten([1, [2, [3, 4]], 5])); // [ 1, 2, 3, 4, 5 ]
+console.log(flatten([])); // []
+console.log(flatten([[[[7]]]])); // [ 7 ]</code></pre>
+<pre data-lang="go"><code class="language-go">// A nested item is either an int or a []any (a smaller box).
+func flatten(items []any) []int {
+	out := []int{}
+	for _, item := range items {
+		switch v := item.(type) {
+		case int:
+			out = append(out, v) // a key: keep it
+		case []any:
+			out = append(out, flatten(v)...) // a smaller box: do the same thing to it
+		}
+	}
+	return out
+}
+
+func exampleFlatten() {
+	nested := []any{1, []any{2, []any{3, 4}}, 5}
+	fmt.Println(flatten(nested))                        // [1 2 3 4 5]
+	fmt.Println(flatten([]any{}))                       // []
+	fmt.Println(flatten([]any{[]any{[]any{[]any{7}}}})) // [7]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(total items + nesting overhead)</code>; stack depth equals the maximum nesting depth. (The <code>...</code> spreading in JavaScript copies lists at each level, so for extremely deep input prefer a single shared <code>out</code> array passed down.)</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Decode String (LeetCode 394, Medium; v2 list #27)</h3>
+<p><strong>Task.</strong> Decode a string where <code>k[encoded]</code> means "repeat <code>encoded</code> exactly <code>k</code> times", and brackets can nest. <code>"3[a2[c]]"</code> → <code>"accaccacc"</code>.</p>
+<p><strong>Why recursion fits.</strong> Whenever you meet <code>[</code>, you have a <strong>smaller copy of the same problem</strong> inside the brackets. Decode it recursively, repeat it <code>k</code> times, and continue.</p>
+<p><strong>Thinking.</strong></p>
+<ul>
+<li>Keep a shared position <code>i</code> into the string.</li>
+<li><code>parse()</code> builds the text until it reaches <code>]</code> (or the end).</li>
+<li>Read digits to build <code>k</code> (it may be several digits, like <code>12</code>).</li>
+<li>On <code>[</code>: move past it, call <code>parse()</code> to get the inner text, then append that text <code>k</code> times.</li>
+<li>On <code>]</code>: move past it and <strong>return</strong> what we built.</li>
+<li>On a letter: append it.</li>
+</ul>
+<figure class="diagram" id="fig-8"><pre class="mermaid-src">flowchart TD
+    A["parse() reading '3[a2[c]]'"] --&gt; B["digit 3: remember k = 3"]
+    B --&gt; C["'[': call parse() for the inside"]
+    C --&gt; D["inside: letter a, digit 2, '[' -&gt; call parse()"]
+    D --&gt; E["innermost: letter c, ']' returns 'c'"]
+    E --&gt; F["repeat 'c' 2 times = 'cc' ; ']' returns 'acc'"]
+    F --&gt; G["repeat 'acc' 3 times = 'accaccacc'"]</pre></figure>
+<p><strong>Trace</strong> of <code>2[a3[b]]</code>:</p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>Position read</th><th>Action</th><th>Local result</th></tr></thead><tbody>
+<tr><td><code>2</code></td><td>k = 2</td><td></td></tr>
+<tr><td><code>[</code></td><td>call inner parse</td><td></td></tr>
+<tr><td><code>a</code></td><td>append</td><td><code>a</code></td></tr>
+<tr><td><code>3</code></td><td>k = 3</td><td></td></tr>
+<tr><td><code>[</code></td><td>call innermost parse</td><td></td></tr>
+<tr><td><code>b</code></td><td>append</td><td><code>b</code></td></tr>
+<tr><td><code>]</code></td><td>return <code>b</code></td><td>back in the middle call: append <code>bbb</code> → <code>abbb</code></td></tr>
+<tr><td><code>]</code></td><td>return <code>abbb</code></td><td>back at top: append <code>abbb</code> twice → <code>abbbabbb</code></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p5" data-anim="decodeString" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function decodeString(s: string): string {
+  let i = 0; // shared position, moved by every call
+  function parse(): string {
+    let result = "";
+    let count = 0;
+    while (i &lt; s.length) {
+      const ch = s[i];
+      if (ch &gt;= "0" &amp;&amp; ch &lt;= "9") {
+        count = count * 10 + Number(ch); // numbers can have several digits
+        i++;
+      } else if (ch === "[") {
+        i++; // skip '['
+        const inner = parse(); // a smaller copy of the same problem
+        result += inner.repeat(count);
+        count = 0;
+      } else if (ch === "]") {
+        i++; // skip ']'
+        return result; // this level is finished
+      } else {
+        result += ch;
+        i++;
+      }
+    }
+    return result;
+  }
+  return parse();
+}
+console.log(decodeString("3[a2[c]]")); // accaccacc
+console.log(decodeString("2[abc]3[cd]ef")); // abcabccdcdcdef
+console.log(decodeString("10[a]").length); // 10
+console.log(decodeString("abc")); // abc</code></pre>
+<pre data-lang="go"><code class="language-go">func decodeString(s string) string {
+	i := 0 // shared position, moved by every call
+	var parse func() string
+	parse = func() string {
+		var sb strings.Builder
+		count := 0
+		for i &lt; len(s) {
+			ch := s[i]
+			switch {
+			case ch &gt;= '0' &amp;&amp; ch &lt;= '9':
+				count = count*10 + int(ch-'0') // numbers can have several digits
+				i++
+			case ch == '[':
+				i++ // skip '['
+				inner := parse() // a smaller copy of the same problem
+				sb.WriteString(strings.Repeat(inner, count))
+				count = 0
+			case ch == ']':
+				i++ // skip ']'
+				return sb.String() // this level is finished
+			default:
+				sb.WriteByte(ch)
+				i++
+			}
+		}
+		return sb.String()
+	}
+	return parse()
+}
+
+func exampleDecodeString() {
+	fmt.Println(decodeString("3[a2[c]]"))         // accaccacc
+	fmt.Println(decodeString("2[abc]3[cd]ef"))    // abcabccdcdcdef
+	fmt.Println(len(decodeString("10[a]")))       // 10
+	fmt.Println(decodeString("abc"))              // abc
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time is <code>O(length of the output)</code> (every output character is produced once; building the repeated string costs its length). Stack depth is the maximum bracket nesting.</p>
+<p><strong>Alternative.</strong> An explicit stack with two parallel stacks (counts and partial strings) does the same without recursion (file 13). Interviewers often ask for it as the follow-up, since it avoids stack depth limits.</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · Tower of Hanoi (a puzzle that <em>forces</em> recursive thinking)</h3>
+<p><strong>Task.</strong> Three pegs: <code>A</code>, <code>B</code>, <code>C</code>. <code>n</code> disks of different sizes are stacked on <code>A</code>, smallest on top. Move them all to <code>C</code>, moving <strong>one disk at a time</strong> and <strong>never placing a bigger disk on a smaller one</strong>. Return the list of moves. For <code>n = 2</code>: <code>A→B, A→C, B→C</code>.</p>
+<p>This is the best exercise for <em>trusting the function</em>. Do not try to simulate the moves in your head. Instead think:</p>
+<blockquote><p>To move <code>n</code> disks from <code>A</code> to <code>C</code> (using <code>B</code> as a spare): 1. Move the top <code>n − 1</code> disks from <code>A</code> to <code>B</code>. <em>(trust the function)</em> 2. Move the biggest disk from <code>A</code> to <code>C</code>. <em>(one move)</em> 3. Move the <code>n − 1</code> disks from <code>B</code> to <code>C</code>. <em>(trust the function)</em></p></blockquote>
+<p>Base case: <code>n = 0</code> needs no moves.</p>
+<figure class="diagram" id="fig-9"><pre class="mermaid-src">flowchart TD
+    A["hanoi(3, A, C, B)"] --&gt; B["hanoi(2, A, B, C)&lt;br/&gt;park 2 disks on B"]
+    A --&gt; C["move disk 3: A to C"]
+    A --&gt; D["hanoi(2, B, C, A)&lt;br/&gt;bring them onto C"]
+    B --&gt; B1["hanoi(1, A, C, B)"]
+    B --&gt; B2["move disk 2: A to B"]
+    B --&gt; B3["hanoi(1, C, B, A)"]</pre></figure>
+<p><strong>Count of moves.</strong> <code>T(n) = 2·T(n − 1) + 1</code>, which solves to <code>2ⁿ − 1</code>. For 3 disks: 7 moves; for 20 disks: over a million; for 64 disks: more moves than there is time. This is an honest <code>O(2ⁿ)</code> problem, because the <em>output itself</em> has that many moves.</p>
+<div class="stage" id="st-p6" data-anim="hanoi" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function hanoi(n: number, from: string, to: string, spare: string, moves: string[] = []): string[] {
+  if (n === 0) return moves; // base case: nothing to move
+  hanoi(n - 1, from, spare, to, moves); // park n-1 disks on the spare peg
+  moves.push(`${from}-&gt;${to}`); // move the biggest disk
+  hanoi(n - 1, spare, to, from, moves); // bring the n-1 disks on top of it
+  return moves;
+}
+console.log(hanoi(2, "A", "C", "B")); // [ 'A-&gt;B', 'A-&gt;C', 'B-&gt;C' ]
+console.log(hanoi(3, "A", "C", "B").length); // 7
+console.log(hanoi(10, "A", "C", "B").length); // 1023</code></pre>
+<pre data-lang="go"><code class="language-go">func hanoi(n int, from, to, spare string, moves *[]string) {
+	if n == 0 {
+		return // base case: nothing to move
+	}
+	hanoi(n-1, from, spare, to, moves)         // park n-1 disks on the spare peg
+	*moves = append(*moves, from+"-&gt;"+to)       // move the biggest disk
+	hanoi(n-1, spare, to, from, moves)          // bring the n-1 disks on top of it
+}
+
+func exampleHanoi() {
+	var moves []string
+	hanoi(2, "A", "C", "B", &amp;moves)
+	fmt.Println(moves) // [A-&gt;B A-&gt;C B-&gt;C]
+
+	var three []string
+	hanoi(3, "A", "C", "B", &amp;three)
+	fmt.Println(len(three)) // 7
+
+	var ten []string
+	hanoi(10, "A", "C", "B", &amp;ten)
+	fmt.Println(len(ten)) // 1023
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time and output size <code>O(2ⁿ)</code>, stack depth <code>O(n)</code>.</p>
+<p><strong>Why Go uses a pointer to a slice:</strong> <code>append</code> may create a new underlying array; to let every recursive call add to the <em>same</em> list, we pass a pointer. (Another common style is to return the slice from each call.)</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Missing or wrong base case</strong> → infinite recursion → stack overflow.</li>
+<li><strong>Not making progress</strong> (calling with the same or bigger input).</li>
+<li><strong>Forgetting to <code>return</code></strong> the recursive result (the call runs but the value is dropped).</li>
+<li><strong>Copying a big array on every call</strong> (<code>slice</code> in JS inside recursion) and accidentally making <code>O(n²)</code> work. Pass indexes instead.</li>
+<li><strong>Computing the same recursive call twice</strong> (<code>f(n/2) * f(n/2)</code>). Store it in a variable.</li>
+<li><strong>Overlapping sub-problems left unnoticed.</strong> If the same arguments recur (naive Fibonacci), save the answers (memoization: file 25).</li>
+<li><strong>Trying to simulate all the calls in your head</strong> instead of trusting the contract.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Contracts in words</h3>
+<p>Write the contract, base case, and recursive step (in words only) for: <em>reverse a string</em>, <em>is this string a palindrome</em>, <em>sum the digits of a number</em>, <em>count the nodes of a tree</em>.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><ul><li><strong>Reverse a string:</strong> rev(s) returns s backwards. Base: length ≤ 1 → s. Step: rev(s without its first char) + first char.</li><li><strong>Palindrome:</strong> isPal(s) is true if s reads the same both ways. Base: length ≤ 1 → true. Step: first == last and isPal(the middle).</li><li><strong>Sum of digits:</strong> digits(n) for n ≥ 0. Base: n &lt; 10 → n. Step: (n mod 10) + digits(n div 10).</li></ul></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · The stack of factorial(4)</h3>
+<p>Draw the call stack of <code>factorial(4)</code> as sticky notes: what is on the stack when <code>factorial(1)</code> is running?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>While factorial(1) runs, the stack holds (top to bottom): factorial(1), factorial(2) waiting with n = 2, factorial(3) waiting with n = 3, factorial(4) waiting with n = 4. Four notes. Set the factorial animation to 4 to see it.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Why fibNaive(40) is slow</h3>
+<p>Explain why <code>fibNaive(40)</code> is slow, using the call tree, and what one change makes it fast.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Each call makes two more, so the call tree roughly doubles each level: about 2<sup>40</sup> calls, most of them repeats (fib(38) is computed twice, fib(37) three times…). Saving each answer the first time (memoization) means each n is computed once: <code>O(n)</code>. Lesson 02's call-tree animation shows both.</p></div></details>
+</div>
+<div class="exercise" id="ex4" data-track>
+<h3>4 · sumList with an explicit stack</h3>
+<p>Rewrite <code>sumList</code> with an explicit stack and a loop. What do you push, and what do you pop?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Push the indexes (or the items) still to add; loop while the stack is not empty: pop one, add it to the total. For a flat list the stack is overkill (a loop is enough), but the same shape converts any recursion: push "work still to do", pop and process, push any sub-work it creates.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Prove 2ⁿ − 1 moves</h3>
+<p>Tower of Hanoi: prove that <code>2ⁿ − 1</code> is the number of moves for <code>n</code> disks.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Let T(n) be the number of moves. Moving n disks takes T(n−1) to park, 1 for the biggest, and T(n−1) to bring them back: T(n) = 2T(n−1) + 1, with T(0) = 0. If T(n−1) = 2<sup>n−1</sup> − 1, then T(n) = 2(2<sup>n−1</sup> − 1) + 1 = 2<sup>n</sup> − 1. By induction it holds for every n.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="recur10"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/10.js"></script>
+</body>
+</html>

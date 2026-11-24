@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="27" data-pattern="Bits">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>27 Bit manipulation | Algorithm guide</title>
+<meta name="description" content="Bits animated as rows of switches: counting 1s, powers of two, counting bits, XOR cancellations, adding without +, subsets as masks and the bit trie for maximum XOR.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 27</span><span>Extras</span><span class="stars" title="Fairly likely in interviews">★★</span></div>
+<h1>Bit manipulation</h1>
+<p class="sub">A number is a row of switches; flip them in bulk.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em> does not teach bit tricks, but its binary search chapter and the "log₂" discussion in chapter 1 rest on binary numbers, and the bitmask idea is the compact way to represent the <strong>sets</strong> that chapters 10 and 11 enumerate (set covering, knapsack, traveling salesperson). This file covers v2 question #6 (Counting Bits, LeetCode 338) and adds the XOR tricks, bitmasks, and a bit trie.</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>"O(1) extra space" with pairs, sets of up to ~20 items, powers of two, or the problem talks about bits.</p></div><div><b>The key tricks</b><p><code>x &amp; (x − 1)</code> clears the lowest 1; <code>x &amp; −x</code> keeps it; <code>x ^ x = 0</code>; bit i of a mask = item i is in.</p></div><div><b>Language traps</b><p>JavaScript bit operators are 32-bit signed; <code>&gt;&gt;&gt;</code> is the unsigned shift. Go's unary <code>^</code> is NOT; parenthesize every bit test.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>Inside the computer every integer is a row of <strong>bits</strong> (0 or 1). Bit manipulation means working on those bits directly. It is useful for three things:</p>
+<ol>
+<li><strong>Speed and memory:</strong> a set of up to 64 items fits in <strong>one</strong> integer (bit <code>i</code> = "item <code>i</code> is in the set"). This is a <strong>bitmask</strong>.</li>
+<li><strong>Clever tricks:</strong> XOR cancels equal numbers, so "find the number that appears once" becomes a one-line loop.</li>
+<li><strong>Problems that ask about binary directly:</strong> counting 1 bits, powers of two, parity, adding without <code>+</code>.</li>
+</ol>
+<h3 id="reading-a-binary-number">Reading a binary number</h3>
+<p>Each position is worth a power of two, from the right: 1, 2, 4, 8, 16, …</p>
+<pre class="plain"><code class="language-text">  decimal 13  =  8 + 4 + 0 + 1   =   1 1 0 1   (binary)
+  positions:                        8 4 2 1</code></pre>
+</section>
+<section class="sec" id="the-operators">
+<h2>2. The operators</h2>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Operator</th><th>Name</th><th>Rule on each bit position</th><th>Example (4 bits)</th></tr></thead><tbody>
+<tr><td><code>a &amp; b</code></td><td>AND</td><td>1 only if <strong>both</strong> are 1</td><td><code>1100 &amp; 1010 = 1000</code></td></tr>
+<tr><td><code>a \| b</code></td><td>OR</td><td>1 if <strong>either</strong> is 1</td><td><code>1100 \| 1010 = 1110</code></td></tr>
+<tr><td><code>a ^ b</code></td><td>XOR</td><td>1 if the bits <strong>differ</strong></td><td><code>1100 ^ 1010 = 0110</code></td></tr>
+<tr><td><code>~a</code></td><td>NOT</td><td>flips every bit</td><td><code>~0011 = 1100</code> (in 4 bits)</td></tr>
+<tr><td><code>a &lt;&lt; k</code></td><td>left shift</td><td>moves bits left, filling with 0 (<strong>×2ᵏ</strong>)</td><td><code>0011 &lt;&lt; 2 = 1100</code></td></tr>
+<tr><td><code>a &gt;&gt; k</code></td><td>right shift</td><td>moves bits right (<strong>÷2ᵏ</strong>, rounding down)</td><td><code>1100 &gt;&gt; 2 = 0011</code></td></tr>
+</tbody></table></div>
+<h3 id="xor-is-the-star-three-facts">XOR is the star: three facts</h3>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart TD
+    X["XOR (^)"] --&gt; A["a ^ a = 0&lt;br/&gt;equal numbers cancel"]
+    X --&gt; B["a ^ 0 = a&lt;br/&gt;zero changes nothing"]
+    X --&gt; C["order does not matter:&lt;br/&gt;a ^ b ^ a = b"]</pre></figure>
+<p>So XOR-ing a whole list makes every number that appears <strong>twice</strong> vanish, leaving the one that appears once.</p>
+<h3 id="two-s-complement-and-negative-numbers">Two's complement and negative numbers</h3>
+<p>Computers store a negative number so that <strong>adding it to the positive version gives 0</strong>. The recipe is "flip all bits, add 1": <code>−x = ~x + 1</code>. For 8 bits, <code>5 = 00000101</code>, so <code>−5 = 11111011</code>. The leftmost bit is the <strong>sign bit</strong>. The consequences you will use:</p>
+<ul>
+<li><code>x &amp; -x</code> isolates the <strong>lowest set bit</strong> (see below).</li>
+<li><code>~x = -x - 1</code>.</li>
+<li>A right shift of a negative number keeps the sign (an <strong>arithmetic</strong> shift), in both TypeScript (<code>&gt;&gt;</code>) and Go.</li>
+</ul>
+<h3 id="language-differences-that-cause-real-bugs">Language differences that cause real bugs</h3>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th></th><th>TypeScript / JavaScript</th><th>Go</th></tr></thead><tbody>
+<tr><td>Integer width in bit operations</td><td><strong>32-bit signed</strong>, always (<code>number</code> is converted first)</td><td><code>int</code> is 64-bit; <code>int32</code>, <code>uint32</code> etc. are explicit</td></tr>
+<tr><td>Unsigned right shift</td><td><code>&gt;&gt;&gt;</code> (gives a 32-bit unsigned result)</td><td><code>&gt;&gt;</code> on an <strong>unsigned</strong> type</td></tr>
+<tr><td>Big values</td><td><code>1 &lt;&lt; 31</code> is <strong>negative</strong> (−2147483648); anything beyond 32 bits is lost</td><td><code>1 &lt;&lt; 62</code> is fine in <code>int</code></td></tr>
+<tr><td>Large masks</td><td>use <code>BigInt</code> (<code>1n &lt;&lt; 40n</code>)</td><td>native <code>uint64</code></td></tr>
+<tr><td>Count bits</td><td>write it (Kernighan)</td><td><code>math/bits.OnesCount</code></td></tr>
+<tr><td>NOT</td><td><code>~x</code></td><td><code>^x</code> (Go uses <code>^</code> for both XOR and NOT!)</td></tr>
+</tbody></table></div>
+<p><strong>Go gotcha:</strong> the bitwise NOT operator in Go is the <strong>unary <code>^</code></strong> (<code>^x</code>), and there is also <code>&amp;^</code> ("AND NOT", clear bits).</p>
+</section>
+<section class="sec" id="the-essential-tricks">
+<h2>3. The essential tricks</h2>
+<p>Memorize this table; it is most of the topic.</p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Goal</th><th>Expression</th><th>Why it works</th></tr></thead><tbody>
+<tr><td>Test bit <code>k</code></td><td><code>(x &gt;&gt; k) &amp; 1</code> or <code>x &amp; (1 &lt;&lt; k)</code></td><td>shift the bit to the bottom, mask it</td></tr>
+<tr><td><strong>Set</strong> bit <code>k</code></td><td><code>x \| (1 &lt;&lt; k)</code></td><td>OR with a 1 forces a 1</td></tr>
+<tr><td><strong>Clear</strong> bit <code>k</code></td><td><code>x &amp; ~(1 &lt;&lt; k)</code></td><td>AND with 0 forces a 0</td></tr>
+<tr><td><strong>Toggle</strong> bit <code>k</code></td><td><code>x ^ (1 &lt;&lt; k)</code></td><td>XOR with 1 flips</td></tr>
+<tr><td>Is <code>x</code> odd?</td><td><code>x &amp; 1</code></td><td>the lowest bit</td></tr>
+<tr><td>Multiply / divide by 2</td><td><code>x &lt;&lt; 1</code>, <code>x &gt;&gt; 1</code></td><td></td></tr>
+<tr><td><strong>Clear the lowest set bit</strong></td><td><code>x &amp; (x - 1)</code></td><td>subtracting 1 flips the lowest 1 and every 0 below it</td></tr>
+<tr><td><strong>Isolate the lowest set bit</strong></td><td><code>x &amp; -x</code></td><td>two's complement keeps only that bit in common</td></tr>
+<tr><td>Is <code>x</code> a power of two?</td><td><code>x &gt; 0 &amp;&amp; (x &amp; (x - 1)) === 0</code></td><td>a power of two has exactly one 1 bit</td></tr>
+<tr><td>Mask of the lowest <code>k</code> ones</td><td><code>(1 &lt;&lt; k) - 1</code></td><td>e.g. <code>(1&lt;&lt;3)-1 = 0111</code></td></tr>
+<tr><td>Swap without a temp</td><td><code>a ^= b; b ^= a; a ^= b</code></td><td>(a curiosity, not an improvement)</td></tr>
+</tbody></table></div>
+<h3 id="why-x-x-1-clears-the-lowest-1-the-most-important-trick">Why <code>x &amp; (x − 1)</code> clears the lowest 1 (the most important trick)</h3>
+<p>Subtracting 1 from a binary number <strong>flips the lowest <code>1</code> to <code>0</code> and every <code>0</code> below it to <code>1</code></strong>. ANDing with the original cancels exactly those positions:</p>
+<pre class="plain"><code class="language-text">  x       = 1 0 1 1 0 0      (44)
+  x - 1   = 1 0 1 0 1 1      (43)
+  x &amp; x-1 = 1 0 1 0 0 0      (40)   &lt;- the lowest 1 is gone</code></pre>
+<p>Repeating <code>x &amp;= x - 1</code> until <code>x</code> is 0 counts the <strong>1 bits</strong>, one per loop (Brian Kernighan's algorithm).</p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart LR
+    A["x = 44 (101100)"] --&gt;|"x &amp; (x-1)"| B["40 (101000)"]
+    B --&gt;|"x &amp; (x-1)"| C["32 (100000)"]
+    C --&gt;|"x &amp; (x-1)"| D["0"]
+    D --&gt; E["3 loops = 3 one-bits"]</pre></figure>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>4. How to recognize it</h2>
+<ul>
+<li>"<strong>Single number</strong>", "appears twice except one" → XOR.</li>
+<li>"Count the number of <strong>1 bits</strong>", "Hamming distance", "power of two/four".</li>
+<li>Constraints like <strong>n ≤ 20</strong> with "all subsets" / "visit all nodes" → <strong>bitmask</strong> over a set.</li>
+<li>"Without using <code>+</code>, <code>-</code>", "O(1) space" tricks.</li>
+<li>"Maximum XOR", "XOR queries" → a <strong>binary trie</strong>.</li>
+<li>"Compress a boolean array into an integer" (state for DP or BFS).</li>
+</ul>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>5. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Number of 1 Bits (LeetCode 191) and Power of Two (LeetCode 231), Easy</h3>
+<p><strong>Task.</strong> (a) Count the <code>1</code> bits in an unsigned 32-bit integer (the <em>Hamming weight</em>). <code>11</code> (<code>1011</code>) → <code>3</code>. (b) Is <code>n</code> a power of two?</p>
+<p><strong>Two ways to count:</strong></p>
+<ul>
+<li><strong>Check every bit:</strong> loop 32 times, <code>count += (n &gt;&gt; i) &amp; 1</code>: always 32 steps.</li>
+<li><strong>Kernighan:</strong> <code>n &amp;= n − 1</code> removes one <code>1</code> per loop, so it takes exactly as many steps as there are <code>1</code>s: faster for sparse numbers.</li>
+</ul>
+<p><strong>Trace</strong> of Kernighan on <code>11 = 1011</code>:</p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>step</th><th>n (binary)</th><th>after <code>n &amp;= n−1</code></th><th>count</th></tr></thead><tbody>
+<tr><td>1</td><td>1011</td><td>1010</td><td>1</td></tr>
+<tr><td>2</td><td>1010</td><td>1000</td><td>2</td></tr>
+<tr><td>3</td><td>1000</td><td>0000</td><td>3</td></tr>
+</tbody></table></div>
+<p><strong>Power of two:</strong> exactly one <code>1</code> bit means <code>n &amp; (n − 1) == 0</code>, and <code>n</code> must be positive (zero would also satisfy the AND).</p>
+<div class="stage" id="st-p1" data-anim="popcount,pow2" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts"><code class="language-ts">function hammingWeight(n: number): number {
+  let count = 0;
+  while (n !== 0) {
+    n &amp;= n - 1; // clears the lowest 1 bit
+    count++;
+  }
+  return count;
+}
+
+function isPowerOfTwo(n: number): boolean {
+  return n &gt; 0 &amp;&amp; (n &amp; (n - 1)) === 0; // exactly one bit set
+}
+
+console.log(hammingWeight(11)); // 3
+console.log(hammingWeight(128)); // 1
+console.log(hammingWeight(4294967293)); // 31   (all 32 bits except bit 1)
+console.log(isPowerOfTwo(16), isPowerOfTwo(18), isPowerOfTwo(1), isPowerOfTwo(0)); // true false true false</code></pre>
+<pre data-lang="go"><code class="language-go">func hammingWeight(n uint32) int {
+	count := 0
+	for n != 0 {
+		n &amp;= n - 1 // clears the lowest 1 bit
+		count++
+	}
+	return count
+}
+
+func isPowerOfTwo(n int) bool {
+	return n &gt; 0 &amp;&amp; n&amp;(n-1) == 0 // exactly one bit set
+}
+
+func exampleBitCounting() {
+	fmt.Println(hammingWeight(11))                                                  // 3
+	fmt.Println(hammingWeight(128))                                                 // 1
+	fmt.Println(hammingWeight(4294967293))                                          // 31
+	fmt.Println(bits.OnesCount32(4294967293))                                       // 31   (the standard library does the same)
+	fmt.Println(isPowerOfTwo(16), isPowerOfTwo(18), isPowerOfTwo(1), isPowerOfTwo(0)) // true false true false
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> <code>O(number of 1 bits)</code> time (at most 32), <code>O(1)</code> space.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Counting Bits (LeetCode 338, Easy; v2 list)</h3>
+<p><strong>Task.</strong> For every number <code>i</code> from <code>0</code> to <code>n</code>, return the number of 1 bits in <code>i</code>, as an array. <code>n = 5</code> → <code>[0, 1, 1, 2, 1, 2]</code>.</p>
+<p><strong>Brute force.</strong> Count bits of each number: <code>O(n log n)</code>.</p>
+<p><strong>The DP insight (a bridge to file 25).</strong> The bit count of <code>i</code> is related to a <em>smaller</em> number's count:</p>
+<blockquote><p><code>bits[i] = bits[i &gt;&gt; 1] + (i &amp; 1)</code></p></blockquote>
+<p>Shifting right drops the last bit; the rest was already counted at <code>i &gt;&gt; 1</code>; add 1 if the dropped bit was a 1. Another version: <code>bits[i] = bits[i &amp; (i − 1)] + 1</code>.</p>
+<p><strong>Trace:</strong></p>
+<div class="table-wrap"><table id="tbl-5" class="trace"><thead><tr><th>i</th><th>binary</th><th><code>i &gt;&gt; 1</code></th><th><code>bits[i &gt;&gt; 1]</code></th><th>last bit</th><th>bits[i]</th></tr></thead><tbody>
+<tr><td>0</td><td>000</td><td></td><td></td><td></td><td>0</td></tr>
+<tr><td>1</td><td>001</td><td>0</td><td>0</td><td>1</td><td>1</td></tr>
+<tr><td>2</td><td>010</td><td>1</td><td>1</td><td>0</td><td>1</td></tr>
+<tr><td>3</td><td>011</td><td>1</td><td>1</td><td>1</td><td>2</td></tr>
+<tr><td>4</td><td>100</td><td>2</td><td>1</td><td>0</td><td>1</td></tr>
+<tr><td>5</td><td>101</td><td>2</td><td>1</td><td>1</td><td>2</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p2" data-anim="countBits" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function countBits(n: number): number[] {
+  const bits = new Array&lt;number&gt;(n + 1).fill(0); // bits[0] = 0
+  for (let i = 1; i &lt;= n; i++) bits[i] = bits[i &gt;&gt; 1] + (i &amp; 1); // reuse the answer for i / 2
+  return bits;
+}
+console.log(countBits(5)); // [ 0, 1, 1, 2, 1, 2 ]
+console.log(countBits(2)); // [ 0, 1, 1 ]
+console.log(countBits(0)); // [ 0 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func countBits(n int) []int {
+	bitCount := make([]int, n+1) // bitCount[0] = 0
+	for i := 1; i &lt;= n; i++ {
+		bitCount[i] = bitCount[i&gt;&gt;1] + (i &amp; 1) // reuse the answer for i / 2
+	}
+	return bitCount
+}
+
+func exampleCountBits() {
+	fmt.Println(countBits(5)) // [0 1 1 2 1 2]
+	fmt.Println(countBits(2)) // [0 1 1]
+	fmt.Println(countBits(0)) // [0]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(n)</code> (the output).</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Single Number (LeetCode 136), Missing Number (268), Single Number III (260)</h3>
+<p><strong>Single Number.</strong> Every number appears <strong>twice</strong> except one, which appears once. Find it in <code>O(n)</code> time and <code>O(1)</code> space. <code>[4,1,2,1,2]</code> → <code>4</code>.</p>
+<p><strong>Idea.</strong> XOR everything. Pairs cancel (<code>a ^ a = 0</code>), and <code>0 ^ x = x</code>. A hash set would be <code>O(n)</code> space; XOR needs none.</p>
+<p><strong>Missing Number.</strong> An array has <code>n</code> distinct numbers from <code>0..n</code> (one is missing). Find it. <code>[3,0,1]</code> → <code>2</code>.</p>
+<p><strong>Idea.</strong> XOR all the <strong>indexes <code>0..n</code></strong> with all the <strong>values</strong>. Every number present appears twice (once as an index, once as a value) and cancels; the missing number appears only as an index, so it survives. (The sum formula <code>n(n+1)/2 − sum</code> also works.)</p>
+<p><strong>Single Number III.</strong> Exactly <strong>two</strong> numbers appear once; all others appear twice. Find both. <code>[1,2,1,3,2,5]</code> → <code>[3, 5]</code>.</p>
+<p><strong>Idea (two steps).</strong></p>
+<ol>
+<li>XOR everything: the pairs cancel, leaving <code>x = a ^ b</code> (the two unique numbers XOR-ed). Since <code>a ≠ b</code>, <code>x</code> is not zero, so at least one bit differs between <code>a</code> and <code>b</code>.</li>
+<li>Take the <strong>lowest set bit</strong> of <code>x</code> (<code>low = x &amp; −x</code>): a bit where <code>a</code> and <code>b</code> differ. Split all numbers into two groups by <em>whether that bit is set</em>. <code>a</code> and <code>b</code> land in <strong>different groups</strong>, and each pair of duplicates lands together in the same group. XOR each group separately: each yields one of the unique numbers.</li>
+</ol>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    A["XOR all numbers: x = a ^ b"] --&gt; B["low = x &amp; -x : a bit where a and b differ"]
+    B --&gt; C["group 1: numbers with that bit set"]
+    B --&gt; D["group 2: numbers with that bit clear"]
+    C --&gt; E["XOR group 1 = one unique number"]
+    D --&gt; F["XOR group 2 = the other"]</pre></figure>
+<p><strong>Trace</strong> (<code>[1,2,1,3,2,5]</code>): total XOR = <code>3 ^ 5 = 6</code> (<code>110</code>); lowest set bit = <code>2</code> (<code>010</code>). Numbers with bit 1 set: <code>2, 3, 2</code> → XOR = <code>3</code>. Numbers with it clear: <code>1, 1, 5</code> → XOR = <code>5</code>.</p>
+<div class="stage" id="st-p3" data-anim="single,missing,single3" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function singleNumber(nums: number[]): number {
+  let result = 0;
+  for (const x of nums) result ^= x; // pairs cancel, leaving the single number
+  return result;
+}
+
+function missingNumber(nums: number[]): number {
+  let result = nums.length; // include the index n, which has no matching slot
+  for (let i = 0; i &lt; nums.length; i++) result ^= i ^ nums[i]; // every present number cancels with its index
+  return result;
+}
+
+function singleNumberIII(nums: number[]): number[] {
+  let xor = 0;
+  for (const x of nums) xor ^= x; // = a ^ b
+  const low = xor &amp; -xor; // a bit where a and b differ
+  let a = 0, b = 0;
+  for (const x of nums) {
+    if (x &amp; low) a ^= x; // group with the bit set
+    else b ^= x; // group with the bit clear
+  }
+  return [a, b].sort((p, q) =&gt; p - q);
+}
+
+console.log(singleNumber([2, 2, 1]), singleNumber([4, 1, 2, 1, 2])); // 1 4
+console.log(missingNumber([3, 0, 1]), missingNumber([9, 6, 4, 2, 3, 5, 7, 0, 1])); // 2 8
+console.log(singleNumberIII([1, 2, 1, 3, 2, 5])); // [ 3, 5 ]
+console.log(singleNumberIII([-1, 0])); // [ -1, 0 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func singleNumber(nums []int) int {
+	result := 0
+	for _, x := range nums {
+		result ^= x // pairs cancel, leaving the single number
+	}
+	return result
+}
+
+func missingNumber(nums []int) int {
+	result := len(nums) // include the index n, which has no matching slot
+	for i, x := range nums {
+		result ^= i ^ x // every present number cancels with its index
+	}
+	return result
+}
+
+func singleNumberIII(nums []int) []int {
+	xor := 0
+	for _, x := range nums {
+		xor ^= x // = a ^ b
+	}
+	low := xor &amp; -xor // a bit where a and b differ
+	a, b := 0, 0
+	for _, x := range nums {
+		if x&amp;low != 0 {
+			a ^= x // group with the bit set
+		} else {
+			b ^= x // group with the bit clear
+		}
+	}
+	if a &gt; b {
+		a, b = b, a
+	}
+	return []int{a, b}
+}
+
+func exampleXorTricks() {
+	fmt.Println(singleNumber([]int{2, 2, 1}), singleNumber([]int{4, 1, 2, 1, 2}))                       // 1 4
+	fmt.Println(missingNumber([]int{3, 0, 1}), missingNumber([]int{9, 6, 4, 2, 3, 5, 7, 0, 1}))       // 2 8
+	fmt.Println(singleNumberIII([]int{1, 2, 1, 3, 2, 5}))                                             // [3 5]
+	fmt.Println(singleNumberIII([]int{-1, 0}))                                                        // [-1 0]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> All three: time <code>O(n)</code>, space <code>O(1)</code>.</p>
+<p><strong>Related:</strong> <em>Single Number II</em> (every number appears three times except one): count each bit position modulo 3, or use two accumulators <code>ones</code> and <code>twos</code>.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Sum of Two Integers: add without <code>+</code> (LeetCode 371, Medium)</h3>
+<p><strong>Task.</strong> Compute <code>a + b</code> without using <code>+</code> or <code>−</code>. <code>1 + 2</code> → <code>3</code>.</p>
+<p><strong>Idea.</strong> Addition in binary has two parts, and each is a bit operation:</p>
+<ul>
+<li><strong>XOR</strong> gives the sum of each bit <strong>without carries</strong>: <code>1 ^ 1 = 0</code> (and a carry), <code>1 ^ 0 = 1</code>.</li>
+<li><strong>AND, shifted left by 1</strong> gives the <strong>carries</strong>: <code>(a &amp; b) &lt;&lt; 1</code>.</li>
+</ul>
+<p>Then <strong>add the carries to the partial sum</strong>, which is the same problem again: repeat until there are no carries.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["a, b"] --&gt; B["sum without carry = a ^ b"]
+    A --&gt; C["carry = (a &amp; b) &lt;&lt; 1"]
+    B --&gt; D{"carry == 0 ?"}
+    C --&gt; D
+    D --&gt;|Yes| E["answer = a ^ b"]
+    D --&gt;|No| F["a = a ^ b ; b = carry ; repeat"]
+    F --&gt; B</pre></figure>
+<p><strong>Trace</strong> for <code>3 + 5</code> (<code>011 + 101</code>):</p>
+<div class="table-wrap"><table id="tbl-6" class="trace"><thead><tr><th>round</th><th>a</th><th>b</th><th><code>a ^ b</code></th><th><code>(a &amp; b) &lt;&lt; 1</code></th></tr></thead><tbody>
+<tr><td>1</td><td>011</td><td>101</td><td>110</td><td>010</td></tr>
+<tr><td>2</td><td>110</td><td>010</td><td>100</td><td>100</td></tr>
+<tr><td>3</td><td>100</td><td>100</td><td>000</td><td>1000</td></tr>
+<tr><td>4</td><td>000</td><td>1000</td><td>1000</td><td>0000 → done: <strong>1000 = 8</strong></td></tr>
+</tbody></table></div>
+<p><strong>Negative numbers work automatically</strong> in 32-bit two's complement. In JavaScript the bit operators are already 32-bit; in Go we use <code>int32</code> to get the same wrap-around behavior (otherwise the loop still ends, but at 64-bit width).</p>
+<div class="stage" id="st-p4" data-anim="getSum" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function getSum(a: number, b: number): number {
+  while (b !== 0) {
+    const carry = (a &amp; b) &lt;&lt; 1; // positions where both bits are 1 produce a carry to the left
+    a = a ^ b; // add without the carries
+    b = carry; // now add the carries
+  }
+  return a;
+}
+console.log(getSum(1, 2)); // 3
+console.log(getSum(2, 3)); // 5
+console.log(getSum(-2, 3)); // 1
+console.log(getSum(-1, 1)); // 0
+console.log(getSum(20, -30)); // -10</code></pre>
+<pre data-lang="go"><code class="language-go">func getSum(a, b int) int {
+	x, y := int32(a), int32(b) // 32-bit two's complement, like the problem expects
+	for y != 0 {
+		carry := (x &amp; y) &lt;&lt; 1 // positions where both bits are 1 produce a carry to the left
+		x ^= y                // add without the carries
+		y = carry             // now add the carries
+	}
+	return int(x)
+}
+
+func exampleGetSum() {
+	fmt.Println(getSum(1, 2))    // 3
+	fmt.Println(getSum(2, 3))    // 5
+	fmt.Println(getSum(-2, 3))   // 1
+	fmt.Println(getSum(-1, 1))   // 0
+	fmt.Println(getSum(20, -30)) // -10
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(1)</code> (at most 32 rounds), space <code>O(1)</code>.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Bitmask subsets (LeetCode 78 revisited) and submask enumeration</h3>
+<p><strong>Task.</strong> Generate all subsets of <code>[1, 2, 3]</code>. File 11 used backtracking; the bit version is shorter.</p>
+<p><strong>Idea.</strong> There are <code>2ⁿ</code> subsets, and each one is described by an <code>n</code>-bit number: <strong>bit <code>i</code> set</strong> means "include <code>nums[i]</code>". Counting <code>mask</code> from <code>0</code> to <code>2ⁿ − 1</code> visits every subset exactly once.</p>
+<div class="table-wrap"><table id="tbl-7"><thead><tr><th>mask</th><th>binary</th><th>subset of <code>[1,2,3]</code></th></tr></thead><tbody>
+<tr><td>0</td><td>000</td><td><code>[]</code></td></tr>
+<tr><td>1</td><td>001</td><td><code>[1]</code></td></tr>
+<tr><td>2</td><td>010</td><td><code>[2]</code></td></tr>
+<tr><td>3</td><td>011</td><td><code>[1, 2]</code></td></tr>
+<tr><td>4</td><td>100</td><td><code>[3]</code></td></tr>
+<tr><td>5</td><td>101</td><td><code>[1, 3]</code></td></tr>
+<tr><td>6</td><td>110</td><td><code>[2, 3]</code></td></tr>
+<tr><td>7</td><td>111</td><td><code>[1, 2, 3]</code></td></tr>
+</tbody></table></div>
+<p><strong>A classic idiom: enumerate all submasks of a mask</strong> (all subsets <em>of a subset</em>):</p>
+<pre class="plain"><code class="language-text">for (sub = mask; sub &gt; 0; sub = (sub - 1) &amp; mask) { ... }  // then handle sub = 0 separately</code></pre>
+<p><code>(sub − 1) &amp; mask</code> jumps to the next smaller submask. For <code>mask = 101</code>: <code>101 → 100 → 001 → 000</code>. This appears in subset-sum-style DP over bitmasks and in the "Shortest Path Visiting All Nodes" problem of file 22.</p>
+<p><strong>Where bitmask state is used:</strong> traveling salesperson DP (<code>dp[mask][last]</code>), assigning tasks to workers (<code>dp[mask]</code>), "visited nodes" in BFS, and board games with small boards. The constraint <code>n ≤ 20</code> is the usual hint.</p>
+<div class="stage" id="st-p5" data-anim="masks,submasks" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function subsetsByMask(nums: number[]): number[][] {
+  const n = nums.length;
+  const result: number[][] = [];
+  for (let mask = 0; mask &lt; 1 &lt;&lt; n; mask++) {
+    const subset: number[] = [];
+    for (let i = 0; i &lt; n; i++) if (mask &amp; (1 &lt;&lt; i)) subset.push(nums[i]); // bit i = "take nums[i]"
+    result.push(subset);
+  }
+  return result;
+}
+
+// All non-empty submasks of `mask`, from largest to smallest.
+function submasksOf(mask: number): number[] {
+  const subs: number[] = [];
+  for (let sub = mask; sub &gt; 0; sub = (sub - 1) &amp; mask) subs.push(sub);
+  return subs;
+}
+
+console.log(subsetsByMask([1, 2, 3]));
+// [ [], [1], [2], [1,2], [3], [1,3], [2,3], [1,2,3] ]
+console.log(submasksOf(0b101).map((m) =&gt; m.toString(2))); // [ '101', '100', '1' ]
+console.log(submasksOf(0b111).length); // 7   (all non-empty subsets of 3 bits)</code></pre>
+<pre data-lang="go"><code class="language-go">func subsetsByMask(nums []int) [][]int {
+	n := len(nums)
+	result := make([][]int, 0, 1&lt;&lt;n)
+	for mask := 0; mask &lt; 1&lt;&lt;n; mask++ {
+		subset := []int{}
+		for i := 0; i &lt; n; i++ {
+			if mask&amp;(1&lt;&lt;i) != 0 {
+				subset = append(subset, nums[i]) // bit i = "take nums[i]"
+			}
+		}
+		result = append(result, subset)
+	}
+	return result
+}
+
+// All non-empty submasks of mask, from largest to smallest.
+func submasksOf(mask int) []int {
+	subs := []int{}
+	for sub := mask; sub &gt; 0; sub = (sub - 1) &amp; mask {
+		subs = append(subs, sub)
+	}
+	return subs
+}
+
+func exampleBitmaskSubsets() {
+	fmt.Println(subsetsByMask([]int{1, 2, 3})) // [[] [1] [2] [1 2] [3] [1 3] [2 3] [1 2 3]]
+	for _, m := range submasksOf(0b101) {
+		fmt.Printf("%b ", m)
+	}
+	fmt.Println()                        // 101 100 1
+	fmt.Println(len(submasksOf(0b111))) // 7
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> <code>subsetsByMask</code>: time <code>O(n · 2ⁿ)</code>, space <code>O(n · 2ⁿ)</code> for the output. Submask enumeration of all masks of <code>n</code> bits totals <code>O(3ⁿ)</code>.</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · Maximum XOR of Two Numbers in an Array (LeetCode 421, Medium/Hard)</h3>
+<p><strong>Task.</strong> Find the maximum value of <code>nums[i] ^ nums[j]</code> over all pairs. <code>[3,10,5,25,2,8]</code> → <code>28</code> (<code>5 ^ 25</code>).</p>
+<p><strong>Brute force.</strong> All pairs: <code>O(n²)</code>.</p>
+<p><strong>The greedy-on-bits idea.</strong> To make an XOR as big as possible, we want a <code>1</code> in the <strong>highest</strong> bit position, then in the next, and so on. For a given number <code>x</code>, its best partner <code>y</code> has, at each bit from the top, the <strong>opposite</strong> bit of <code>x</code> whenever possible (because <code>1 ^ 0 = 1</code>).</p>
+<p><strong>A binary trie (file 18) makes this fast.</strong> Insert every number as a path of 31 bits (from the highest bit to the lowest). For each <code>x</code>, walk the trie from the top: at each bit, <strong>prefer the child with the opposite bit</strong> (it gives a <code>1</code> in the XOR); if that child does not exist, take the same-bit child (a <code>0</code> in the XOR). The walk spells out the best partner, and the XOR accumulates the answer.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["for x: start at the trie root, xor = 0"] --&gt; B["for bit = 30 down to 0"]
+    B --&gt; C{"does the child with the OPPOSITE bit exist?"}
+    C --&gt;|Yes| D["go there; set this bit in xor"]
+    C --&gt;|No| E["go to the same-bit child; this bit of xor stays 0"]
+    D --&gt; B
+    E --&gt; B
+    B --&gt; F["best = max(best, xor)"]</pre></figure>
+<p><strong>Trace idea</strong> with 5-bit numbers: <code>x = 5 = 00101</code>. The trie holds <code>3 = 00011</code>, <code>10 = 01010</code>, <code>25 = 11001</code>, ... Starting at the top bit, <code>x</code> has 0, so we prefer a child with 1: <code>25</code> (<code>11001</code>) goes that way. Continuing down, we keep choosing opposite bits when available: the path spells <code>11001</code> = 25, and <code>5 ^ 25 = 28</code>.</p>
+<div class="stage" id="st-p6" data-anim="maxXor" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function findMaximumXOR(nums: number[]): number {
+  // The trie: each node is [child for bit 0, child for bit 1]; -1 means "no such child".
+  const trie: [number, number][] = [[-1, -1]];
+  const BITS = 30; // values are below 2^31, so bits 30..0 are enough
+
+  for (const num of nums) {
+    let node = 0;
+    for (let bit = BITS; bit &gt;= 0; bit--) {
+      const b = (num &gt;&gt; bit) &amp; 1;
+      if (trie[node][b] === -1) {
+        trie.push([-1, -1]);
+        trie[node][b] = trie.length - 1;
+      }
+      node = trie[node][b];
+    }
+  }
+
+  let best = 0;
+  for (const num of nums) {
+    let node = 0, xor = 0;
+    for (let bit = BITS; bit &gt;= 0; bit--) {
+      const b = (num &gt;&gt; bit) &amp; 1;
+      const want = 1 - b; // the opposite bit makes this position a 1 in the XOR
+      if (trie[node][want] !== -1) {
+        xor |= 1 &lt;&lt; bit;
+        node = trie[node][want];
+      } else {
+        node = trie[node][b]; // forced to take the same bit: a 0 here
+      }
+    }
+    best = Math.max(best, xor);
+  }
+  return best;
+}
+console.log(findMaximumXOR([3, 10, 5, 25, 2, 8])); // 28
+console.log(findMaximumXOR([14, 70, 53, 83, 49, 91, 36, 80, 92, 51, 66, 70])); // 127
+console.log(findMaximumXOR([0])); // 0
+console.log(findMaximumXOR([2, 4])); // 6</code></pre>
+<pre data-lang="go"><code class="language-go">func findMaximumXOR(nums []int) int {
+	// The trie: each node is [child for bit 0, child for bit 1]; -1 means "no such child".
+	trie := [][2]int{{-1, -1}}
+	const bitsCount = 30 // values are below 2^31, so bits 30..0 are enough
+
+	for _, num := range nums {
+		node := 0
+		for bit := bitsCount; bit &gt;= 0; bit-- {
+			b := (num &gt;&gt; bit) &amp; 1
+			if trie[node][b] == -1 {
+				trie = append(trie, [2]int{-1, -1})
+				trie[node][b] = len(trie) - 1
+			}
+			node = trie[node][b]
+		}
+	}
+
+	best := 0
+	for _, num := range nums {
+		node, xor := 0, 0
+		for bit := bitsCount; bit &gt;= 0; bit-- {
+			b := (num &gt;&gt; bit) &amp; 1
+			want := 1 - b // the opposite bit makes this position a 1 in the XOR
+			if trie[node][want] != -1 {
+				xor |= 1 &lt;&lt; bit
+				node = trie[node][want]
+			} else {
+				node = trie[node][b] // forced to take the same bit: a 0 here
+			}
+		}
+		best = max(best, xor)
+	}
+	return best
+}
+
+func exampleFindMaximumXOR() {
+	fmt.Println(findMaximumXOR([]int{3, 10, 5, 25, 2, 8}))                                     // 28
+	fmt.Println(findMaximumXOR([]int{14, 70, 53, 83, 49, 91, 36, 80, 92, 51, 66, 70}))         // 127
+	fmt.Println(findMaximumXOR([]int{0}))                                                      // 0
+	fmt.Println(findMaximumXOR([]int{2, 4}))                                                   // 6
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n · B)</code> where <code>B = 31</code> (a constant), space <code>O(n · B)</code> for the trie.</p>
+<p><strong>Alternative without a trie (good to mention):</strong> build the answer <strong>bit by bit</strong> from the top. For each bit, keep the set of all numbers' prefixes so far, and test whether some pair of prefixes XORs to the candidate answer (<code>candidate = answer | (1 &lt;&lt; bit)</code>, then check with a set: for each prefix <code>p</code>, is <code>candidate ^ p</code> in the set?). Also <code>O(n · B)</code>, using hashing instead of a trie.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Operator precedence:</strong> in many languages <code>==</code> binds <strong>tighter</strong> than <code>&amp;</code>. Write <code>(x &amp; 1) === 0</code>, not <code>x &amp; 1 === 0</code>. (TypeScript and Go: always parenthesize.)</li>
+<li><strong>JavaScript's 32-bit trap:</strong> <code>1 &lt;&lt; 31</code> is negative; <code>1 &lt;&lt; 32</code> is <code>1</code>; bit operations on numbers above 2³² silently discard the high bits. Use <code>BigInt</code> when needed.</li>
+<li><strong>Using <code>&gt;&gt;</code> on a negative number</strong> when you wanted an unsigned shift (<code>&gt;&gt;&gt;</code> in JavaScript).</li>
+<li><strong>Go's <code>^</code>:</strong> it is both XOR (binary) and NOT (unary); there is no <code>~</code>.</li>
+<li><strong>Using a signed type for masks</strong> and shifting into the sign bit.</li>
+<li><strong>Off-by-one in the loop bound</strong> (<code>mask &lt; 1 &lt;&lt; n</code>, not <code>&lt;=</code>).</li>
+<li><strong>Forgetting <code>n &gt; 0</code></strong> in the power-of-two test (<code>0 &amp; −1 = 0</code>).</li>
+<li><strong>Reaching for bit tricks first</strong> when a plain approach is clear: readability counts in an interview unless the problem demands <code>O(1)</code> space or bit-level behavior.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · By hand</h3>
+<p>Compute by hand: <code>13 &amp; 7</code>, <code>13 | 7</code>, <code>13 ^ 7</code>, <code>13 &gt;&gt; 2</code>, <code>13 &lt;&lt; 1</code>. Check each with the binary form <code>1101</code>.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>13 = <code>1101</code>, 7 = <code>0111</code>. <code>13 &amp; 7</code> = <code>0101</code> = <strong>5</strong>; <code>13 | 7</code> = <code>1111</code> = <strong>15</strong>; <code>13 ^ 7</code> = <code>1010</code> = <strong>10</strong>; <code>13 &gt;&gt; 2</code> = <code>11</code> = <strong>3</strong>; <code>13 &lt;&lt; 1</code> = <code>11010</code> = <strong>26</strong>.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · 44 and 43</h3>
+<p>Explain, using the binary of <code>44</code> and <code>43</code>, why <code>x &amp; (x − 1)</code> clears the lowest set bit.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>44 = <code>101100</code>, 43 = <code>101011</code>. Subtracting 1 turns the lowest 1 (bit 2) into 0 and the zeros below it into 1s; everything above is unchanged. ANDing keeps the unchanged upper bits and wipes the rest: <code>101000</code> = 40. Run 44 in the first animation.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Reverse Bits</h3>
+<p><em>Reverse Bits</em> (LeetCode 190): peel the lowest bit off <code>n</code> and push it onto the result, 32 times. Which two operations does each round need?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Each of the 32 rounds needs a <strong>shift-and-OR</strong> into the result and a <strong>shift</strong> of n: <code>result = (result &lt;&lt; 1) | (n &amp; 1); n &gt;&gt;&gt;= 1;</code>. In JavaScript finish with <code>result &gt;&gt;&gt; 0</code> to read it as unsigned.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Hamming Distance</h3>
+<p><em>Hamming Distance</em> (LeetCode 461): which two operations from this file combine to count the differing bits of two numbers?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><strong>XOR</strong> marks the positions where the two numbers differ, then <strong>count the 1 bits</strong> with <code>n &amp;= n − 1</code>: <code>hammingWeight(x ^ y)</code>.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Gray Code for n = 3</h3>
+<p><em>Gray Code</em> (LeetCode 89): the <code>i</code>-th Gray code is <code>i ^ (i &gt;&gt; 1)</code>. Check it for <code>n = 3</code>.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>i = 0..7 gives <code>000, 001, 011, 010, 110, 111, 101, 100</code>. Each neighbor differs in exactly one bit (including 100 back to 000).</p></div></details>
+</div>
+<div class="exercise" id="ex6">
+<h3>6 · A set in one integer</h3>
+<p>A set of up to 20 elements stored as one integer: write the expressions to <strong>add</strong> element <code>k</code>, <strong>remove</strong> it, <strong>test</strong> membership, and <strong>count</strong> members.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Add: <code>s |= 1 &lt;&lt; k</code>. Remove: <code>s &amp;= ~(1 &lt;&lt; k)</code> (Go: <code>s &amp;^= 1 &lt;&lt; k</code>). Test: <code>(s &gt;&gt; k) &amp; 1</code> (or <code>(s &amp; (1 &lt;&lt; k)) !== 0</code>). Count: the popcount, <code>hammingWeight(s)</code> (Go: <code>bits.OnesCount(uint(s))</code>).</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="bit27"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/27.js"></script>
+</body>
+</html>

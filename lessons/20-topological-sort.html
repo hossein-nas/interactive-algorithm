@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="20" data-pattern="Topological sort">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>20 Topological sort | Algorithm guide</title>
+<meta name="description" content="Topological sort animated: Kahn&#x27;s in-degree queue, three-color cycle detection, course orders, semesters, the alien alphabet and minimum height trees.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 20</span><span>Graphs</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Topological sort</h1>
+<p class="sub">Put things in an order that respects every "before".</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em> chapter 6 ends by noting that some graphs describe an <strong>order</strong> ("brush your teeth <em>before</em> getting dressed" is not a rule, but "wake up" must come before "brush teeth"), and appendix material on topological sorting uses the same graph tools. This file turns that remark into a full tool. It continues v2's Course Schedule question (#6) and extends it with ordering, levels, and two famous harder problems.</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>Prerequisites, build steps, "X must happen before Y", or detecting a cycle in a directed graph.</p></div><div><b>Two algorithms</b><p>Kahn: repeatedly take a node with in-degree 0. DFS: three colors; a back edge to a "visiting" node is a cycle.</p></div><div><b>What it costs</b><p><code>O(V + E)</code>. An order exists only if the graph has no cycle.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>Some tasks can only start after others have finished. You cannot put on shoes before socks, or compile a program before its libraries. If you draw an arrow <code>A → B</code> for "A must come before B", you get a <strong>directed graph</strong> of dependencies.</p>
+<p>A <strong>topological order</strong> is a way to line up <em>all</em> the tasks in a row so that <strong>every arrow points forward</strong>: each task appears after everything it depends on.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    Socks["socks"] --&gt; Shoes["shoes"]
+    Pants["pants"] --&gt; Shoes
+    Pants --&gt; Belt["belt"]
+    Shirt["shirt"] --&gt; Belt
+    Belt --&gt; Jacket["jacket"]</pre></figure>
+<p>One valid order: <code>socks, pants, shirt, shoes, belt, jacket</code>. Another: <code>shirt, pants, belt, jacket, socks, shoes</code>. There are usually <strong>many</strong> valid orders.</p>
+<h3 id="when-does-an-order-exist-only-if-there-is-no-cycle">When does an order exist? Only if there is no cycle</h3>
+<p>If <code>A</code> must come before <code>B</code>, <code>B</code> before <code>C</code>, and <code>C</code> before <code>A</code>, no order is possible (a <strong>deadlock</strong>). A directed graph with <strong>no cycles</strong> is called a <strong>DAG</strong> (directed acyclic graph). <strong>A topological order exists exactly when the graph is a DAG.</strong></p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart LR
+    A["A"] --&gt; B["B"] --&gt; C["C"] --&gt; A</pre></figure>
+<p>So topological-sort problems come in two flavors that use the <strong>same algorithm</strong>:</p>
+<ol>
+<li>"Is there a valid order at all?" = "Is there a cycle?" (Course Schedule)</li>
+<li>"Give me a valid order." (Course Schedule II)</li>
+</ol>
+</section>
+<section class="sec" id="two-algorithms-both-o-v-e">
+<h2>2. Two algorithms (both <code>O(V + E)</code>)</h2>
+<h3 id="algorithm-a-kahn-s-algorithm-bfs-with-in-degrees">Algorithm A: Kahn's algorithm (BFS with in-degrees)</h3>
+<p><strong>In-degree</strong> of a node = how many arrows point <strong>into</strong> it = how many things it is still waiting for. A node with in-degree <strong>0</strong> has no unfinished prerequisites, so it can go <strong>now</strong>.</p>
+<ol>
+<li>Count the in-degree of every node.</li>
+<li>Put all in-degree-0 nodes into a <strong>queue</strong>.</li>
+<li>Repeatedly take a node from the queue, <strong>append it to the order</strong>, and for each node it points to, <strong>reduce that node's in-degree by 1</strong> (one prerequisite finished). If that reaches 0, add it to the queue.</li>
+<li>If you processed <strong>all</strong> nodes, you have a valid order. If some nodes were never processed, they are stuck in a <strong>cycle</strong>.</li>
+</ol>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    A["Compute in-degree of every node"] --&gt; B["Queue every node with in-degree 0"]
+    B --&gt; C{"queue empty?"}
+    C --&gt;|No| D["pop a node, append to the order"]
+    D --&gt; E["for each node it points to: in-degree--&lt;br/&gt;if it becomes 0, push it"]
+    E --&gt; C
+    C --&gt;|Yes| F{"order has all the nodes?"}
+    F --&gt;|Yes| G["valid order: no cycle"]
+    F --&gt;|No| H["a cycle exists: the leftover nodes wait on each other forever"]</pre></figure>
+<h3 id="algorithm-b-dfs-with-three-colors-and-reverse-postorder">Algorithm B: DFS with three colors (and reverse postorder)</h3>
+<p>Run DFS. Give every node a <strong>state</strong>:</p>
+<ul>
+<li><strong>0 = unvisited</strong>,</li>
+<li><strong>1 = visiting</strong> (on the current DFS path: still being explored),</li>
+<li><strong>2 = done</strong> (completely explored).</li>
+</ul>
+<p>If DFS reaches a node that is in state <strong>1</strong>, it has found a <strong>back edge</strong>: a path that returns to an ancestor, which is a <strong>cycle</strong>. When a node's exploration finishes, append it to a list (<strong>postorder</strong>). The <strong>reverse</strong> of that list is a topological order.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["visit(node): state = visiting"] --&gt; B["for each neighbor"]
+    B --&gt; C{"neighbor state"}
+    C --&gt;|"visiting"| D["CYCLE FOUND"]
+    C --&gt;|"unvisited"| E["visit(neighbor)"]
+    C --&gt;|"done"| F["skip"]
+    E --&gt; B
+    F --&gt; B
+    B --&gt; G["all neighbors done: state = done; push node to postorder"]</pre></figure>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th></th><th>Kahn (BFS)</th><th>DFS (3 colors)</th></tr></thead><tbody>
+<tr><td>Cycle detection</td><td>order shorter than <code>V</code></td><td>a node found in state "visiting"</td></tr>
+<tr><td>Output</td><td>the order directly</td><td>reverse the postorder</td></tr>
+<tr><td>Natural for "levels"/"semesters"</td><td><strong>yes</strong></td><td>no</td></tr>
+<tr><td>Recursion depth issue</td><td>none</td><td>deep graphs may overflow</td></tr>
+<tr><td>Interview default</td><td><strong>Kahn</strong> (iterative, simple)</td><td>when you already think in DFS</td></tr>
+</tbody></table></div>
+<p><strong>An important detail for undirected graphs:</strong> the 3-color trick is for <strong>directed</strong> graphs. For an <em>undirected</em> graph, a cycle check is "DFS that reaches an already-visited node other than the one it just came from", or union-find (file 21).</p>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>3. How to recognize it</h2>
+<ul>
+<li>"<strong>Prerequisites</strong>", "dependencies", "must come before", "order of tasks/courses/builds".</li>
+<li>"Can all tasks be completed?" (is there a cycle?)</li>
+<li>"Return any valid ordering."</li>
+<li>"<strong>Minimum number of rounds/semesters</strong> to finish everything" (levels of Kahn).</li>
+<li>"Derive the ordering of letters/items from a sorted list of examples" (Alien Dictionary).</li>
+<li>"Repeatedly remove the things that have no dependents" (peeling leaves).</li>
+</ul>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>4. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Course Schedule: can everything be finished? (LeetCode 207, Medium; v2 Q6)</h3>
+<p><strong>Task.</strong> There are <code>numCourses</code> courses <code>0..n−1</code>. <code>prerequisites[i] = [a, b]</code> means <em>to take <code>a</code> you must first take <code>b</code></em> (edge <code>b → a</code>). Can you finish all courses? <code>numCourses = 2</code>, <code>[[1,0]]</code> → <code>true</code>. <code>[[1,0],[0,1]]</code> → <code>false</code>.</p>
+<p><strong>Idea.</strong> "Can finish all" ⟺ "no cycle" ⟺ Kahn processes all <code>n</code> nodes.</p>
+<p><strong>Trace.</strong> <code>numCourses = 4</code>, <code>[[1,0],[2,0],[3,1],[3,2]]</code> (edges <code>0→1, 0→2, 1→3, 2→3</code>)</p>
+<div class="table-wrap"><table id="tbl-2" class="trace"><thead><tr><th>Step</th><th>Queue</th><th>Popped</th><th>In-degrees after</th></tr></thead><tbody>
+<tr><td>start</td><td><code>[0]</code></td><td></td><td><code>0:0, 1:1, 2:1, 3:2</code></td></tr>
+<tr><td>1</td><td><code>[]</code></td><td>0</td><td>1 → 0, 2 → 0: push both; <code>[1, 2]</code></td></tr>
+<tr><td>2</td><td><code>[2]</code></td><td>1</td><td>3 → 1</td></tr>
+<tr><td>3</td><td><code>[]</code></td><td>2</td><td>3 → 0: push; <code>[3]</code></td></tr>
+<tr><td>4</td><td><code>[]</code></td><td>3</td><td>all done: processed 4 of 4</td></tr>
+</tbody></table></div>
+<p>With a cycle <code>0 → 1 → 0</code>: both have in-degree 1, the queue starts <strong>empty</strong>, processed 0 of 2 → <code>false</code>.</p>
+<div class="stage" id="st-p1" data-anim="kahn,dfs3" data-code="code-1" data-flow="fig-3,fig-4"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="Kahn and the 3-color DFS alternative"><code class="language-ts">function canFinish(numCourses: number, prerequisites: number[][]): boolean {
+  const adj: number[][] = Array.from({ length: numCourses }, () =&gt; []);
+  const indegree = new Array&lt;number&gt;(numCourses).fill(0);
+  for (const [course, prereq] of prerequisites) {
+    adj[prereq].push(course); // the edge goes prerequisite -&gt; course
+    indegree[course]++;
+  }
+  const queue: number[] = [];
+  for (let i = 0; i &lt; numCourses; i++) if (indegree[i] === 0) queue.push(i); // nothing to wait for
+  let processed = 0;
+  for (let head = 0; head &lt; queue.length; head++) {
+    const node = queue[head];
+    processed++;
+    for (const next of adj[node]) {
+      if (--indegree[next] === 0) queue.push(next); // one fewer prerequisite outstanding
+    }
+  }
+  return processed === numCourses; // fewer means a cycle blocked the rest
+}
+
+function canFinishDFS(numCourses: number, prerequisites: number[][]): boolean {
+  const adj: number[][] = Array.from({ length: numCourses }, () =&gt; []);
+  for (const [course, prereq] of prerequisites) adj[prereq].push(course);
+  const state = new Array&lt;number&gt;(numCourses).fill(0); // 0 new, 1 visiting, 2 done
+  function hasCycle(node: number): boolean {
+    state[node] = 1;
+    for (const next of adj[node]) {
+      if (state[next] === 1) return true; // back to a node on the current path
+      if (state[next] === 0 &amp;&amp; hasCycle(next)) return true;
+    }
+    state[node] = 2;
+    return false;
+  }
+  for (let i = 0; i &lt; numCourses; i++) if (state[i] === 0 &amp;&amp; hasCycle(i)) return false;
+  return true;
+}
+
+console.log(canFinish(2, [[1, 0]]), canFinishDFS(2, [[1, 0]])); // true true
+console.log(canFinish(2, [[1, 0], [0, 1]]), canFinishDFS(2, [[1, 0], [0, 1]])); // false false
+console.log(canFinish(4, [[1, 0], [2, 0], [3, 1], [3, 2]])); // true
+console.log(canFinish(3, [])); // true</code></pre>
+<pre data-lang="go" data-caption="Kahn and the 3-color DFS alternative"><code class="language-go">func canFinish(numCourses int, prerequisites [][]int) bool {
+	adj := make([][]int, numCourses)
+	indegree := make([]int, numCourses)
+	for _, p := range prerequisites {
+		course, prereq := p[0], p[1]
+		adj[prereq] = append(adj[prereq], course) // the edge goes prerequisite -&gt; course
+		indegree[course]++
+	}
+	queue := []int{}
+	for i := 0; i &lt; numCourses; i++ {
+		if indegree[i] == 0 {
+			queue = append(queue, i) // nothing to wait for
+		}
+	}
+	processed := 0
+	for head := 0; head &lt; len(queue); head++ {
+		node := queue[head]
+		processed++
+		for _, next := range adj[node] {
+			indegree[next]--
+			if indegree[next] == 0 {
+				queue = append(queue, next) // one fewer prerequisite outstanding
+			}
+		}
+	}
+	return processed == numCourses // fewer means a cycle blocked the rest
+}
+
+func canFinishDFS(numCourses int, prerequisites [][]int) bool {
+	adj := make([][]int, numCourses)
+	for _, p := range prerequisites {
+		adj[p[1]] = append(adj[p[1]], p[0])
+	}
+	state := make([]int, numCourses) // 0 new, 1 visiting, 2 done
+	var hasCycle func(node int) bool
+	hasCycle = func(node int) bool {
+		state[node] = 1
+		for _, next := range adj[node] {
+			if state[next] == 1 {
+				return true // back to a node on the current path
+			}
+			if state[next] == 0 &amp;&amp; hasCycle(next) {
+				return true
+			}
+		}
+		state[node] = 2
+		return false
+	}
+	for i := 0; i &lt; numCourses; i++ {
+		if state[i] == 0 &amp;&amp; hasCycle(i) {
+			return false
+		}
+	}
+	return true
+}
+
+func exampleCanFinish() {
+	fmt.Println(canFinish(2, [][]int{{1, 0}}), canFinishDFS(2, [][]int{{1, 0}}))                         // true true
+	fmt.Println(canFinish(2, [][]int{{1, 0}, {0, 1}}), canFinishDFS(2, [][]int{{1, 0}, {0, 1}}))         // false false
+	fmt.Println(canFinish(4, [][]int{{1, 0}, {2, 0}, {3, 1}, {3, 2}}))                                   // true
+	fmt.Println(canFinish(3, nil))                                                                       // true
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(V + E)</code>, space <code>O(V + E)</code>.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Course Schedule II: produce an order (LeetCode 210, Medium)</h3>
+<p><strong>Task.</strong> Same input; return <strong>a valid order</strong> to take all courses, or an empty list if impossible. <code>4</code>, <code>[[1,0],[2,0],[3,1],[3,2]]</code> → <code>[0, 1, 2, 3]</code> (also <code>[0, 2, 1, 3]</code> is valid).</p>
+<p><strong>Idea.</strong> Kahn's algorithm <em>already</em> produces the order: it is the sequence in which nodes leave the queue. Return it if its length is <code>n</code>, else <code>[]</code>.</p>
+<div class="stage" id="st-p2" data-anim="findOrder" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function findOrder(numCourses: number, prerequisites: number[][]): number[] {
+  const adj: number[][] = Array.from({ length: numCourses }, () =&gt; []);
+  const indegree = new Array&lt;number&gt;(numCourses).fill(0);
+  for (const [course, prereq] of prerequisites) {
+    adj[prereq].push(course);
+    indegree[course]++;
+  }
+  const order: number[] = [];
+  for (let i = 0; i &lt; numCourses; i++) if (indegree[i] === 0) order.push(i); // the order doubles as the queue
+  for (let head = 0; head &lt; order.length; head++) {
+    for (const next of adj[order[head]]) {
+      if (--indegree[next] === 0) order.push(next);
+    }
+  }
+  return order.length === numCourses ? order : []; // [] signals a cycle
+}
+console.log(findOrder(4, [[1, 0], [2, 0], [3, 1], [3, 2]])); // [ 0, 1, 2, 3 ]
+console.log(findOrder(2, [[1, 0]])); // [ 0, 1 ]
+console.log(findOrder(2, [[1, 0], [0, 1]])); // []
+console.log(findOrder(1, [])); // [ 0 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func findOrder(numCourses int, prerequisites [][]int) []int {
+	adj := make([][]int, numCourses)
+	indegree := make([]int, numCourses)
+	for _, p := range prerequisites {
+		adj[p[1]] = append(adj[p[1]], p[0])
+		indegree[p[0]]++
+	}
+	order := []int{}
+	for i := 0; i &lt; numCourses; i++ {
+		if indegree[i] == 0 {
+			order = append(order, i) // the order doubles as the queue
+		}
+	}
+	for head := 0; head &lt; len(order); head++ {
+		for _, next := range adj[order[head]] {
+			indegree[next]--
+			if indegree[next] == 0 {
+				order = append(order, next)
+			}
+		}
+	}
+	if len(order) == numCourses {
+		return order
+	}
+	return []int{} // signals a cycle
+}
+
+func exampleFindOrder() {
+	fmt.Println(findOrder(4, [][]int{{1, 0}, {2, 0}, {3, 1}, {3, 2}})) // [0 1 2 3]
+	fmt.Println(findOrder(2, [][]int{{1, 0}}))                         // [0 1]
+	fmt.Println(findOrder(2, [][]int{{1, 0}, {0, 1}}))                 // []
+	fmt.Println(findOrder(1, nil))                                     // [0]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(V + E)</code>, space <code>O(V + E)</code>.</p>
+<p><strong>Trick:</strong> using the answer array itself as the queue (with a <code>head</code> index) saves a separate structure.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Parallel Courses: how many semesters? (LeetCode 1136, Medium)</h3>
+<p><strong>Task.</strong> There are <code>n</code> courses (1-indexed). <code>relations[i] = [prev, next]</code>: take <code>prev</code> before <code>next</code>. In each <strong>semester</strong> you may take <strong>any number</strong> of courses whose prerequisites were all finished in <em>earlier</em> semesters. Return the <strong>minimum number of semesters</strong>, or <code>−1</code> if there is a cycle. <code>n = 3</code>, <code>[[1,3],[2,3]]</code> → <code>2</code>.</p>
+<p><strong>Idea.</strong> Kahn's algorithm, processed <strong>level by level</strong>: each "level" of the queue is one semester. All courses currently available (in-degree 0) go in the same semester; finishing them releases the next group. The answer is the <strong>number of levels</strong> (the length of the longest dependency chain).</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart LR
+    C1["course 1"] --&gt; C3["course 3"]
+    C2["course 2"] --&gt; C3
+    S1["Semester 1: courses 1 and 2"] --&gt; S2["Semester 2: course 3"]</pre></figure>
+<div class="stage" id="st-p3" data-anim="semesters" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function minimumSemesters(n: number, relations: number[][]): number {
+  const adj: number[][] = Array.from({ length: n + 1 }, () =&gt; []); // 1-indexed
+  const indegree = new Array&lt;number&gt;(n + 1).fill(0);
+  for (const [prev, next] of relations) {
+    adj[prev].push(next);
+    indegree[next]++;
+  }
+  let current: number[] = [];
+  for (let i = 1; i &lt;= n; i++) if (indegree[i] === 0) current.push(i);
+  let semesters = 0, taken = 0;
+  while (current.length &gt; 0) {
+    semesters++; // everything in `current` is taken together this semester
+    const following: number[] = [];
+    for (const course of current) {
+      taken++;
+      for (const next of adj[course]) if (--indegree[next] === 0) following.push(next);
+    }
+    current = following;
+  }
+  return taken === n ? semesters : -1;
+}
+console.log(minimumSemesters(3, [[1, 3], [2, 3]])); // 2
+console.log(minimumSemesters(3, [[1, 2], [2, 3], [3, 1]])); // -1
+console.log(minimumSemesters(4, [[1, 2], [2, 3], [3, 4]])); // 4</code></pre>
+<pre data-lang="go"><code class="language-go">func minimumSemesters(n int, relations [][]int) int {
+	adj := make([][]int, n+1) // 1-indexed
+	indegree := make([]int, n+1)
+	for _, r := range relations {
+		adj[r[0]] = append(adj[r[0]], r[1])
+		indegree[r[1]]++
+	}
+	current := []int{}
+	for i := 1; i &lt;= n; i++ {
+		if indegree[i] == 0 {
+			current = append(current, i)
+		}
+	}
+	semesters, taken := 0, 0
+	for len(current) &gt; 0 {
+		semesters++ // everything in `current` is taken together this semester
+		following := []int{}
+		for _, course := range current {
+			taken++
+			for _, next := range adj[course] {
+				indegree[next]--
+				if indegree[next] == 0 {
+					following = append(following, next)
+				}
+			}
+		}
+		current = following
+	}
+	if taken == n {
+		return semesters
+	}
+	return -1
+}
+
+func exampleMinimumSemesters() {
+	fmt.Println(minimumSemesters(3, [][]int{{1, 3}, {2, 3}}))         // 2
+	fmt.Println(minimumSemesters(3, [][]int{{1, 2}, {2, 3}, {3, 1}})) // -1
+	fmt.Println(minimumSemesters(4, [][]int{{1, 2}, {2, 3}, {3, 4}})) // 4
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(V + E)</code>, space <code>O(V + E)</code>.</p>
+<p><strong>Variants.</strong> <em>Course Schedule III</em>, <em>Find All Recipes</em> (LeetCode 2115), <em>Sequence Reconstruction</em> (LeetCode 444, is the topological order unique? Only if the queue never holds two nodes at once).</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Alien Dictionary (LeetCode 269, Hard)</h3>
+<p><strong>Task.</strong> An alien language uses the Latin letters but in an unknown order. You get a list of words <strong>sorted by the alien dictionary order</strong>. Return a string of the letters in a valid alien order, or <code>""</code> if the list is inconsistent. <code>["wrt","wrf","er","ett","rftt"]</code> → <code>"wertf"</code>.</p>
+<p><strong>The graph is hidden in the word list.</strong> Compare <strong>each pair of adjacent words</strong>. At the <strong>first position where they differ</strong>, the letter in the earlier word comes before the letter in the later word. That gives one edge. Later positions tell you nothing (the words were already ordered by that first difference).</p>
+<p><strong>Walk-through.</strong></p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Adjacent words</th><th>First difference</th><th>Edge</th></tr></thead><tbody>
+<tr><td><code>wrt</code>, <code>wrf</code></td><td><code>t</code> vs <code>f</code></td><td><code>t → f</code></td></tr>
+<tr><td><code>wrf</code>, <code>er</code></td><td><code>w</code> vs <code>e</code></td><td><code>w → e</code></td></tr>
+<tr><td><code>er</code>, <code>ett</code></td><td><code>r</code> vs <code>t</code></td><td><code>r → t</code></td></tr>
+<tr><td><code>ett</code>, <code>rftt</code></td><td><code>e</code> vs <code>r</code></td><td><code>e → r</code></td></tr>
+</tbody></table></div>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart LR
+    W["w"] --&gt; E["e"] --&gt; R["r"] --&gt; T["t"] --&gt; F["f"]</pre></figure>
+<p>A topological sort of the letters is <code>w, e, r, t, f</code>: <strong>"wertf"</strong> ✔.</p>
+<p><strong>Two traps to handle.</strong></p>
+<ol>
+<li><strong>Prefix trap:</strong> if a longer word comes <strong>before</strong> its own prefix (<code>["abc", "ab"]</code>), no order can make that valid → return <code>""</code>.</li>
+<li><strong>Include letters that have no edges:</strong> every distinct letter must appear in the answer, even if it is unconstrained. So collect all letters first, with in-degree 0.</li>
+</ol>
+<p><strong>Also:</strong> if Kahn's algorithm processes fewer letters than exist, there is a cycle (<code>a &lt; b</code> and <code>b &lt; a</code>) → <code>""</code>.</p>
+<div class="stage" id="st-p4" data-anim="alien" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function alienOrder(words: string[]): string {
+  const adj = new Map&lt;string, Set&lt;string&gt;&gt;(); // letter -&gt; letters that must come AFTER it
+  const indegree = new Map&lt;string, number&gt;();
+  for (const word of words) {
+    for (const ch of word) {
+      if (!adj.has(ch)) adj.set(ch, new Set());
+      if (!indegree.has(ch)) indegree.set(ch, 0); // every letter counts, even without constraints
+    }
+  }
+  for (let i = 0; i + 1 &lt; words.length; i++) {
+    const a = words[i], b = words[i + 1];
+    if (a.length &gt; b.length &amp;&amp; a.startsWith(b)) return ""; // "abc" before "ab" is impossible
+    for (let j = 0; j &lt; Math.min(a.length, b.length); j++) {
+      if (a[j] !== b[j]) {
+        if (!adj.get(a[j])!.has(b[j])) {
+          adj.get(a[j])!.add(b[j]); // a[j] comes before b[j]
+          indegree.set(b[j], indegree.get(b[j])! + 1);
+        }
+        break; // only the FIRST difference tells us anything
+      }
+    }
+  }
+  const order: string[] = [];
+  for (const [ch, d] of indegree) if (d === 0) order.push(ch);
+  for (let head = 0; head &lt; order.length; head++) {
+    for (const next of adj.get(order[head])!) {
+      indegree.set(next, indegree.get(next)! - 1);
+      if (indegree.get(next) === 0) order.push(next);
+    }
+  }
+  return order.length === indegree.size ? order.join("") : ""; // fewer letters means a cycle
+}
+console.log(alienOrder(["wrt", "wrf", "er", "ett", "rftt"])); // wertf
+console.log(alienOrder(["z", "x"])); // zx
+console.log(JSON.stringify(alienOrder(["z", "x", "z"]))); // ""   (z &lt; x and x &lt; z: a cycle)
+console.log(JSON.stringify(alienOrder(["abc", "ab"]))); // ""   (prefix trap)</code></pre>
+<pre data-lang="go"><code class="language-go">func alienOrder(words []string) string {
+	adj := make(map[byte][]byte) // letter -&gt; letters that must come AFTER it
+	indegree := make(map[byte]int)
+	letters := []byte{} // letters in order of first appearance, for a stable answer
+	for _, word := range words {
+		for i := 0; i &lt; len(word); i++ {
+			if _, seen := indegree[word[i]]; !seen {
+				indegree[word[i]] = 0 // every letter counts, even without constraints
+				letters = append(letters, word[i])
+			}
+		}
+	}
+	edgeSeen := make(map[[2]byte]bool)
+	for i := 0; i+1 &lt; len(words); i++ {
+		a, b := words[i], words[i+1]
+		if len(a) &gt; len(b) &amp;&amp; strings.HasPrefix(a, b) {
+			return "" // "abc" before "ab" is impossible
+		}
+		for j := 0; j &lt; min(len(a), len(b)); j++ {
+			if a[j] != b[j] {
+				edge := [2]byte{a[j], b[j]}
+				if !edgeSeen[edge] {
+					edgeSeen[edge] = true
+					adj[a[j]] = append(adj[a[j]], b[j]) // a[j] comes before b[j]
+					indegree[b[j]]++
+				}
+				break // only the FIRST difference tells us anything
+			}
+		}
+	}
+	order := []byte{}
+	for _, ch := range letters {
+		if indegree[ch] == 0 {
+			order = append(order, ch)
+		}
+	}
+	for head := 0; head &lt; len(order); head++ {
+		for _, next := range adj[order[head]] {
+			indegree[next]--
+			if indegree[next] == 0 {
+				order = append(order, next)
+			}
+		}
+	}
+	if len(order) == len(letters) {
+		return string(order)
+	}
+	return "" // fewer letters means a cycle
+}
+
+func exampleAlienOrder() {
+	fmt.Println(alienOrder([]string{"wrt", "wrf", "er", "ett", "rftt"})) // wertf
+	fmt.Println(alienOrder([]string{"z", "x"}))                          // zx
+	fmt.Printf("%q\n", alienOrder([]string{"z", "x", "z"}))              // ""
+	fmt.Printf("%q\n", alienOrder([]string{"abc", "ab"}))                // ""
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(C)</code> where <code>C</code> is the total number of characters in all words (building edges) plus <code>O(U + E)</code> for the sort over <code>U</code> unique letters and <code>E ≤ min(C, U²)</code> edges. Space <code>O(U + E)</code>.</p>
+<p><strong>Common slip:</strong> processing <em>all</em> pairs of words instead of only <em>adjacent</em> ones (adjacent suffices, because sortedness is transitive), or adding edges from every differing position.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Minimum Height Trees: peeling leaves (LeetCode 310, Medium/Hard)</h3>
+<p><strong>Task.</strong> A tree (connected, no cycles) has <code>n</code> nodes and <code>n − 1</code> undirected edges. Choose any node as the <strong>root</strong>; the tree then has some height. Return the roots that give the <strong>minimum height</strong> (there are at most two). <code>n = 4</code>, edges <code>[[1,0],[1,2],[1,3]]</code> → <code>[1]</code>.</p>
+<p><strong>Idea.</strong> The best roots are the <strong>center</strong> of the tree: the middle of its longest path. To find the center, <strong>peel the tree like an onion</strong>: repeatedly remove all current <strong>leaves</strong> (nodes with degree 1). What remains in the end (1 or 2 nodes) is the center.</p>
+<p>This is Kahn's algorithm in a new disguise: instead of "remove nodes with in-degree 0", we "remove nodes with <strong>degree 1</strong>" layer by layer, until 1 or 2 nodes are left.</p>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["Tree: 0, 2, 3 all attached to 1"] --&gt; B["Round 1: leaves are 0, 2, 3. Remove them."]
+    B --&gt; C["Only node 1 remains: the center"]</pre></figure>
+<p><strong>Why at most two centers.</strong> The longest path in a tree has some length. If it has an odd number of nodes there is one middle node; if even, two middle nodes. Peeling removes the same number of nodes from both ends of every long path each round, so it ends at the middle.</p>
+<p><strong>Trace.</strong> <code>n = 6</code>, edges <code>[[3,0],[3,1],[3,2],[3,4],[5,4]]</code></p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>Round</th><th>Leaves removed</th><th>Remaining nodes</th></tr></thead><tbody>
+<tr><td>start</td><td></td><td>0, 1, 2, 3, 4, 5</td></tr>
+<tr><td>1</td><td>0, 1, 2, 5 (degree 1)</td><td>3, 4</td></tr>
+<tr><td>stop</td><td>2 nodes left</td><td>answer <code>[3, 4]</code></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p5" data-anim="mht" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function findMinHeightTrees(n: number, edges: number[][]): number[] {
+  if (n === 1) return [0];
+  const adj: number[][] = Array.from({ length: n }, () =&gt; []);
+  const degree = new Array&lt;number&gt;(n).fill(0);
+  for (const [a, b] of edges) {
+    adj[a].push(b);
+    adj[b].push(a);
+    degree[a]++;
+    degree[b]++;
+  }
+  let leaves: number[] = [];
+  for (let i = 0; i &lt; n; i++) if (degree[i] === 1) leaves.push(i);
+  let remaining = n;
+  while (remaining &gt; 2) {
+    remaining -= leaves.length; // peel off this whole layer
+    const nextLeaves: number[] = [];
+    for (const leaf of leaves) {
+      for (const neighbor of adj[leaf]) {
+        if (--degree[neighbor] === 1) nextLeaves.push(neighbor); // it just became a leaf
+      }
+    }
+    leaves = nextLeaves;
+  }
+  return leaves.sort((x, y) =&gt; x - y); // the last layer is the center (1 or 2 nodes)
+}
+console.log(findMinHeightTrees(4, [[1, 0], [1, 2], [1, 3]])); // [ 1 ]
+console.log(findMinHeightTrees(6, [[3, 0], [3, 1], [3, 2], [3, 4], [5, 4]])); // [ 3, 4 ]
+console.log(findMinHeightTrees(1, [])); // [ 0 ]
+console.log(findMinHeightTrees(2, [[0, 1]])); // [ 0, 1 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func findMinHeightTrees(n int, edges [][]int) []int {
+	if n == 1 {
+		return []int{0}
+	}
+	adj := make([][]int, n)
+	degree := make([]int, n)
+	for _, e := range edges {
+		a, b := e[0], e[1]
+		adj[a] = append(adj[a], b)
+		adj[b] = append(adj[b], a)
+		degree[a]++
+		degree[b]++
+	}
+	leaves := []int{}
+	for i := 0; i &lt; n; i++ {
+		if degree[i] == 1 {
+			leaves = append(leaves, i)
+		}
+	}
+	remaining := n
+	for remaining &gt; 2 {
+		remaining -= len(leaves) // peel off this whole layer
+		nextLeaves := []int{}
+		for _, leaf := range leaves {
+			for _, neighbor := range adj[leaf] {
+				degree[neighbor]--
+				if degree[neighbor] == 1 {
+					nextLeaves = append(nextLeaves, neighbor) // it just became a leaf
+				}
+			}
+		}
+		leaves = nextLeaves
+	}
+	sort.Ints(leaves)
+	return leaves // the last layer is the center (1 or 2 nodes)
+}
+
+func exampleFindMinHeightTrees() {
+	fmt.Println(findMinHeightTrees(4, [][]int{{1, 0}, {1, 2}, {1, 3}}))                  // [1]
+	fmt.Println(findMinHeightTrees(6, [][]int{{3, 0}, {3, 1}, {3, 2}, {3, 4}, {5, 4}})) // [3 4]
+	fmt.Println(findMinHeightTrees(1, nil))                                              // [0]
+	fmt.Println(findMinHeightTrees(2, [][]int{{0, 1}}))                                  // [0 1]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(n)</code>.</p>
+<p><strong>The brute force it replaces:</strong> compute the height from every node as root (<code>O(n²)</code>) and take the minimum.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Reversing the edge direction.</strong> In LeetCode 207, <code>[a, b]</code> means <em>b before a</em>: the edge is <code>b → a</code>. Draw one example first.</li>
+<li><strong>Forgetting nodes with no edges</strong> (isolated courses/letters must still be in the answer).</li>
+<li><strong>Declaring "no cycle" without counting processed nodes.</strong> Compare the number processed with <code>V</code>.</li>
+<li><strong>Using the 3-color DFS with just a boolean visited</strong>: a plain visited set cannot tell "on the current path" from "finished", so it reports false cycles in DAGs with shared descendants (a "diamond").</li>
+<li><strong>Using this on undirected graphs</strong> (cycle detection there is different).</li>
+<li><strong>Alien Dictionary:</strong> comparing non-adjacent words, ignoring the prefix case, or adding duplicate edges (inflating in-degrees).</li>
+<li><strong>Duplicate prerequisite pairs</strong> counted twice (inflating in-degrees): usually fine if you decrement per edge too, but deduplicate if you use a set-based graph.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Find the cycle</h3>
+<p>Draw the graph for <code>numCourses = 5</code> with prerequisites <code>[[1,0],[2,1],[3,2],[4,3],[2,4]]</code>. Is there a cycle? Which nodes does Kahn's algorithm <em>not</em> process?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Edges 0 → 1 → 2 → 3 → 4 → 2. Yes, a cycle: <strong>2 → 3 → 4 → 2</strong>. Kahn takes 0, then 1; that drops 2's in-degree from 2 to 1, and it never reaches 0 because 4 is waiting on 3, which waits on 2. Processed: 0 and 1. Not processed: <strong>2, 3, 4</strong>. It is the third preset of the course animations.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Why a cycle blocks every order</h3>
+<p>Explain in two sentences why a topological order does not exist if there is a cycle.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Every node on a cycle has a predecessor on the same cycle that must come before it. Follow the cycle around and each node must come before itself, which is impossible.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · DFS order in your head</h3>
+<p>Write the DFS "postorder reversed" version of <code>findOrder</code> in your head: what is pushed when, and why reverse it?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Use the three colors. A node is pushed to <code>post</code> <strong>after</strong> all its outgoing neighbors finish, so everything that depends on it is already in the list. Reversing puts every node before everything it unlocks. A back edge to a "visiting" node means a cycle: return <code>[]</code>.</p><div class="code-tabs" id="code-ex3">
+<pre data-lang="ts"><code class="language-ts">// Course Schedule II with DFS: push each node AFTER everything it unlocks, then reverse.
+function findOrderDFS(numCourses: number, prerequisites: number[][]): number[] {
+  const adj: number[][] = Array.from({ length: numCourses }, () =&gt; []);
+  for (const [course, prereq] of prerequisites) adj[prereq].push(course);
+  const state = new Array&lt;number&gt;(numCourses).fill(0); // 0 new, 1 visiting, 2 done
+  const post: number[] = [];
+  function visit(node: number): boolean {
+    state[node] = 1;
+    for (const next of adj[node]) {
+      if (state[next] === 1) return false; // cycle
+      if (state[next] === 0 &amp;&amp; !visit(next)) return false;
+    }
+    state[node] = 2;
+    post.push(node); // everything after it is already in `post`
+    return true;
+  }
+  for (let i = 0; i &lt; numCourses; i++) if (state[i] === 0 &amp;&amp; !visit(i)) return [];
+  return post.reverse();
+}
+console.log(findOrderDFS(4, [[1, 0], [2, 0], [3, 1], [3, 2]])); // [ 0, 2, 1, 3 ]
+console.log(findOrderDFS(2, [[1, 0], [0, 1]])); // []</code></pre>
+<pre data-lang="go"><code class="language-go">// Course Schedule II with DFS: push each node AFTER everything it unlocks, then reverse.
+func findOrderDFS(numCourses int, prerequisites [][]int) []int {
+	adj := make([][]int, numCourses)
+	for _, p := range prerequisites {
+		adj[p[1]] = append(adj[p[1]], p[0])
+	}
+	state := make([]int, numCourses) // 0 new, 1 visiting, 2 done
+	post := []int{}
+	var visit func(node int) bool
+	visit = func(node int) bool {
+		state[node] = 1
+		for _, next := range adj[node] {
+			if state[next] == 1 {
+				return false // cycle
+			}
+			if state[next] == 0 &amp;&amp; !visit(next) {
+				return false
+			}
+		}
+		state[node] = 2
+		post = append(post, node) // everything after it is already in post
+		return true
+	}
+	for i := 0; i &lt; numCourses; i++ {
+		if state[i] == 0 &amp;&amp; !visit(i) {
+			return []int{}
+		}
+	}
+	for i, j := 0, len(post)-1; i &lt; j; i, j = i+1, j-1 {
+		post[i], post[j] = post[j], post[i]
+	}
+	return post
+}
+
+func exampleFindOrderDFS() {
+	fmt.Println(findOrderDFS(4, [][]int{{1, 0}, {2, 0}, {3, 1}, {3, 2}})) // [0 2 1 3]
+	fmt.Println(findOrderDFS(2, [][]int{{1, 0}, {0, 1}}))                 // []
+}</code></pre>
+</div></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · A unique order</h3>
+<p>How can you tell, from Kahn's queue, that the topological order is <strong>unique</strong>?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The order is unique exactly when the queue holds <strong>one node at every step</strong>. If two nodes are ready together, they could go in either order. Uniqueness also means the order is a single path through every node (each consecutive pair is joined by an edge).</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Critical path</h3>
+<p><em>Longest Path in a DAG</em> / <em>Critical path</em>: given task durations, what is the minimum total time with unlimited parallel workers? (Hint: process in topological order and store the longest finish time per node.)</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Process tasks in topological order and keep <code>finish[v] = time[v] + max(finish[u])</code> over its prerequisites u (just <code>time[v]</code> if it has none). The answer is the largest finish time: the longest weighted path in the DAG. This is LeetCode 2050, Parallel Courses III.</p><div class="code-tabs" id="code-ex5">
+<pre data-lang="ts"><code class="language-ts">// Critical path (Parallel Courses III): with unlimited workers, a task finishes at
+// its own duration plus the latest finish among its prerequisites.
+function minimumTime(n: number, relations: number[][], time: number[]): number {
+  const adj: number[][] = Array.from({ length: n }, () =&gt; []);
+  const indegree = new Array&lt;number&gt;(n).fill(0);
+  for (const [prev, next] of relations) {
+    adj[prev - 1].push(next - 1); // input is 1-indexed
+    indegree[next - 1]++;
+  }
+  const finish = time.slice(); // a task with no prerequisites finishes at its own duration
+  const queue: number[] = [];
+  for (let i = 0; i &lt; n; i++) if (indegree[i] === 0) queue.push(i);
+  for (let head = 0; head &lt; queue.length; head++) {
+    const u = queue[head];
+    for (const v of adj[u]) {
+      finish[v] = Math.max(finish[v], finish[u] + time[v]); // wait for the slowest prerequisite
+      if (--indegree[v] === 0) queue.push(v);
+    }
+  }
+  return Math.max(...finish);
+}
+console.log(minimumTime(3, [[1, 3], [2, 3]], [3, 2, 5])); // 8
+console.log(minimumTime(5, [[1, 5], [2, 5], [3, 5], [3, 4], [4, 5]], [1, 2, 3, 4, 5])); // 12</code></pre>
+<pre data-lang="go"><code class="language-go">// Critical path (Parallel Courses III): with unlimited workers, a task finishes at
+// its own duration plus the latest finish among its prerequisites.
+func minimumTime(n int, relations [][]int, time []int) int {
+	adj := make([][]int, n)
+	indegree := make([]int, n)
+	for _, r := range relations {
+		adj[r[0]-1] = append(adj[r[0]-1], r[1]-1) // input is 1-indexed
+		indegree[r[1]-1]++
+	}
+	finish := append([]int(nil), time...) // a task with no prerequisites finishes at its own duration
+	queue := []int{}
+	for i := 0; i &lt; n; i++ {
+		if indegree[i] == 0 {
+			queue = append(queue, i)
+		}
+	}
+	for head := 0; head &lt; len(queue); head++ {
+		u := queue[head]
+		for _, v := range adj[u] {
+			finish[v] = max(finish[v], finish[u]+time[v]) // wait for the slowest prerequisite
+			indegree[v]--
+			if indegree[v] == 0 {
+				queue = append(queue, v)
+			}
+		}
+	}
+	best := 0
+	for _, f := range finish {
+		best = max(best, f)
+	}
+	return best
+}
+
+func exampleMinimumTime() {
+	fmt.Println(minimumTime(3, [][]int{{1, 3}, {2, 3}}, []int{3, 2, 5}))                                 // 8
+	fmt.Println(minimumTime(5, [][]int{{1, 5}, {2, 5}, {3, 5}, {3, 4}, {4, 5}}, []int{1, 2, 3, 4, 5})) // 12
+}</code></pre>
+</div></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="topo20"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/viz/graph.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/20.js"></script>
+</body>
+</html>

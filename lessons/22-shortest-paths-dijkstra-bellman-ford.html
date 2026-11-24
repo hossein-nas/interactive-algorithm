@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="22" data-pattern="Shortest paths">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>22 Shortest paths: Dijkstra and Bellman-Ford | Algorithm guide</title>
+<meta name="description" content="Shortest paths animated: Dijkstra with its heap and stale entries, network delay, minimum effort, cheapest flights within K stops, Bellman-Ford with a negative cycle, and BFS over visited sets.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 22</span><span>Graphs</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Shortest paths: Dijkstra and Bellman-Ford</h1>
+<p class="sub">Settle the closest node first, unless weights can be negative.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 9 (working with Dijkstra's algorithm, terminology, "trading for a piano", negative-weight edges, implementation). The book shows Dijkstra with a hash table of costs, a hash table of parents, and a list of processed nodes. This file explains the same algorithm in my own words, replaces the "find the cheapest unprocessed node by scanning" step with a <strong>heap</strong> (the interview-standard version), and adds Bellman-Ford for negative weights, which the book mentions as the thing Dijkstra cannot handle.</p></blockquote>
+<div class="glance"><div><b>Pick the tool</b><p>Equal weights: BFS. Non-negative weights: Dijkstra. Negative weights or "at most k edges": Bellman-Ford.</p></div><div><b>Dijkstra's idea</b><p>Pop the node with the smallest known distance; with weights ≥ 0 nothing later can beat it. Relax its edges.</p></div><div><b>What it costs</b><p>Dijkstra <code>O((V + E) log V)</code>; Bellman-Ford <code>O(V · E)</code>.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>In file 19, BFS found the path with the <strong>fewest edges</strong>. But real roads have different lengths, flights different prices, trades different costs. We now want the path with the <strong>smallest total weight</strong>, which might use <em>more</em> edges.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    S["Start"] --&gt;|"6"| A["A"]
+    S --&gt;|"2"| B["B"]
+    B --&gt;|"3"| A
+    A --&gt;|"1"| F["Finish"]
+    B --&gt;|"5"| F</pre></figure>
+<ul>
+<li>Fewest edges: <code>Start → A → Finish</code> (2 edges) costs <code>6 + 1 = 7</code>.</li>
+<li>Cheapest: <code>Start → B → A → Finish</code> (3 edges) costs <code>2 + 3 + 1 = 6</code>.</li>
+</ul>
+<p>BFS would pick the 2-edge path. We need a method that cares about weights.</p>
+<h3 id="the-book-s-trading-for-a-piano-story">The book's "trading for a piano" story</h3>
+<p>You want a piano. You offer your sheet music, and someone trades it for a poster, and the poster for a guitar, and so on, each trade having a cost. The <strong>cheapest chain</strong> of trades from "sheet music" to "piano" is a shortest-path problem on a <strong>weighted</strong> graph where nodes are items and edge weights are the extra money you must pay.</p>
+</section>
+<section class="sec" id="dijkstra-s-algorithm">
+<h2>2. Dijkstra's algorithm</h2>
+<h3 id="the-one-idea">The one idea</h3>
+<blockquote><p><strong>Always finalize the unfinished node that is currently closest to the start.</strong></p></blockquote>
+<p>Why that is safe (if no edge weight is negative): suppose node <code>X</code> is the closest not-yet-finalized node, at distance <code>d</code>. Any <em>other</em> route to <code>X</code> would have to go through some other unfinalized node first, and that node is already at distance <code>≥ d</code>; adding a non-negative edge only makes it longer. So <code>d</code> is the true shortest distance to <code>X</code>. We can <strong>lock it in</strong> forever.</p>
+<h3 id="the-recipe">The recipe</h3>
+<ol>
+<li>Keep <code>dist[v]</code>: the best known distance from the start to <code>v</code>. Start with <code>dist[start] = 0</code> and every other <code>∞</code>.</li>
+<li>Keep a <strong>min-heap</strong> of <code>(distance, node)</code> pairs, starting with <code>(0, start)</code>.</li>
+<li><strong>Pop</strong> the pair with the smallest distance. If it is <strong>stale</strong> (a better distance was already found), skip it.</li>
+<li><strong>Relax</strong> each outgoing edge <code>u → v</code> with weight <code>w</code>: if <code>dist[u] + w &lt; dist[v]</code>, update <code>dist[v]</code> and push <code>(dist[v], v)</code>.</li>
+<li>When the heap is empty, <code>dist</code> holds the shortest distance to every reachable node.</li>
+</ol>
+<p><strong>"Relaxing"</strong> just means "check whether going through <code>u</code> gives a shorter way to <code>v</code>, and if so, take it".</p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    A["dist[start] = 0, others = infinity.&lt;br/&gt;heap = [(0, start)]"] --&gt; B{"heap empty?"}
+    B --&gt;|Yes| Z["done: dist is final"]
+    B --&gt;|No| C["pop (d, u) with the smallest d"]
+    C --&gt; D{"d &gt; dist[u] ?  (stale entry)"}
+    D --&gt;|Yes| B
+    D --&gt;|No| E["for each edge u to v with weight w:&lt;br/&gt;if d + w &lt; dist[v]: dist[v] = d + w, push (dist[v], v)"]
+    E --&gt; B</pre></figure>
+<p><strong>Trace</strong> on the graph above (<code>Start=S</code>)</p>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Pop</th><th>dist after relaxing</th><th>Heap after</th></tr></thead><tbody>
+<tr><td>(0, S)</td><td>A = 6, B = 2</td><td>(2,B), (6,A)</td></tr>
+<tr><td>(2, B)</td><td>A = min(6, 2+3) = <strong>5</strong>, F = 2+5 = 7</td><td>(5,A), (6,A stale), (7,F)</td></tr>
+<tr><td>(5, A)</td><td>F = min(7, 5+1) = <strong>6</strong></td><td>(6,A stale), (6,F), (7,F stale)</td></tr>
+<tr><td>(6, A)</td><td>stale: 6 &gt; dist[A] = 5, skip</td><td></td></tr>
+<tr><td>(6, F)</td><td>F is done</td><td></td></tr>
+</tbody></table></div>
+<p>Shortest distance to <code>F</code> is <strong>6</strong> ✔.</p>
+<h3 id="costs">Costs</h3>
+<p>With a binary heap and adjacency lists: <strong><code>O((V + E) log V)</code></strong> time (usually written <code>O(E log V)</code>), <code>O(V + E)</code> space. The book's version (scan all nodes to find the cheapest) is <code>O(V²)</code>, which is fine for small dense graphs.</p>
+<h3 id="the-restriction-no-negative-weights">The restriction: no negative weights</h3>
+<p>With a negative edge, "locking in" a node is no longer safe: a later, longer route could become cheaper by crossing a negative edge.</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart LR
+    S["S"] --&gt;|"1"| A["A"]
+    S --&gt;|"5"| B["B"]
+    B --&gt;|"-10"| A</pre></figure>
+<p>Dijkstra locks <code>A</code> at distance 1 first. But <code>S → B → A</code> costs <code>5 − 10 = −5</code>, which is better. Dijkstra misses it. Use Bellman-Ford (below).</p>
+<h3 id="path-reconstruction">Path reconstruction</h3>
+<p>Keep <code>parent[v] = u</code> whenever you improve <code>dist[v]</code> through <code>u</code>. At the end, walk from the target back to the start along <code>parent</code>, then reverse (same as BFS in file 19).</p>
+</section>
+<section class="sec" id="choosing-the-right-shortest-path-tool">
+<h2>3. Choosing the right shortest-path tool</h2>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["Shortest path question"] --&gt; B{"Are all edges the same cost?"}
+    B --&gt;|Yes| C["BFS: O(V + E)"]
+    B --&gt;|No| D{"Edge costs only 0 or 1?"}
+    D --&gt;|Yes| E["0-1 BFS with a deque: O(V + E)"]
+    D --&gt;|No| F{"Any negative edge weights?"}
+    F --&gt;|No| G["Dijkstra with a heap: O((V+E) log V)"]
+    F --&gt;|Yes| H{"Is there a limit on the number of edges?"}
+    H --&gt;|Yes| I["Bellman-Ford with limited rounds"]
+    H --&gt;|No| J["Bellman-Ford: O(V·E), also detects negative cycles"]
+    A --&gt; K{"Need distances between ALL pairs of nodes?"}
+    K --&gt;|Yes| L["Floyd-Warshall: O(V cubed), tiny graphs"]
+    A --&gt; M{"It is a DAG?"}
+    M --&gt;|Yes| N["Relax in topological order: O(V + E), works with negatives"]</pre></figure>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Algorithm</th><th>Weights</th><th>Time</th><th>Notes</th></tr></thead><tbody>
+<tr><td>BFS</td><td>all equal</td><td><code>O(V + E)</code></td><td>fewest edges</td></tr>
+<tr><td>0-1 BFS</td><td>0 or 1</td><td><code>O(V + E)</code></td><td>push 0-edges to the <em>front</em> of a deque</td></tr>
+<tr><td><strong>Dijkstra</strong></td><td>non-negative</td><td><code>O((V + E) log V)</code></td><td>the workhorse</td></tr>
+<tr><td><strong>Bellman-Ford</strong></td><td>any (negatives OK)</td><td><code>O(V · E)</code></td><td>detects negative cycles; can limit the edge count</td></tr>
+<tr><td>Floyd-Warshall</td><td>any, no negative cycles</td><td><code>O(V³)</code></td><td>all pairs, three nested loops</td></tr>
+<tr><td>Shortest path in a DAG</td><td>any</td><td><code>O(V + E)</code></td><td>topological order + relax</td></tr>
+<tr><td>A*</td><td>non-negative + a heuristic</td><td>varies</td><td>Dijkstra guided toward a target (maps, games)</td></tr>
+</tbody></table></div>
+<p><strong>Negative cycle:</strong> a cycle whose edge weights sum to a negative number. Going around it forever makes the distance <code>−∞</code>, so "shortest path" is undefined. Bellman-Ford can tell you one exists.</p>
+</section>
+<section class="sec" id="reusable-heap-used-by-the-dijkstra-problems">
+<h2>4. Reusable heap (used by the Dijkstra problems)</h2>
+<p>Both languages need a priority queue (file 17). Here is the compact version used below.</p>
+<div class="stage" id="st-dij" data-anim="dijkstra" data-code="code-1" data-flow="fig-2"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="a small generic heap"><code class="language-ts">class Heap&lt;T&gt; {
+  private data: T[] = [];
+  constructor(private less: (a: T, b: T) =&gt; boolean) {}
+  get size(): number {
+    return this.data.length;
+  }
+  push(item: T): void {
+    this.data.push(item);
+    let i = this.data.length - 1;
+    while (i &gt; 0) {
+      const parent = (i - 1) &gt;&gt; 1;
+      if (!this.less(this.data[i], this.data[parent])) break;
+      [this.data[i], this.data[parent]] = [this.data[parent], this.data[i]];
+      i = parent;
+    }
+  }
+  pop(): T | undefined {
+    if (this.data.length === 0) return undefined;
+    const top = this.data[0];
+    const last = this.data.pop()!;
+    if (this.data.length &gt; 0) {
+      this.data[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r = 2 * i + 2;
+        let best = i;
+        if (l &lt; this.data.length &amp;&amp; this.less(this.data[l], this.data[best])) best = l;
+        if (r &lt; this.data.length &amp;&amp; this.less(this.data[r], this.data[best])) best = r;
+        if (best === i) break;
+        [this.data[i], this.data[best]] = [this.data[best], this.data[i]];
+        i = best;
+      }
+    }
+    return top;
+  }
+}
+
+// A generic Dijkstra on an adjacency list of [neighbor, weight] pairs.
+function dijkstra(adj: [number, number][][], start: number): number[] {
+  const dist = new Array&lt;number&gt;(adj.length).fill(Infinity);
+  dist[start] = 0;
+  const heap = new Heap&lt;[number, number]&gt;((a, b) =&gt; a[0] &lt; b[0]); // [distance, node]
+  heap.push([0, start]);
+  while (heap.size &gt; 0) {
+    const [d, u] = heap.pop()!;
+    if (d &gt; dist[u]) continue; // stale entry: a shorter route was found after this was pushed
+    for (const [v, w] of adj[u]) {
+      if (d + w &lt; dist[v]) {
+        dist[v] = d + w; // relax the edge
+        heap.push([dist[v], v]);
+      }
+    }
+  }
+  return dist;
+}
+
+// The graph from the introduction: S=0, A=1, B=2, F=3
+const intro: [number, number][][] = [
+  [[1, 6], [2, 2]], // S -&gt; A (6), S -&gt; B (2)
+  [[3, 1]], // A -&gt; F (1)
+  [[1, 3], [3, 5]], // B -&gt; A (3), B -&gt; F (5)
+  [], // F
+];
+console.log(dijkstra(intro, 0)); // [ 0, 5, 2, 6 ]</code></pre>
+<pre data-lang="go" data-caption="a small generic heap"><code class="language-go">type Heap[T any] struct {
+	data []T
+	less func(a, b T) bool
+}
+
+func NewHeap[T any](less func(a, b T) bool) *Heap[T] { return &amp;Heap[T]{less: less} }
+func (h *Heap[T]) Len() int                          { return len(h.data) }
+
+func (h *Heap[T]) Push(item T) {
+	h.data = append(h.data, item)
+	i := len(h.data) - 1
+	for i &gt; 0 {
+		parent := (i - 1) / 2
+		if !h.less(h.data[i], h.data[parent]) {
+			break
+		}
+		h.data[i], h.data[parent] = h.data[parent], h.data[i]
+		i = parent
+	}
+}
+
+func (h *Heap[T]) Pop() T {
+	top := h.data[0]
+	last := len(h.data) - 1
+	h.data[0] = h.data[last]
+	h.data = h.data[:last]
+	i := 0
+	for {
+		l, r := 2*i+1, 2*i+2
+		best := i
+		if l &lt; len(h.data) &amp;&amp; h.less(h.data[l], h.data[best]) {
+			best = l
+		}
+		if r &lt; len(h.data) &amp;&amp; h.less(h.data[r], h.data[best]) {
+			best = r
+		}
+		if best == i {
+			break
+		}
+		h.data[i], h.data[best] = h.data[best], h.data[i]
+		i = best
+	}
+	return top
+}
+
+type Edge struct{ to, weight int }
+
+// A generic Dijkstra on an adjacency list. Unreachable nodes stay at math.MaxInt.
+func dijkstra(adj [][]Edge, start int) []int {
+	dist := make([]int, len(adj))
+	for i := range dist {
+		dist[i] = math.MaxInt
+	}
+	dist[start] = 0
+	type item struct{ d, node int }
+	pq := NewHeap(func(a, b item) bool { return a.d &lt; b.d })
+	pq.Push(item{0, start})
+	for pq.Len() &gt; 0 {
+		cur := pq.Pop()
+		if cur.d &gt; dist[cur.node] {
+			continue // stale entry: a shorter route was found after this was pushed
+		}
+		for _, e := range adj[cur.node] {
+			if cur.d+e.weight &lt; dist[e.to] {
+				dist[e.to] = cur.d + e.weight // relax the edge
+				pq.Push(item{dist[e.to], e.to})
+			}
+		}
+	}
+	return dist
+}
+
+func exampleDijkstraIntro() {
+	// S=0, A=1, B=2, F=3
+	intro := [][]Edge{
+		{{1, 6}, {2, 2}}, // S -&gt; A (6), S -&gt; B (2)
+		{{3, 1}},         // A -&gt; F (1)
+		{{1, 3}, {3, 5}}, // B -&gt; A (3), B -&gt; F (5)
+		{},               // F
+	}
+	fmt.Println(dijkstra(intro, 0)) // [0 5 2 6]
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>5. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Network Delay Time (LeetCode 743, Medium)</h3>
+<p><strong>Task.</strong> A network has <code>n</code> nodes (1 to <code>n</code>) and directed, weighted edges <code>times[i] = [u, v, w]</code>: a signal from <code>u</code> to <code>v</code> takes <code>w</code> time. A signal is sent from node <code>k</code>. How long until <strong>all</strong> nodes have received it? Return <code>−1</code> if some node never does. <code>times = [[2,1,1],[2,3,1],[3,4,1]]</code>, <code>n = 4</code>, <code>k = 2</code> → <code>2</code>.</p>
+<p><strong>Idea.</strong> The time for the signal to reach a node is its shortest distance from <code>k</code>. The signal has reached everyone when the <strong>farthest</strong> node is reached, so the answer is the <strong>maximum</strong> of all shortest distances (or <code>−1</code> if any is infinite).</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart LR
+    N2["2 (source)"] --&gt;|1| N1["1"]
+    N2 --&gt;|1| N3["3"]
+    N3 --&gt;|1| N4["4"]</pre></figure>
+<p>Distances from 2: node 1 → 1, node 3 → 1, node 4 → 2. Max = <strong>2</strong>.</p>
+<div class="stage" id="st-p1" data-anim="network" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function networkDelayTime(times: number[][], n: number, k: number): number {
+  const adj: [number, number][][] = Array.from({ length: n + 1 }, () =&gt; []); // nodes are 1..n
+  for (const [u, v, w] of times) adj[u].push([v, w]);
+  const dist = dijkstra(adj, k);
+  let worst = 0;
+  for (let node = 1; node &lt;= n; node++) {
+    if (dist[node] === Infinity) return -1; // someone never gets the signal
+    worst = Math.max(worst, dist[node]);
+  }
+  return worst;
+}
+console.log(networkDelayTime([[2, 1, 1], [2, 3, 1], [3, 4, 1]], 4, 2)); // 2
+console.log(networkDelayTime([[1, 2, 1]], 2, 1)); // 1
+console.log(networkDelayTime([[1, 2, 1]], 2, 2)); // -1</code></pre>
+<pre data-lang="go"><code class="language-go">func networkDelayTime(times [][]int, n, k int) int {
+	adj := make([][]Edge, n+1) // nodes are 1..n
+	for _, t := range times {
+		adj[t[0]] = append(adj[t[0]], Edge{t[1], t[2]})
+	}
+	dist := dijkstra(adj, k)
+	worst := 0
+	for node := 1; node &lt;= n; node++ {
+		if dist[node] == math.MaxInt {
+			return -1 // someone never gets the signal
+		}
+		worst = max(worst, dist[node])
+	}
+	return worst
+}
+
+func exampleNetworkDelayTime() {
+	fmt.Println(networkDelayTime([][]int{{2, 1, 1}, {2, 3, 1}, {3, 4, 1}}, 4, 2)) // 2
+	fmt.Println(networkDelayTime([][]int{{1, 2, 1}}, 2, 1))                       // 1
+	fmt.Println(networkDelayTime([][]int{{1, 2, 1}}, 2, 2))                       // -1
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O((V + E) log V)</code>, space <code>O(V + E)</code>.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Path With Minimum Effort: Dijkstra with a different "cost" (LeetCode 1631, Medium)</h3>
+<p><strong>Task.</strong> A grid of heights. You walk from the top-left to the bottom-right moving up/down/left/right. The <strong>effort</strong> of a route is the <strong>largest height difference between two consecutive cells</strong> on it. Find the route with the <strong>minimum effort</strong>. <code>[[1,2,2],[3,8,2],[5,3,5]]</code> → <code>2</code>.</p>
+<p><strong>Why Dijkstra still works.</strong> The cost of a path is not the <em>sum</em> of edges; it is the <strong>maximum</strong> edge on it. Dijkstra only needs the cost to be <strong>monotone</strong>: extending a path can never make it cheaper. A max has that property. So the same algorithm applies with two small changes:</p>
+<ul>
+<li>Edge between neighboring cells = <code>|height difference|</code>.</li>
+<li>Combine along a path with <code>max(currentEffort, edge)</code> instead of <code>currentEffort + edge</code>.</li>
+</ul>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["state: cell (r, c) with best effort so far"] --&gt; B["for each neighbor: newEffort = max(effort, |h(cell) - h(neighbor)|)"]
+    B --&gt; C{"newEffort &lt; best known effort for neighbor?"}
+    C --&gt;|Yes| D["update and push to the heap"]
+    C --&gt;|No| E["ignore"]</pre></figure>
+<p><strong>Two candidate routes</strong> on <code>[[1,2,2],[3,8,2],[5,3,5]]</code>:</p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Route</th><th>Steps between cells</th><th>Effort (the largest step)</th></tr></thead><tbody>
+<tr><td>right, right, down, down: <code>1 → 2 → 2 → 2 → 5</code></td><td>1, 0, 0, 3</td><td>3</td></tr>
+<tr><td>down, down, right, right: <code>1 → 3 → 5 → 3 → 5</code></td><td>2, 2, 2, 2</td><td><strong>2</strong></td></tr>
+</tbody></table></div>
+<p>Dijkstra explores cells in order of the effort needed to reach them, so it settles on the second route and returns <code>2</code>.</p>
+<div class="stage" id="st-p2" data-anim="effort" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function minimumEffortPath(heights: number[][]): number {
+  const rows = heights.length, cols = heights[0].length;
+  const effort = Array.from({ length: rows }, () =&gt; new Array&lt;number&gt;(cols).fill(Infinity));
+  effort[0][0] = 0;
+  const heap = new Heap&lt;[number, number, number]&gt;((a, b) =&gt; a[0] &lt; b[0]); // [effort, row, col]
+  heap.push([0, 0, 0]);
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  while (heap.size &gt; 0) {
+    const [e, r, c] = heap.pop()!;
+    if (r === rows - 1 &amp;&amp; c === cols - 1) return e; // the first time we pop the target, e is optimal
+    if (e &gt; effort[r][c]) continue; // stale
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc;
+      if (nr &lt; 0 || nr &gt;= rows || nc &lt; 0 || nc &gt;= cols) continue;
+      const next = Math.max(e, Math.abs(heights[nr][nc] - heights[r][c])); // the path's cost is its largest step
+      if (next &lt; effort[nr][nc]) {
+        effort[nr][nc] = next;
+        heap.push([next, nr, nc]);
+      }
+    }
+  }
+  return 0;
+}
+console.log(minimumEffortPath([[1, 2, 2], [3, 8, 2], [5, 3, 5]])); // 2
+console.log(minimumEffortPath([[1, 2, 3], [3, 8, 4], [5, 3, 5]])); // 1
+console.log(minimumEffortPath([[1]])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func minimumEffortPath(heights [][]int) int {
+	rows, cols := len(heights), len(heights[0])
+	effort := make([][]int, rows)
+	for i := range effort {
+		effort[i] = make([]int, cols)
+		for j := range effort[i] {
+			effort[i][j] = math.MaxInt
+		}
+	}
+	effort[0][0] = 0
+	type state struct{ e, r, c int }
+	pq := NewHeap(func(a, b state) bool { return a.e &lt; b.e })
+	pq.Push(state{0, 0, 0})
+	dirs := [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
+	for pq.Len() &gt; 0 {
+		cur := pq.Pop()
+		if cur.r == rows-1 &amp;&amp; cur.c == cols-1 {
+			return cur.e // the first time we pop the target, e is optimal
+		}
+		if cur.e &gt; effort[cur.r][cur.c] {
+			continue // stale
+		}
+		for _, d := range dirs {
+			nr, nc := cur.r+d[0], cur.c+d[1]
+			if nr &lt; 0 || nr &gt;= rows || nc &lt; 0 || nc &gt;= cols {
+				continue
+			}
+			diff := heights[nr][nc] - heights[cur.r][cur.c]
+			if diff &lt; 0 {
+				diff = -diff
+			}
+			next := max(cur.e, diff) // the path's cost is its largest step
+			if next &lt; effort[nr][nc] {
+				effort[nr][nc] = next
+				pq.Push(state{next, nr, nc})
+			}
+		}
+	}
+	return 0
+}
+
+func exampleMinimumEffortPath() {
+	fmt.Println(minimumEffortPath([][]int{{1, 2, 2}, {3, 8, 2}, {5, 3, 5}})) // 2
+	fmt.Println(minimumEffortPath([][]int{{1, 2, 3}, {3, 8, 4}, {5, 3, 5}})) // 1
+	fmt.Println(minimumEffortPath([][]int{{1}}))                              // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(rows·cols · log(rows·cols))</code>, space <code>O(rows·cols)</code>.</p>
+<p><strong>Alternatives.</strong> Binary search on the answer (file 08) plus BFS: "can we cross using steps ≤ x?" is monotone. Union-find over edges sorted by weight (Kruskal-style) also works. Mentioning two alternatives shows range.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Cheapest Flights Within K Stops (LeetCode 787, Medium)</h3>
+<p><strong>Task.</strong> <code>flights[i] = [from, to, price]</code>. Find the <strong>cheapest price</strong> from <code>src</code> to <code>dst</code> using <strong>at most <code>k</code> stops</strong> (<code>k + 1</code> flights). Return <code>−1</code> if impossible. With the sample flights <code>0→1 (100), 1→2 (100), 2→0 (100), 1→3 (600), 2→3 (200)</code>: from <code>0</code> to <code>3</code>, <code>k = 1</code> → <code>700</code>; <code>k = 2</code> → <code>400</code>.</p>
+<p><strong>Why plain Dijkstra fails.</strong> The cheapest route might use too many stops; a slightly pricier route with fewer stops may be the <em>only legal</em> one. Dijkstra's "lock in the cheapest" ignores the stop budget.</p>
+<p><strong>Bellman-Ford with a round limit.</strong> Bellman-Ford relaxes <em>every</em> edge in rounds. After <strong>round <code>i</code></strong>, <code>dist[v]</code> is the cheapest price using <strong>at most <code>i</code> flights</strong>. So run exactly <code>k + 1</code> rounds. One subtle point: in each round, relax using a <strong>copy</strong> of the previous round's distances, so a single round cannot chain several flights.</p>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["dist = infinity everywhere, dist[src] = 0"] --&gt; B["repeat k + 1 times"]
+    B --&gt; C["next = copy of dist"]
+    C --&gt; D["for every flight (u, v, price): if dist[u] is finite and dist[u] + price &lt; next[v], then next[v] = dist[u] + price"]
+    D --&gt; E["dist = next"]
+    E --&gt; B
+    B --&gt; F["answer = dist[dst] (or -1 if infinite)"]</pre></figure>
+<p><strong>Trace</strong> (<code>src = 0</code>, <code>dst = 3</code>, <code>k = 1</code> → 2 rounds)</p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>Round</th><th>dist after (nodes 0,1,2,3)</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>start</td><td><code>[0, ∞, ∞, ∞]</code></td><td></td></tr>
+<tr><td>1</td><td><code>[0, 100, ∞, ∞]</code></td><td>one flight: only <code>0→1</code> is possible</td></tr>
+<tr><td>2</td><td><code>[0, 100, 200, 700]</code></td><td>two flights: <code>1→2</code> (200), <code>1→3</code> (700)</td></tr>
+</tbody></table></div>
+<p>Answer <strong>700</strong> (the route <code>0 → 2 → 3</code> needs three flights, which is too many).</p>
+<div class="stage" id="st-p3" data-anim="flights" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function findCheapestPrice(n: number, flights: number[][], src: number, dst: number, k: number): number {
+  let dist = new Array&lt;number&gt;(n).fill(Infinity);
+  dist[src] = 0;
+  for (let round = 0; round &lt;= k; round++) { // k stops = k + 1 flights = k + 1 rounds
+    const next = [...dist]; // read from `dist`, write to `next`: one flight per round
+    for (const [from, to, price] of flights) {
+      if (dist[from] !== Infinity &amp;&amp; dist[from] + price &lt; next[to]) next[to] = dist[from] + price;
+    }
+    dist = next;
+  }
+  return dist[dst] === Infinity ? -1 : dist[dst];
+}
+const flights = [[0, 1, 100], [1, 2, 100], [2, 0, 100], [1, 3, 600], [2, 3, 200]];
+console.log(findCheapestPrice(4, flights, 0, 3, 1)); // 700
+console.log(findCheapestPrice(4, flights, 0, 3, 2)); // 400
+console.log(findCheapestPrice(3, [[0, 1, 100], [1, 2, 100], [0, 2, 500]], 0, 2, 0)); // 500
+console.log(findCheapestPrice(3, [[0, 1, 100], [1, 2, 100], [0, 2, 500]], 0, 2, 1)); // 200
+console.log(findCheapestPrice(3, [[0, 1, 100]], 0, 2, 5)); // -1</code></pre>
+<pre data-lang="go"><code class="language-go">func findCheapestPrice(n int, flights [][]int, src, dst, k int) int {
+	dist := make([]int, n)
+	for i := range dist {
+		dist[i] = math.MaxInt
+	}
+	dist[src] = 0
+	for round := 0; round &lt;= k; round++ { // k stops = k + 1 flights = k + 1 rounds
+		next := append([]int(nil), dist...) // read from dist, write to next: one flight per round
+		for _, f := range flights {
+			from, to, price := f[0], f[1], f[2]
+			if dist[from] != math.MaxInt &amp;&amp; dist[from]+price &lt; next[to] {
+				next[to] = dist[from] + price
+			}
+		}
+		dist = next
+	}
+	if dist[dst] == math.MaxInt {
+		return -1
+	}
+	return dist[dst]
+}
+
+func exampleFindCheapestPrice() {
+	flights := [][]int{{0, 1, 100}, {1, 2, 100}, {2, 0, 100}, {1, 3, 600}, {2, 3, 200}}
+	fmt.Println(findCheapestPrice(4, flights, 0, 3, 1))                                                   // 700
+	fmt.Println(findCheapestPrice(4, flights, 0, 3, 2))                                                   // 400
+	fmt.Println(findCheapestPrice(3, [][]int{{0, 1, 100}, {1, 2, 100}, {0, 2, 500}}, 0, 2, 0))          // 500
+	fmt.Println(findCheapestPrice(3, [][]int{{0, 1, 100}, {1, 2, 100}, {0, 2, 500}}, 0, 2, 1))          // 200
+	fmt.Println(findCheapestPrice(3, [][]int{{0, 1, 100}}, 0, 2, 5))                                     // -1
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(k · E)</code>, space <code>O(V)</code>.</p>
+<p><strong>Why the copy matters.</strong> Without <code>next</code>, relaxing <code>0→1</code> and then <code>1→2</code> in the <em>same round</em> would let two flights happen in one "round", breaking the stop limit. The copy enforces "one more flight per round".</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Bellman-Ford with negative edges and negative-cycle detection</h3>
+<p>(The book's "negative-weight edges" section: Dijkstra cannot cope; Bellman-Ford can.)</p>
+<p><strong>Task.</strong> Given a directed graph with possibly negative weights, return the shortest distance from a start to every node, or report that a <strong>negative cycle</strong> is reachable.</p>
+<p><strong>Idea.</strong> A shortest path never needs more than <code>V − 1</code> edges (it would otherwise repeat a node, and with no negative cycle, repeating a node never helps). So:</p>
+<ol>
+<li>Start with <code>dist[start] = 0</code>, others <code>∞</code>.</li>
+<li>Repeat <strong><code>V − 1</code> times</strong>: relax <strong>every</strong> edge.</li>
+<li>Do <strong>one more</strong> pass. If any edge can <em>still</em> be relaxed, a <strong>negative cycle</strong> is reachable (a cycle that keeps making distances smaller forever).</li>
+</ol>
+<figure class="diagram" id="fig-8"><pre class="mermaid-src">flowchart TD
+    A["dist[start] = 0"] --&gt; B["repeat V - 1 times: relax every edge"]
+    B --&gt; C["one extra pass over all edges"]
+    C --&gt; D{"any edge still improves a distance?"}
+    D --&gt;|Yes| E["Negative cycle reachable: no valid shortest paths"]
+    D --&gt;|No| F["dist holds the shortest distances"]</pre></figure>
+<p>Early exit: if a whole pass makes no change, you can stop early.</p>
+<p><strong>Trace</strong> on the cycle <code>0 → 1 (1), 1 → 2 (−1), 2 → 0 (−1)</code> (total weight <code>1 − 1 − 1 = −1</code>, negative)</p>
+<div class="table-wrap"><table id="tbl-5" class="trace"><thead><tr><th>Pass</th><th>Changes</th></tr></thead><tbody>
+<tr><td>after passes 1 to 2 (<code>V − 1</code>)</td><td>distances keep dropping each lap around the cycle</td></tr>
+<tr><td>extra pass</td><td>an edge still improves → <strong>negative cycle</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p4" data-anim="bellman" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">// Returns the distances, or null if a negative cycle is reachable from the start.
+function bellmanFord(n: number, edges: number[][], start: number): number[] | null {
+  const dist = new Array&lt;number&gt;(n).fill(Infinity);
+  dist[start] = 0;
+  for (let pass = 0; pass &lt; n - 1; pass++) {
+    let changed = false;
+    for (const [u, v, w] of edges) {
+      if (dist[u] !== Infinity &amp;&amp; dist[u] + w &lt; dist[v]) {
+        dist[v] = dist[u] + w;
+        changed = true;
+      }
+    }
+    if (!changed) break; // already stable: stop early
+  }
+  for (const [u, v, w] of edges) {
+    if (dist[u] !== Infinity &amp;&amp; dist[u] + w &lt; dist[v]) return null; // still improving: negative cycle
+  }
+  return dist;
+}
+const negEdges = [[0, 1, 6], [0, 2, 7], [1, 2, 8], [1, 3, 5], [1, 4, -4], [2, 3, -3], [2, 4, 9], [3, 1, -2], [4, 0, 2], [4, 3, 7]];
+console.log(bellmanFord(5, negEdges, 0)); // [ 0, 2, 7, 4, -2 ]
+console.log(bellmanFord(3, [[0, 1, 1], [1, 2, -1], [2, 0, -1]], 0)); // null  (negative cycle)
+console.log(bellmanFord(3, [[0, 1, 4], [1, 2, -2]], 0)); // [ 0, 4, 2 ]</code></pre>
+<pre data-lang="go"><code class="language-go">// Returns the distances and ok=true, or ok=false if a negative cycle is reachable from the start.
+func bellmanFord(n int, edges [][]int, start int) ([]int, bool) {
+	dist := make([]int, n)
+	for i := range dist {
+		dist[i] = math.MaxInt
+	}
+	dist[start] = 0
+	for pass := 0; pass &lt; n-1; pass++ {
+		changed := false
+		for _, e := range edges {
+			u, v, w := e[0], e[1], e[2]
+			if dist[u] != math.MaxInt &amp;&amp; dist[u]+w &lt; dist[v] {
+				dist[v] = dist[u] + w
+				changed = true
+			}
+		}
+		if !changed {
+			break // already stable: stop early
+		}
+	}
+	for _, e := range edges {
+		u, v, w := e[0], e[1], e[2]
+		if dist[u] != math.MaxInt &amp;&amp; dist[u]+w &lt; dist[v] {
+			return nil, false // still improving: negative cycle
+		}
+	}
+	return dist, true
+}
+
+func exampleBellmanFord() {
+	negEdges := [][]int{{0, 1, 6}, {0, 2, 7}, {1, 2, 8}, {1, 3, 5}, {1, 4, -4}, {2, 3, -3}, {2, 4, 9}, {3, 1, -2}, {4, 0, 2}, {4, 3, 7}}
+	fmt.Println(bellmanFord(5, negEdges, 0))                                       // [0 2 7 4 -2] true
+	fmt.Println(bellmanFord(3, [][]int{{0, 1, 1}, {1, 2, -1}, {2, 0, -1}}, 0))     // [] false
+	fmt.Println(bellmanFord(3, [][]int{{0, 1, 4}, {1, 2, -2}}, 0))                 // [0 4 2] true
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(V · E)</code>, space <code>O(V)</code>.</p>
+<p><strong>Why <code>V − 1</code> passes?</strong> After pass <code>i</code>, every shortest path using at most <code>i</code> edges is correct. A simple shortest path has at most <code>V − 1</code> edges. (This is also the proof for Problem 3.)</p>
+<p><strong>Link to arbitrage.</strong> If edge weights are <code>−log(exchange rate)</code>, a negative cycle means a currency-trading loop that makes free money. A classic "applications" answer.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Shortest Path Visiting All Nodes (LeetCode 847, Hard)</h3>
+<p><strong>Task.</strong> An undirected, connected graph of <code>n ≤ 12</code> nodes. Find the <strong>length of the shortest walk</strong> that visits <strong>every node</strong> at least once. You may start and end anywhere and <strong>revisit nodes and edges</strong>. <code>graph = [[1,2,3],[0],[0],[0]]</code> (a star with center 0) → <code>4</code>.</p>
+<p><strong>Why this is not a simple shortest path.</strong> "Visited all nodes" is not about <em>where</em> you are; you must also remember <strong>what you have already visited</strong>. So the BFS must run over <strong>states</strong> <code>(current node, set of visited nodes)</code>. This is a <strong>state-space BFS</strong>: the real graph's nodes are not enough.</p>
+<p><strong>Bitmask for the visited set.</strong> With <code>n ≤ 12</code> nodes, the visited set fits in a number of <code>n</code> bits: bit <code>i</code> is <code>1</code> if node <code>i</code> was visited. Visiting node <code>v</code> sets its bit: <code>mask | (1 &lt;&lt; v)</code>. The goal is <code>mask == (1 &lt;&lt; n) − 1</code> (all bits set). (File 27 explains bit tricks.)</p>
+<p><strong>Plan.</strong></p>
+<ul>
+<li>Start from <strong>every</strong> node at once (multi-source BFS from file 19): state <code>(i, 1 &lt;&lt; i)</code> at distance 0.</li>
+<li>BFS step: from <code>(node, mask)</code>, move to each neighbor <code>v</code>: new state <code>(v, mask | (1 &lt;&lt; v))</code> at distance <code>+1</code>.</li>
+<li>The first time we reach a state whose mask is full, its distance is the answer. Use a <code>visited[node][mask]</code> table so each state is processed once.</li>
+</ul>
+<figure class="diagram" id="fig-9"><pre class="mermaid-src">flowchart TD
+    A["Queue all starting states (i, mask with only bit i), distance 0"] --&gt; B["pop (node, mask, dist)"]
+    B --&gt; C{"mask == all ones?"}
+    C --&gt;|Yes| D["answer = dist"]
+    C --&gt;|No| E["for each neighbor v: newMask = mask | bit v"]
+    E --&gt; F{"state (v, newMask) seen?"}
+    F --&gt;|No| G["mark seen, push with dist + 1"]
+    F --&gt;|Yes| H["skip"]
+    G --&gt; B
+    H --&gt; B</pre></figure>
+<p><strong>Trace</strong> for the star <code>0 — {1, 2, 3}</code>: best walk <code>1 → 0 → 2 → 0 → 3</code> has 4 edges.</p>
+<div class="table-wrap"><table id="tbl-6" class="trace"><thead><tr><th>Step</th><th>State (node, visited set)</th><th>Distance</th></tr></thead><tbody>
+<tr><td>start at 1</td><td>(1, {1})</td><td>0</td></tr>
+<tr><td>1 → 0</td><td>(0, {0,1})</td><td>1</td></tr>
+<tr><td>0 → 2</td><td>(2, {0,1,2})</td><td>2</td></tr>
+<tr><td>2 → 0</td><td>(0, {0,1,2})</td><td>3</td></tr>
+<tr><td>0 → 3</td><td>(3, {0,1,2,3}) all visited</td><td><strong>4</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p5" data-anim="visitAll" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function shortestPathLength(graph: number[][]): number {
+  const n = graph.length;
+  if (n === 1) return 0;
+  const full = (1 &lt;&lt; n) - 1; // all n bits set
+  const seen = Array.from({ length: n }, () =&gt; new Array&lt;boolean&gt;(1 &lt;&lt; n).fill(false));
+  let queue: [number, number][] = []; // [node, mask]
+  for (let i = 0; i &lt; n; i++) {
+    queue.push([i, 1 &lt;&lt; i]); // start anywhere, having visited only the start
+    seen[i][1 &lt;&lt; i] = true;
+  }
+  let steps = 0;
+  while (queue.length &gt; 0) {
+    steps++;
+    const next: [number, number][] = [];
+    for (const [node, mask] of queue) {
+      for (const neighbor of graph[node]) {
+        const newMask = mask | (1 &lt;&lt; neighbor);
+        if (newMask === full) return steps; // everything visited after this move
+        if (!seen[neighbor][newMask]) {
+          seen[neighbor][newMask] = true;
+          next.push([neighbor, newMask]);
+        }
+      }
+    }
+    queue = next;
+  }
+  return -1; // not reachable for a connected graph
+}
+console.log(shortestPathLength([[1, 2, 3], [0], [0], [0]])); // 4
+console.log(shortestPathLength([[1], [0, 2, 4], [1, 3, 4], [2], [1, 2]])); // 4
+console.log(shortestPathLength([[]])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func shortestPathLength(graph [][]int) int {
+	n := len(graph)
+	if n == 1 {
+		return 0
+	}
+	full := (1 &lt;&lt; n) - 1 // all n bits set
+	seen := make([][]bool, n)
+	for i := range seen {
+		seen[i] = make([]bool, 1&lt;&lt;n)
+	}
+	type state struct{ node, mask int }
+	queue := []state{}
+	for i := 0; i &lt; n; i++ {
+		queue = append(queue, state{i, 1 &lt;&lt; i}) // start anywhere, having visited only the start
+		seen[i][1&lt;&lt;i] = true
+	}
+	steps := 0
+	for len(queue) &gt; 0 {
+		steps++
+		next := []state{}
+		for _, cur := range queue {
+			for _, neighbor := range graph[cur.node] {
+				newMask := cur.mask | (1 &lt;&lt; neighbor)
+				if newMask == full {
+					return steps // everything visited after this move
+				}
+				if !seen[neighbor][newMask] {
+					seen[neighbor][newMask] = true
+					next = append(next, state{neighbor, newMask})
+				}
+			}
+		}
+		queue = next
+	}
+	return -1 // not reachable for a connected graph
+}
+
+func exampleShortestPathLength() {
+	fmt.Println(shortestPathLength([][]int{{1, 2, 3}, {0}, {0}, {0}}))        // 4
+	fmt.Println(shortestPathLength([][]int{{1}, {0, 2, 4}, {1, 3, 4}, {2}, {1, 2}})) // 4
+	fmt.Println(shortestPathLength([][]int{{}}))                               // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> There are <code>n · 2ⁿ</code> states and each looks at up to <code>n</code> neighbors: time <code>O(n² · 2ⁿ)</code>, space <code>O(n · 2ⁿ)</code>. That is why <code>n ≤ 12</code>: a hint in the constraints that <strong>bitmask state</strong> is intended.</p>
+<p><strong>The general lesson:</strong> when "being at a node" is not enough information to continue, <strong>enlarge the state</strong> (add what you have collected, the remaining fuel, the number of keys held, …) and run BFS or Dijkstra over states.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Using Dijkstra with negative edges.</strong></li>
+<li><strong>Forgetting the stale-entry check</strong> (<code>if d &gt; dist[u] continue</code>) → still correct but much slower, or wrong in variants.</li>
+<li><strong>Marking nodes "visited" when first pushed</strong> (like BFS) instead of when popped with their final distance: Dijkstra must be allowed to improve a distance while a node is still in the heap.</li>
+<li><strong>Using <code>Infinity + weight</code></strong> (fine in JavaScript, but <code>math.MaxInt + w</code> <strong>overflows</strong> in Go). Check for the sentinel before adding.</li>
+<li><strong>Using BFS for weighted graphs</strong>, or Dijkstra when all weights are equal (BFS is simpler and faster).</li>
+<li><strong>Bellman-Ford without the copy</strong> in "at most k edges" problems.</li>
+<li><strong>Not handling unreachable nodes</strong> (return <code>−1</code>, not <code>Infinity</code>).</li>
+<li><strong>Wrong graph direction</strong> (directed vs undirected); an undirected edge needs entries both ways.</li>
+<li><strong>Using a plain array as the priority queue</strong> (re-sorting every time is <code>O(V² log V)</code>).</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Why Dijkstra is correct, and where it breaks</h3>
+<p>Explain in three sentences why Dijkstra is correct with non-negative weights, and draw a 3-node graph with a negative edge where it fails.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>When Dijkstra pops u with distance d, every other route to u must leave the settled set through some node whose distance is already ≥ d. With non-negative weights, the rest of such a route can only add, so it costs ≥ d. That makes d final. A negative edge breaks the "can only add" step. Example: 0 → 1 (weight 2), 0 → 2 (weight 3), 2 → 1 (weight −2). Dijkstra pops 1 at distance 2 and calls it final, but 0 → 2 → 1 costs 1.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Relaxation and the stale check</h3>
+<p>From memory, write the relaxation step and the stale check.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><code>const [d, u] = heap.pop(); if (d &gt; dist[u]) continue;</code> then for each edge <code>(v, w)</code>: <code>if (d + w &lt; dist[v]) { dist[v] = d + w; heap.push([dist[v], v]); }</code>. Watch both in the first animation; its bug replay shows what goes wrong if you lock a node when it is first pushed.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Path With Maximum Probability</h3>
+<p><em>Path With Maximum Probability</em> (LeetCode 1514): edge weights are probabilities in <code>[0, 1]</code> and you want the <strong>largest product</strong>. What changes: max-heap, <code>×</code> instead of <code>+</code>?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Same Dijkstra skeleton, three changes: a <strong>max</strong>-heap on probability, start at probability 1, and combine with <strong>×</strong> instead of +. It still works because multiplying by a number in [0, 1] can never increase the value, the same way adding a non-negative weight can never decrease a distance.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Swim in Rising Water</h3>
+<p><em>Swim in Rising Water</em> (LeetCode 778): which of the two ideas from Problem 2 do you reuse?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Reuse Problem 2's idea that <strong>a path's cost is its maximum</strong>, not its sum: Dijkstra with <code>next = max(cost, grid[nr][nc])</code>, return when the bottom-right is popped. (Binary search on the time plus a BFS also works.)</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Spanning tree versus shortest paths</h3>
+<p><em>Minimum Cost to Connect All Points</em> (LeetCode 1584): this is a <strong>minimum spanning tree</strong> (Prim or Kruskal), not shortest paths. What is the difference between the two problems?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>A <strong>minimum spanning tree</strong> picks edges with the smallest <em>total</em> weight that connect every node; there is no source. <strong>Shortest paths</strong> minimize the route from one source to each node. The trees differ: in a triangle with weights 1, 1, 1.5, the MST uses the two 1s, while the shortest path between the ends of the 1.5 edge is that edge. Use Prim (a heap of edge weights) or Kruskal (sort + union-find) for 1584.</p></div></details>
+</div>
+<div class="exercise" id="ex6">
+<h3>6 · Return −1, not infinity</h3>
+<p><em>Network Delay</em> with <code>k = 1</code> and one unreachable node returns <code>−1</code>. Why would returning <code>Infinity</code>/<code>MaxInt</code> be a bug?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The problem defines −1 as "not every node gets the signal". Returning <code>Infinity</code> breaks the contract, and in Go <code>math.MaxInt</code> looks like a real (huge) answer; worse, adding a weight to it overflows into a negative number. Check for the sentinel before using it.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="sp22"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/viz/graph.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/22.js"></script>
+</body>
+</html>

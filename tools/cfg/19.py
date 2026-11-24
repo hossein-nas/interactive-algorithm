@@ -1,0 +1,30 @@
+S = lambda id, anim, code, extra="": f'<div class="stage" id="{id}" data-anim="{anim}" data-code="{code}"{extra}></div>\n'
+CFG = {
+ "id": "19", "title": "Graphs: BFS, DFS and grids", "sub": "Ripples or a maze walk: two ways to visit everything once.",
+ "kicker": ["Lesson 19", "Graphs"], "stars": 3, "pattern": "BFS / DFS",
+ "desc": "Graphs animated: adjacency lists, BFS and DFS side by side, shortest paths with parents, islands, cloning, rotting oranges, Pacific Atlantic and Word Ladder.",
+ "viz": ["viz/graph.js"],
+ "glance": [("Reach for it when", "Things connected to things: networks, grids, states and moves, dependencies."),
+            ("The two tools", "BFS (queue) visits by distance, so it finds shortest paths; DFS (stack or recursion) goes deep, good for regions and reachability."),
+            ("The rule", "Keep a visited set and mark nodes when you first see them. Cost <code>O(V + E)</code>.")],
+ "inserts": [
+  ('<div class="code-tabs" id="code-1">', S("st-build", "buildGraph", "code-1"), 'before'),
+  ('<div class="code-tabs" id="code-2">', S("st-trav", "bfs,dfsRec,dfsIter", "code-2", ' data-flow="fig-3"'), 'before'),
+  ('<div class="code-tabs" id="code-3">', S("st-p1", "shortestPath", "code-3"), 'before'),
+  ('<div class="code-tabs" id="code-4">', S("st-p2", "islandsDFS,islandsBFS", "code-4"), 'before'),
+  ('<div class="code-tabs" id="code-5">', S("st-p3", "clone", "code-5"), 'before'),
+  ('<div class="code-tabs" id="code-6">', S("st-p4", "oranges", "code-6"), 'before'),
+  ('<div class="code-tabs" id="code-7">', S("st-p5", "pacific", "code-7"), 'before'),
+  ('<div class="code-tabs" id="code-8">', S("st-p6", "ladder", "code-8"), 'before'),
+ ],
+ "recap": "graph19",
+ "exercises": [
+  {"title": "Matrix or list", "answer": "<p>A matrix wins when the graph is <strong>dense</strong> (E close to V²), and when you need many <strong>\"is there an edge a–b?\"</strong> checks in <code>O(1)</code> (Floyd–Warshall, small complete graphs). It loses badly on a <strong>sparse</strong> graph: a million nodes with a few edges each needs 10¹² cells, and listing a node's neighbors costs <code>O(V)</code> instead of its degree.</p>"},
+  {"title": "Why BFS, not DFS, for shortest paths", "answer": "<p>BFS handles all nodes at distance 1, then all at distance 2, and so on, so the first time it reaches a node is by a shortest route. DFS follows one branch as deep as it goes. Example: edges <code>0–1, 1–2, 2–3, 0–3</code>. DFS from 0 visits 1, then 2, then reaches 3 by a 3-edge path, although the edge 0–3 is one step. Try it in the DFS tab with input <code>4 ; 0-1 1-2 2-3 0-3 ; 0</code>.</p>"},
+  {"title": "Flood Fill and Max Area of Island", "answer": "<p><strong>Flood Fill:</strong> one flood fill from the given cell, recoloring cells that have the starting color (return at once if the new color equals the old one, or it loops). <strong>Max Area:</strong> make <code>sink</code> return the number of cells it turned to water (1 + the sum over the 4 neighbors) and keep the maximum instead of counting islands.</p>"},
+  {"title": "Shortest Path in Binary Matrix", "answer": "<p>Start state <code>(0, 0)</code> with distance 1 (if it is 0; if it is 1, answer −1). BFS over the <strong>8</strong> neighbors that are 0 and inside the grid, marking on enqueue. The answer is the distance when <code>(n−1, n−1)</code> is dequeued, or −1 if the queue empties first.</p>"},
+  {"title": "Is Graph Bipartite?", "answer": "<p>Color the start node 0 and give every neighbor the opposite color as you BFS or DFS. The answer is <strong>no</strong> exactly when an edge joins two nodes of the same color (that means an odd cycle). Run it from every uncolored node, because the graph may be disconnected.</p>"},
+  {"title": "Open the Lock", "answer": "<p>Nodes are the 10,000 strings <code>0000</code>…<code>9999</code>. Each has <strong>8 edges</strong>: turn one of the 4 wheels up or down by one (9 wraps to 0). Dead ends are removed nodes. Every move costs one, so BFS from <code>0000</code> gives the fewest moves to the target.</p>"},
+  {"title": "How often is each edge looked at?", "answer": "<p><strong>Twice</strong> in an undirected graph: once from each end, when each end's neighbor list is scanned. So the work is <code>O(V + 2E)</code> = <code>O(V + E)</code>.</p>"},
+ ],
+}

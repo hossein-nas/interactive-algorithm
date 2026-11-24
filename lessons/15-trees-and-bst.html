@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="15" data-pattern="Binary tree">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>15 Trees and binary search trees | Algorithm guide</title>
+<meta name="description" content="Trees animated: depth, inverting, traversals, level order, BST validation, kth smallest, LCA, building from traversals and max path sum.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 15</span><span>Data structures</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Trees and binary search trees</h1>
+<p class="sub">Ask each child, then combine.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 7 (your first tree, depth-first search, binary trees, Huffman coding). This file uses the same ideas: a folder system as a tree, DFS and BFS as two ways of visiting it, and the binary search tree. It covers the v2 tree questions: Maximum Depth (104), Invert Binary Tree (226), Inorder Traversal (94), Level Order (102), Kth Smallest in a BST (230), Construct from Preorder + Inorder (105), and Lowest Common Ancestor (236).</p></blockquote>
+<div class="glance"><div><b>The template</b><p>Handle the empty tree; ask the left and right children; combine their answers at the node.</p></div><div><b>Traversals</b><p>Preorder, inorder (sorted for a BST), postorder; level order uses a queue.</p></div><div><b>What it costs</b><p><code>O(n)</code> time; <code>O(h)</code> stack, where h is the height.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>A <strong>tree</strong> is a family tree turned upside down: one <strong>root</strong> at the top, each node has <strong>children</strong> below it, and nothing ever loops back. The folders on your computer are a tree: a folder contains files (no children: <strong>leaves</strong>) and other folders (which contain more).</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart TD
+    R["root: 8"] --&gt; A["3"]
+    R --&gt; B["10"]
+    A --&gt; C["1"]
+    A --&gt; D["6"]
+    B --&gt; E["null"]
+    B --&gt; F["14"]</pre></figure>
+<h3 id="vocabulary-say-these-words-correctly-in-interviews">Vocabulary (say these words correctly in interviews)</h3>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Word</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><strong>Root</strong></td><td>The top node (no parent).</td></tr>
+<tr><td><strong>Leaf</strong></td><td>A node with no children.</td></tr>
+<tr><td><strong>Parent / child / sibling</strong></td><td>Direct connections; siblings share a parent.</td></tr>
+<tr><td><strong>Subtree</strong></td><td>A node together with everything below it. A tree is made of smaller trees, and that is why recursion fits.</td></tr>
+<tr><td><strong>Depth of a node</strong></td><td>Number of steps from the root down to it (root = 0).</td></tr>
+<tr><td><strong>Height of a tree</strong></td><td>The longest root-to-leaf path. Counted in nodes (LeetCode "max depth") or edges; say which.</td></tr>
+<tr><td><strong>Binary tree</strong></td><td>Each node has at most <strong>two</strong> children: <code>left</code> and <code>right</code>.</td></tr>
+<tr><td><strong>Binary search tree (BST)</strong></td><td>A binary tree where, for <strong>every</strong> node, all values in its <strong>left subtree are smaller</strong> and all in its <strong>right subtree are larger</strong>.</td></tr>
+<tr><td><strong>Balanced</strong></td><td>The two sides of every node have similar heights, so the tree is short: height about <code>log n</code> (file 16).</td></tr>
+</tbody></table></div>
+<h3 id="the-bst-rule-and-why-it-is-useful">The BST rule and why it is useful</h3>
+<p>Because smaller values live on the left and bigger on the right, searching works like the number-guessing game (file 08): at each node, compare and throw away half of the tree.</p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    A["Search for 6 in a BST&lt;br/&gt;start at the root (8)"] --&gt; B{"6 &lt; 8"}
+    B --&gt; C["go left to 3"]
+    C --&gt; D{"6 &gt; 3"}
+    D --&gt; E["go right to 6"]
+    E --&gt; F["Found after 3 steps"]</pre></figure>
+<ul>
+<li>Search, insert, delete: <code>O(height)</code>. That is <code>O(log n)</code> if the tree is balanced, but <code>O(n)</code> if the tree is a chain (for example after inserting already sorted numbers).</li>
+<li><strong>An inorder walk of a BST visits values in sorted order.</strong> This one fact solves many BST problems.</li>
+</ul>
+</section>
+<section class="sec" id="two-ways-to-visit-every-node">
+<h2>2. Two ways to visit every node</h2>
+<h3 id="depth-first-dfs-go-deep-then-come-back">Depth-first (DFS): go deep, then come back</h3>
+<p>Three orders, named by <em>when you handle the node relative to its children</em>:</p>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Order</th><th>Visit</th><th>Typical use</th></tr></thead><tbody>
+<tr><td><strong>Preorder</strong></td><td>node, left, right</td><td>copy a tree; serialize it</td></tr>
+<tr><td><strong>Inorder</strong></td><td>left, node, right</td><td><strong>sorted order</strong> in a BST</td></tr>
+<tr><td><strong>Postorder</strong></td><td>left, right, node</td><td>compute something from the children (heights, sizes, delete a tree)</td></tr>
+</tbody></table></div>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    N1["1"] --&gt; N2["2"]
+    N1 --&gt; N3["3"]
+    N2 --&gt; N4["4"]
+    N2 --&gt; N5["5"]</pre></figure>
+<p>For this tree: preorder <code>1 2 4 5 3</code>, inorder <code>4 2 5 1 3</code>, postorder <code>4 5 2 3 1</code>.</p>
+<h3 id="breadth-first-bfs-level-by-level">Breadth-first (BFS): level by level</h3>
+<p>Visit the root, then all its children, then all the grandchildren. Uses a <strong>queue</strong> (file 14). Output for the tree above: <code>1, 2, 3, 4, 5</code>.</p>
+<p><strong>DFS vs BFS in one sentence:</strong> DFS uses a stack (or the call stack) and goes deep; BFS uses a queue and goes wide. For "something about levels" or "the closest…", pick BFS. For "something about paths or subtrees", pick DFS.</p>
+</section>
+<section class="sec" id="the-one-thinking-template-ask-each-child">
+<h2>3. The one thinking template: "ask each child"</h2>
+<p>Almost every tree problem becomes easy if you write down three things:</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["1. Contract: what does f(node) return for the subtree rooted at node?"] --&gt; B["2. Base case: what is f(null)?"]
+    B --&gt; C["3. Combine: given f(left) and f(right), plus my own value, what is f(node)?"]</pre></figure>
+<p>Examples:</p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Problem</th><th><code>f(node)</code> returns</th><th><code>f(null)</code></th><th>Combine</th></tr></thead><tbody>
+<tr><td>Max depth</td><td>the height of this subtree</td><td>0</td><td><code>1 + max(f(left), f(right))</code></td></tr>
+<tr><td>Count nodes</td><td>number of nodes</td><td>0</td><td><code>1 + f(left) + f(right)</code></td></tr>
+<tr><td>Invert</td><td>the inverted version of this subtree</td><td>null</td><td>swap the two returned subtrees</td></tr>
+<tr><td>Is symmetric</td><td>whether two subtrees mirror each other</td><td>true</td><td>compare values and cross-compare children</td></tr>
+</tbody></table></div>
+<p>If the answer needs information <strong>from above</strong> (like "values must be between <code>lo</code> and <code>hi</code>"), pass it <strong>down</strong> as parameters. If it needs information <strong>from below</strong>, <strong>return</strong> it up. Many hard problems use both.</p>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>4. How to recognize it</h2>
+<ul>
+<li>The input is a <code>TreeNode</code> (or a nested structure like JSON or a folder tree).</li>
+<li>Words: "subtree", "ancestor", "path from root to leaf", "level", "depth", "balanced", "BST", "traversal".</li>
+<li>If it's a BST and the problem says "kth", "range", "sorted", "closest value" → use the BST property (inorder = sorted, or go left/right by comparison).</li>
+</ul>
+</section>
+<section class="sec" id="setup-used-by-every-example-below">
+<h2>5. Setup used by every example below</h2>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="tree node, a builder from LeetCode-style arrays, and a printer"><code class="language-ts">class TreeNode {
+  constructor(
+    public val: number,
+    public left: TreeNode | null = null,
+    public right: TreeNode | null = null,
+  ) {}
+}
+
+// Build from a level-order array where null means "no node" (LeetCode style).
+function buildTree(vals: (number | null)[]): TreeNode | null {
+  if (vals.length === 0 || vals[0] === null) return null;
+  const root = new TreeNode(vals[0]);
+  const queue: TreeNode[] = [root];
+  let head = 0, i = 1;
+  while (head &lt; queue.length &amp;&amp; i &lt; vals.length) {
+    const node = queue[head++];
+    const l = vals[i++];
+    if (l !== null &amp;&amp; l !== undefined) {
+      node.left = new TreeNode(l);
+      queue.push(node.left);
+    }
+    if (i &lt; vals.length) {
+      const r = vals[i++];
+      if (r !== null &amp;&amp; r !== undefined) {
+        node.right = new TreeNode(r);
+        queue.push(node.right);
+      }
+    }
+  }
+  return root;
+}
+
+// Print as a level-order array with nulls (trailing nulls removed).
+function toLevelArray(root: TreeNode | null): (number | null)[] {
+  const out: (number | null)[] = [];
+  const queue: (TreeNode | null)[] = [root];
+  let head = 0;
+  while (head &lt; queue.length) {
+    const node = queue[head++];
+    if (node === null) {
+      out.push(null);
+      continue;
+    }
+    out.push(node.val);
+    queue.push(node.left, node.right);
+  }
+  while (out.length &gt; 0 &amp;&amp; out[out.length - 1] === null) out.pop();
+  return out;
+}
+
+function findNode(root: TreeNode | null, val: number): TreeNode | null {
+  if (root === null || root.val === val) return root;
+  return findNode(root.left, val) ?? findNode(root.right, val);
+}
+
+console.log(toLevelArray(buildTree([3, 9, 20, null, null, 15, 7]))); // [ 3, 9, 20, null, null, 15, 7 ]</code></pre>
+<pre data-lang="go" data-caption="tree node, a builder from LeetCode-style arrays, and a printer"><code class="language-go">type TreeNode struct {
+	Val         int
+	Left, Right *TreeNode
+}
+
+// NULL marks "no node" in level-order arrays (LeetCode style).
+const NULL = math.MinInt
+
+func buildTree(vals []int) *TreeNode {
+	if len(vals) == 0 || vals[0] == NULL {
+		return nil
+	}
+	root := &amp;TreeNode{Val: vals[0]}
+	queue := []*TreeNode{root}
+	head, i := 0, 1
+	for head &lt; len(queue) &amp;&amp; i &lt; len(vals) {
+		node := queue[head]
+		head++
+		if vals[i] != NULL {
+			node.Left = &amp;TreeNode{Val: vals[i]}
+			queue = append(queue, node.Left)
+		}
+		i++
+		if i &lt; len(vals) {
+			if vals[i] != NULL {
+				node.Right = &amp;TreeNode{Val: vals[i]}
+				queue = append(queue, node.Right)
+			}
+			i++
+		}
+	}
+	return root
+}
+
+// toLevelArray prints as a level-order slice using "null" text (trailing nulls removed).
+func toLevelArray(root *TreeNode) []string {
+	out := []string{}
+	queue := []*TreeNode{root}
+	for head := 0; head &lt; len(queue); head++ {
+		node := queue[head]
+		if node == nil {
+			out = append(out, "null")
+			continue
+		}
+		out = append(out, strconv.Itoa(node.Val))
+		queue = append(queue, node.Left, node.Right)
+	}
+	for len(out) &gt; 0 &amp;&amp; out[len(out)-1] == "null" {
+		out = out[:len(out)-1]
+	}
+	return out
+}
+
+func findNode(root *TreeNode, val int) *TreeNode {
+	if root == nil || root.Val == val {
+		return root
+	}
+	if found := findNode(root.Left, val); found != nil {
+		return found
+	}
+	return findNode(root.Right, val)
+}
+
+func exampleTreeSetup() {
+	fmt.Println(toLevelArray(buildTree([]int{3, 9, 20, NULL, NULL, 15, 7}))) // [3 9 20 null null 15 7]
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>6. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Maximum Depth (104) and Invert Binary Tree (226), both Easy; v2 list</h3>
+<p>These two are the "hello world" of tree recursion. Do them <em>out loud</em> until the template feels natural.</p>
+<p><strong>Maximum depth.</strong> <em>Contract:</em> <code>maxDepth(node)</code> is the number of nodes on the longest path from <code>node</code> down to a leaf. <em>Base:</em> an empty tree has depth 0. <em>Combine:</em> <code>1 + max(left depth, right depth)</code>.</p>
+<p><strong>Invert.</strong> <em>Contract:</em> <code>invert(node)</code> returns the mirror image of its subtree. <em>Combine:</em> invert both children, then <strong>swap</strong> them.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart LR
+    subgraph Before["Before"]
+        direction TB
+        B4["4"] --&gt; B2["2"]
+        B4 --&gt; B7["7"]
+        B2 --&gt; B1["1"]
+        B2 --&gt; B3["3"]
+    end
+    subgraph After["After inverting"]
+        direction TB
+        A4["4"] --&gt; A7["7"]
+        A4 --&gt; A2["2"]
+        A2 --&gt; A3["3"]
+        A2 --&gt; A1["1"]
+    end
+    Before --&gt; After</pre></figure>
+<p><strong>Trace of <code>maxDepth</code></strong> on <code>[3, 9, 20, null, null, 15, 7]</code></p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>Call</th><th>Left</th><th>Right</th><th>Returns</th></tr></thead><tbody>
+<tr><td><code>maxDepth(9)</code></td><td>0</td><td>0</td><td>1</td></tr>
+<tr><td><code>maxDepth(15)</code></td><td>0</td><td>0</td><td>1</td></tr>
+<tr><td><code>maxDepth(7)</code></td><td>0</td><td>0</td><td>1</td></tr>
+<tr><td><code>maxDepth(20)</code></td><td>1</td><td>1</td><td>2</td></tr>
+<tr><td><code>maxDepth(3)</code></td><td>1 (from 9)</td><td>2 (from 20)</td><td><strong>3</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p1" data-anim="maxDepth,invertTree" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function maxDepth(root: TreeNode | null): number {
+  if (root === null) return 0; // base case
+  return 1 + Math.max(maxDepth(root.left), maxDepth(root.right));
+}
+
+function invertTree(root: TreeNode | null): TreeNode | null {
+  if (root === null) return null;
+  const left = invertTree(root.left); // ask each child for its inverted subtree
+  const right = invertTree(root.right);
+  root.left = right; // swap
+  root.right = left;
+  return root;
+}
+
+console.log(maxDepth(buildTree([3, 9, 20, null, null, 15, 7]))); // 3
+console.log(maxDepth(null)); // 0
+console.log(toLevelArray(invertTree(buildTree([4, 2, 7, 1, 3, 6, 9])))); // [ 4, 7, 2, 9, 6, 3, 1 ]
+console.log(toLevelArray(invertTree(buildTree([2, 1, 3])))); // [ 2, 3, 1 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func maxDepth(root *TreeNode) int {
+	if root == nil {
+		return 0 // base case
+	}
+	return 1 + max(maxDepth(root.Left), maxDepth(root.Right))
+}
+
+func invertTree(root *TreeNode) *TreeNode {
+	if root == nil {
+		return nil
+	}
+	left := invertTree(root.Left) // ask each child for its inverted subtree
+	right := invertTree(root.Right)
+	root.Left, root.Right = right, left // swap
+	return root
+}
+
+func exampleDepthAndInvert() {
+	fmt.Println(maxDepth(buildTree([]int{3, 9, 20, NULL, NULL, 15, 7})))                   // 3
+	fmt.Println(maxDepth(nil))                                                              // 0
+	fmt.Println(toLevelArray(invertTree(buildTree([]int{4, 2, 7, 1, 3, 6, 9}))))           // [4 7 2 9 6 3 1]
+	fmt.Println(toLevelArray(invertTree(buildTree([]int{2, 1, 3}))))                        // [2 3 1]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code> (each node visited once). Space <code>O(h)</code> for the recursion where <code>h</code> is the tree height: <code>O(log n)</code> if balanced, <code>O(n)</code> for a chain.</p>
+<p><strong>Follow-ups.</strong> <em>Balanced check (LeetCode 110)</em>: return the height, or <code>−1</code> as a signal for "unbalanced below", to do it in one pass. <em>Diameter (LeetCode 543)</em>: at each node, the longest path <em>through</em> it is <code>leftHeight + rightHeight</code>.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Binary Tree Inorder Traversal (LeetCode 94, Easy; v2 list)</h3>
+<p><strong>Task.</strong> Return the values in inorder (left, node, right). <code>[1, null, 2, 3]</code> → <code>[1, 3, 2]</code>.</p>
+<p><strong>Recursive version.</strong> Three lines, mirroring the definition.</p>
+<p><strong>Iterative version (a favorite follow-up).</strong> Replace the call stack with your own stack:</p>
+<ol>
+<li>Walk <strong>as far left as possible</strong>, pushing each node on the stack (those are "waiting for their turn").</li>
+<li>Pop a node: <strong>visit</strong> it.</li>
+<li>Move to its <strong>right</strong> child and repeat from step 1.</li>
+</ol>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["cur = root, stack empty"] --&gt; B{"cur is not null or stack non-empty?"}
+    B --&gt;|No| Z["done"]
+    B --&gt;|Yes| C{"cur is not null?"}
+    C --&gt;|Yes| D["push cur ; cur = cur.left"]
+    D --&gt; B
+    C --&gt;|No| E["cur = pop() ; visit cur.val ; cur = cur.right"]
+    E --&gt; B</pre></figure>
+<p><strong>Trace</strong> on <code>1 → right child 2 → left child 3</code> (<code>[1, null, 2, 3]</code>)</p>
+<div class="table-wrap"><table id="tbl-5" class="trace"><thead><tr><th>Step</th><th>cur</th><th>Action</th><th>stack</th><th>output</th></tr></thead><tbody>
+<tr><td>1</td><td>1</td><td>push 1, go left (null)</td><td><code>[1]</code></td><td></td></tr>
+<tr><td>2</td><td>null</td><td>pop 1, visit, go right to 2</td><td><code>[]</code></td><td><code>[1]</code></td></tr>
+<tr><td>3</td><td>2</td><td>push 2, go left to 3</td><td><code>[2]</code></td><td></td></tr>
+<tr><td>4</td><td>3</td><td>push 3, go left (null)</td><td><code>[2, 3]</code></td><td></td></tr>
+<tr><td>5</td><td>null</td><td>pop 3, visit, go right (null)</td><td><code>[2]</code></td><td><code>[1, 3]</code></td></tr>
+<tr><td>6</td><td>null</td><td>pop 2, visit, go right (null)</td><td><code>[]</code></td><td><code>[1, 3, 2]</code></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p2" data-anim="inorderIter,inorderRec" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts" data-caption="recursive and iterative"><code class="language-ts">function inorderRecursive(root: TreeNode | null, out: number[] = []): number[] {
+  if (root === null) return out;
+  inorderRecursive(root.left, out);
+  out.push(root.val); // visit the node between its two subtrees
+  inorderRecursive(root.right, out);
+  return out;
+}
+
+function inorderIterative(root: TreeNode | null): number[] {
+  const out: number[] = [];
+  const stack: TreeNode[] = [];
+  let cur = root;
+  while (cur !== null || stack.length &gt; 0) {
+    while (cur !== null) {
+      stack.push(cur); // keep going left, remembering the way back
+      cur = cur.left;
+    }
+    cur = stack.pop()!; // nothing further left: this is the next smallest
+    out.push(cur.val);
+    cur = cur.right; // then handle the right subtree
+  }
+  return out;
+}
+
+const t94 = buildTree([1, null, 2, 3]);
+console.log(inorderRecursive(t94)); // [ 1, 3, 2 ]
+console.log(inorderIterative(t94)); // [ 1, 3, 2 ]
+console.log(inorderIterative(buildTree([2, 1, 3]))); // [ 1, 2, 3 ]
+console.log(inorderIterative(null)); // []</code></pre>
+<pre data-lang="go" data-caption="recursive and iterative"><code class="language-go">func inorderRecursive(root *TreeNode, out *[]int) {
+	if root == nil {
+		return
+	}
+	inorderRecursive(root.Left, out)
+	*out = append(*out, root.Val) // visit the node between its two subtrees
+	inorderRecursive(root.Right, out)
+}
+
+func inorderIterative(root *TreeNode) []int {
+	out := []int{}
+	stack := []*TreeNode{}
+	cur := root
+	for cur != nil || len(stack) &gt; 0 {
+		for cur != nil {
+			stack = append(stack, cur) // keep going left, remembering the way back
+			cur = cur.Left
+		}
+		cur = stack[len(stack)-1] // nothing further left: this is the next smallest
+		stack = stack[:len(stack)-1]
+		out = append(out, cur.Val)
+		cur = cur.Right // then handle the right subtree
+	}
+	return out
+}
+
+func exampleInorder() {
+	t := buildTree([]int{1, NULL, 2, 3})
+	var rec []int
+	inorderRecursive(t, &amp;rec)
+	fmt.Println(rec)                                         // [1 3 2]
+	fmt.Println(inorderIterative(t))                         // [1 3 2]
+	fmt.Println(inorderIterative(buildTree([]int{2, 1, 3}))) // [1 2 3]
+	fmt.Println(inorderIterative(nil))                       // []
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(h)</code>.</p>
+<p><strong>Preorder and postorder</strong> use the same shapes. For preorder, visit <em>before</em> recursing. For postorder, visit <em>after</em> both. Iterative preorder is easiest: push root; pop, visit, push <strong>right then left</strong>.</p>
+<p><strong>Mention (advanced):</strong> <em>Morris traversal</em> does inorder in <code>O(1)</code> extra space by temporarily rewiring pointers. Name it, don't memorize it.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Level Order Traversal (LeetCode 102, Medium; v2 list)</h3>
+<p><strong>Task.</strong> Return the values <strong>level by level</strong>, as a list of lists. <code>[3, 9, 20, null, null, 15, 7]</code> → <code>[[3], [9, 20], [15, 7]]</code>.</p>
+<p><strong>Idea (BFS with a queue).</strong> Start with the root in the queue. For each level:</p>
+<ol>
+<li>Note how many nodes are in the queue <em>right now</em>: <code>size</code>. Those are exactly this level.</li>
+<li>Process exactly <code>size</code> nodes: record values and enqueue their children (the next level).</li>
+<li>Repeat until the queue is empty.</li>
+</ol>
+<p>Capturing <code>size</code> first is the trick that separates one level from the next.</p>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["queue = [root]"] --&gt; B{"queue empty?"}
+    B --&gt;|Yes| Z["done"]
+    B --&gt;|No| C["size = queue length"]
+    C --&gt; D["repeat size times: dequeue a node,&lt;br/&gt;record its value, enqueue its children"]
+    D --&gt; E["append this level's list to the answer"]
+    E --&gt; B</pre></figure>
+<div class="stage" id="st-p3" data-anim="levelOrder" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function levelOrder(root: TreeNode | null): number[][] {
+  const result: number[][] = [];
+  if (root === null) return result;
+  let queue: TreeNode[] = [root];
+  while (queue.length &gt; 0) {
+    const level: number[] = [];
+    const next: TreeNode[] = []; // the next level, built while we read this one
+    for (const node of queue) {
+      level.push(node.val);
+      if (node.left) next.push(node.left);
+      if (node.right) next.push(node.right);
+    }
+    result.push(level);
+    queue = next;
+  }
+  return result;
+}
+console.log(levelOrder(buildTree([3, 9, 20, null, null, 15, 7]))); // [ [ 3 ], [ 9, 20 ], [ 15, 7 ] ]
+console.log(levelOrder(buildTree([1]))); // [ [ 1 ] ]
+console.log(levelOrder(null)); // []</code></pre>
+<pre data-lang="go"><code class="language-go">func levelOrder(root *TreeNode) [][]int {
+	result := [][]int{}
+	if root == nil {
+		return result
+	}
+	queue := []*TreeNode{root}
+	for len(queue) &gt; 0 {
+		size := len(queue) // exactly this many nodes are on the current level
+		level := make([]int, 0, size)
+		for i := 0; i &lt; size; i++ {
+			node := queue[0]
+			queue = queue[1:]
+			level = append(level, node.Val)
+			if node.Left != nil {
+				queue = append(queue, node.Left)
+			}
+			if node.Right != nil {
+				queue = append(queue, node.Right)
+			}
+		}
+		result = append(result, level)
+	}
+	return result
+}
+
+func exampleLevelOrder() {
+	fmt.Println(levelOrder(buildTree([]int{3, 9, 20, NULL, NULL, 15, 7}))) // [[3] [9 20] [15 7]]
+	fmt.Println(levelOrder(buildTree([]int{1})))                           // [[1]]
+	fmt.Println(levelOrder(nil))                                           // []
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(w)</code> where <code>w</code> is the widest level (up to <code>n/2</code>).</p>
+<p><strong>Variants (change one line each):</strong> <em>Right side view</em> (LeetCode 199): keep the last node of each level. <em>Zigzag level order</em> (LeetCode 103): reverse every other level. <em>Average of levels</em>, <em>largest value in each row</em>.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Validate BST (LeetCode 98) and Kth Smallest Element in a BST (LeetCode 230), Medium; v2 list #230</h3>
+<p><strong>Part A: Validate BST.</strong></p>
+<p><strong>The common mistake.</strong> Checking only <code>left &lt; node &lt; right</code> for each parent and its two children is <strong>wrong</strong>. Look at this tree:</p>
+<figure class="diagram" id="fig-8"><pre class="mermaid-src">flowchart TD
+    A["5"] --&gt; B["1"]
+    A --&gt; C["6"]
+    C --&gt; D["3"]
+    C --&gt; E["7"]</pre></figure>
+<p>Each parent-child pair looks fine locally (<code>6 &gt; 5</code>, <code>3 &lt; 6</code>), but <code>3</code> is in the right subtree of <code>5</code>, so it must be <code>&gt; 5</code>. It isn't, so this is <strong>not</strong> a BST.</p>
+<p><strong>Correct idea.</strong> Pass <strong>allowed bounds</strong> down. Every node must lie strictly between <code>lo</code> and <code>hi</code>. Going left, the current value becomes the new upper bound; going right, it becomes the new lower bound.</p>
+<div class="stage" id="st-p4a" data-anim="validBST" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function isValidBST(root: TreeNode | null, lo = -Infinity, hi = Infinity): boolean {
+  if (root === null) return true; // an empty tree is a valid BST
+  if (root.val &lt;= lo || root.val &gt;= hi) return false; // outside the allowed window
+  return isValidBST(root.left, lo, root.val) &amp;&amp; isValidBST(root.right, root.val, hi);
+}
+console.log(isValidBST(buildTree([2, 1, 3]))); // true
+console.log(isValidBST(buildTree([5, 1, 4, null, null, 3, 6]))); // false
+console.log(isValidBST(buildTree([5, 1, 6, null, null, 3, 7]))); // false  (the tree drawn above)
+console.log(isValidBST(buildTree([2, 2, 2]))); // false  (duplicates are not allowed here)</code></pre>
+<pre data-lang="go"><code class="language-go">func isValidBST(root *TreeNode, lo, hi int) bool {
+	if root == nil {
+		return true // an empty tree is a valid BST
+	}
+	if root.Val &lt;= lo || root.Val &gt;= hi {
+		return false // outside the allowed window
+	}
+	return isValidBST(root.Left, lo, root.Val) &amp;&amp; isValidBST(root.Right, root.Val, hi)
+}
+
+func exampleIsValidBST() {
+	check := func(vals []int) bool { return isValidBST(buildTree(vals), math.MinInt, math.MaxInt) }
+	fmt.Println(check([]int{2, 1, 3}))                    // true
+	fmt.Println(check([]int{5, 1, 4, NULL, NULL, 3, 6})) // false
+	fmt.Println(check([]int{5, 1, 6, NULL, NULL, 3, 7})) // false
+	fmt.Println(check([]int{2, 2, 2}))                    // false
+}</code></pre>
+</div>
+<p>(An alternative: do an inorder walk and verify the values are strictly increasing.)</p>
+<p><strong>Part B: Kth Smallest in a BST.</strong></p>
+<p><strong>Idea.</strong> An inorder walk of a BST yields sorted values, so the <code>k</code>-th smallest is the <code>k</code>-th node visited. Use the <strong>iterative inorder</strong> from Problem 2 and <strong>stop early</strong> after <code>k</code> pops. That is <code>O(h + k)</code>, not <code>O(n)</code>.</p>
+<p><strong>Trace.</strong> <code>[3, 1, 4, null, 2]</code>, <code>k = 1</code>: go left to 1 (push 3, push 1), pop 1 → that is the first visited → answer <strong>1</strong>.</p>
+<div class="stage" id="st-p4b" data-anim="kthSmallest" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function kthSmallest(root: TreeNode | null, k: number): number {
+  const stack: TreeNode[] = [];
+  let cur = root;
+  while (cur !== null || stack.length &gt; 0) {
+    while (cur !== null) {
+      stack.push(cur);
+      cur = cur.left;
+    }
+    cur = stack.pop()!;
+    if (--k === 0) return cur.val; // the k-th node of the inorder walk
+    cur = cur.right;
+  }
+  throw new Error("k is larger than the number of nodes");
+}
+console.log(kthSmallest(buildTree([3, 1, 4, null, 2]), 1)); // 1
+console.log(kthSmallest(buildTree([5, 3, 6, 2, 4, null, null, 1]), 3)); // 3
+console.log(kthSmallest(buildTree([5, 3, 6, 2, 4, null, null, 1]), 6)); // 6</code></pre>
+<pre data-lang="go"><code class="language-go">func kthSmallest(root *TreeNode, k int) int {
+	stack := []*TreeNode{}
+	cur := root
+	for cur != nil || len(stack) &gt; 0 {
+		for cur != nil {
+			stack = append(stack, cur)
+			cur = cur.Left
+		}
+		cur = stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		k--
+		if k == 0 {
+			return cur.Val // the k-th node of the inorder walk
+		}
+		cur = cur.Right
+	}
+	panic("k is larger than the number of nodes")
+}
+
+func exampleKthSmallest() {
+	fmt.Println(kthSmallest(buildTree([]int{3, 1, 4, NULL, 2}), 1))                    // 1
+	fmt.Println(kthSmallest(buildTree([]int{5, 3, 6, 2, 4, NULL, NULL, 1}), 3))        // 3
+	fmt.Println(kthSmallest(buildTree([]int{5, 3, 6, 2, 4, NULL, NULL, 1}), 6))        // 6
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(h + k)</code>, space <code>O(h)</code>.</p>
+<p><strong>Follow-up (a classic).</strong> <em>"The tree is modified often and <code>kthSmallest</code> is called often. How do you speed it up?"</em> Store in each node the <strong>size of its left subtree</strong> so you can descend: if <code>k ≤ leftSize</code> go left; if <code>k == leftSize + 1</code> it's this node; else go right with <code>k − leftSize − 1</code>. That gives <code>O(h)</code> per query.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Lowest Common Ancestor of a Binary Tree (LeetCode 236, Medium; v2 list)</h3>
+<p><strong>Task.</strong> Given two nodes <code>p</code> and <code>q</code> in a binary tree, find their <strong>lowest common ancestor</strong>: the deepest node that has both as descendants (a node can be its own descendant). In <code>[3,5,1,6,2,0,8,null,null,7,4]</code>: LCA(5, 1) = 3; LCA(5, 4) = 5.</p>
+<p><strong>"Ask each child" thinking.</strong> <em>Contract:</em> <code>lca(node)</code> returns <code>p</code> if only <code>p</code> is in this subtree, <code>q</code> if only <code>q</code>, the <strong>LCA</strong> if both are in it (found already deeper), or <code>null</code> if neither.</p>
+<ul>
+<li>Base: if <code>node</code> is <code>null</code>, or <code>node</code> is <code>p</code> or <code>q</code>, return <code>node</code> (found one target; no need to look deeper, because if the other target is below it then this node <em>is</em> the LCA).</li>
+<li>Ask the left subtree and the right subtree.</li>
+<li>If <strong>both</strong> return something non-null, <code>p</code> is on one side and <code>q</code> on the other → <strong>this node is the LCA</strong>.</li>
+<li>If only one side returns something, pass that up (either the target or an already-found LCA).</li>
+</ul>
+<figure class="diagram" id="fig-9"><pre class="mermaid-src">flowchart TD
+    A["lca(node)"] --&gt; B{"node is null, p, or q?"}
+    B --&gt;|Yes| C["return node"]
+    B --&gt;|No| D["L = lca(node.left)&lt;br/&gt;R = lca(node.right)"]
+    D --&gt; E{"both L and R non-null?"}
+    E --&gt;|Yes| F["return node  (p and q are on different sides)"]
+    E --&gt;|No| G["return whichever is non-null (or null)"]</pre></figure>
+<p><strong>Trace.</strong> tree <code>[3,5,1,6,2,0,8,null,null,7,4]</code>, <code>p = 5</code>, <code>q = 1</code></p>
+<div class="table-wrap"><table id="tbl-6" class="trace"><thead><tr><th>Call</th><th>Result</th></tr></thead><tbody>
+<tr><td><code>lca(3)</code></td><td>asks left (5) and right (1)</td></tr>
+<tr><td><code>lca(5)</code></td><td>5 is <code>p</code> → returns 5 immediately</td></tr>
+<tr><td><code>lca(1)</code></td><td>1 is <code>q</code> → returns 1 immediately</td></tr>
+<tr><td>back at 3</td><td>left = 5, right = 1: both non-null → <strong>return 3</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p5" data-anim="lca" data-code="code-7"></div>
+<div class="code-tabs" id="code-7">
+<pre data-lang="ts"><code class="language-ts">function lowestCommonAncestor(
+  root: TreeNode | null,
+  p: TreeNode,
+  q: TreeNode,
+): TreeNode | null {
+  if (root === null || root === p || root === q) return root; // found a target (or ran out)
+  const left = lowestCommonAncestor(root.left, p, q);
+  const right = lowestCommonAncestor(root.right, p, q);
+  if (left !== null &amp;&amp; right !== null) return root; // targets are on different sides
+  return left ?? right; // otherwise pass up whichever side found something
+}
+const t236 = buildTree([3, 5, 1, 6, 2, 0, 8, null, null, 7, 4]);
+console.log(lowestCommonAncestor(t236, findNode(t236, 5)!, findNode(t236, 1)!)?.val); // 3
+console.log(lowestCommonAncestor(t236, findNode(t236, 5)!, findNode(t236, 4)!)?.val); // 5
+console.log(lowestCommonAncestor(t236, findNode(t236, 6)!, findNode(t236, 4)!)?.val); // 5</code></pre>
+<pre data-lang="go"><code class="language-go">func lowestCommonAncestor(root, p, q *TreeNode) *TreeNode {
+	if root == nil || root == p || root == q {
+		return root // found a target (or ran out)
+	}
+	left := lowestCommonAncestor(root.Left, p, q)
+	right := lowestCommonAncestor(root.Right, p, q)
+	if left != nil &amp;&amp; right != nil {
+		return root // targets are on different sides
+	}
+	if left != nil {
+		return left // otherwise pass up whichever side found something
+	}
+	return right
+}
+
+func exampleLCA() {
+	t := buildTree([]int{3, 5, 1, 6, 2, 0, 8, NULL, NULL, 7, 4})
+	fmt.Println(lowestCommonAncestor(t, findNode(t, 5), findNode(t, 1)).Val) // 3
+	fmt.Println(lowestCommonAncestor(t, findNode(t, 5), findNode(t, 4)).Val) // 5
+	fmt.Println(lowestCommonAncestor(t, findNode(t, 6), findNode(t, 4)).Val) // 5
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(h)</code>.</p>
+<p><strong>BST version (LeetCode 235) is simpler:</strong> walk down from the root. If both values are smaller than the node, go left; if both are larger, go right; otherwise the current node is the split point and is the LCA. <code>O(h)</code>, no recursion needed.</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · Construct Binary Tree from Preorder and Inorder Traversal (LeetCode 105, Medium; v2 list)</h3>
+<p><strong>Task.</strong> Given the preorder and inorder traversals of a tree with <strong>distinct</strong> values, rebuild the tree. <code>preorder = [3, 9, 20, 15, 7]</code>, <code>inorder = [9, 3, 15, 20, 7]</code> → <code>[3, 9, 20, null, null, 15, 7]</code>.</p>
+<p><strong>What each list tells you.</strong></p>
+<ul>
+<li><strong>Preorder</strong> (node, left, right): the <strong>first</strong> element is the <strong>root</strong> of the whole tree.</li>
+<li><strong>Inorder</strong> (left, node, right): the root sits <em>between</em> the left and right subtrees. Everything <strong>left of the root</strong> in inorder belongs to the left subtree; everything <strong>right of it</strong> belongs to the right subtree.</li>
+</ul>
+<p>So: take the root from preorder, find it in inorder, and its position tells you the <strong>size of the left subtree</strong>. Recurse on the two halves.</p>
+<figure class="diagram" id="fig-10"><pre class="mermaid-src">flowchart TD
+    A["preorder: [3 | 9 | 20 15 7]&lt;br/&gt;inorder:  [9 | 3 | 15 20 7]"] --&gt; B["Root = 3 (first of preorder)"]
+    B --&gt; C["Find 3 in inorder at index 1:&lt;br/&gt;left part = [9] (size 1), right part = [15 20 7] (size 3)"]
+    C --&gt; D["Left subtree:&lt;br/&gt;preorder [9], inorder [9]"]
+    C --&gt; E["Right subtree:&lt;br/&gt;preorder [20 15 7], inorder [15 20 7]"]
+    E --&gt; F["Root = 20, left part [15], right part [7]"]</pre></figure>
+<p><strong>Speed-up.</strong> Searching the root's position in the inorder array each time costs <code>O(n)</code>, making the whole thing <code>O(n²)</code>. Precompute a <strong>map from value to inorder index</strong> once: now each lookup is <code>O(1)</code>.</p>
+<p><strong>Pointers instead of slices.</strong> Pass index ranges <code>[inLo, inHi]</code> into the inorder array and keep one running pointer <code>preIdx</code> into the preorder array. Because preorder visits the <em>left subtree entirely before the right</em>, building left first then right consumes the preorder list in exactly the right order.</p>
+<div class="stage" id="st-p6" data-anim="buildPreIn" data-code="code-8"></div>
+<div class="code-tabs" id="code-8">
+<pre data-lang="ts"><code class="language-ts">function buildTreeFromPreIn(preorder: number[], inorder: number[]): TreeNode | null {
+  const inorderIndex = new Map&lt;number, number&gt;(); // value -&gt; position in inorder
+  inorder.forEach((v, i) =&gt; inorderIndex.set(v, i));
+  let preIdx = 0; // the next root to use, moving left to right through preorder
+
+  function build(inLo: number, inHi: number): TreeNode | null {
+    if (inLo &gt; inHi) return null; // empty range: no subtree
+    const rootVal = preorder[preIdx++]; // preorder always gives the next root
+    const root = new TreeNode(rootVal);
+    const mid = inorderIndex.get(rootVal)!;
+    root.left = build(inLo, mid - 1); // must come BEFORE the right: preorder order
+    root.right = build(mid + 1, inHi);
+    return root;
+  }
+  return build(0, inorder.length - 1);
+}
+console.log(toLevelArray(buildTreeFromPreIn([3, 9, 20, 15, 7], [9, 3, 15, 20, 7]))); // [ 3, 9, 20, null, null, 15, 7 ]
+console.log(toLevelArray(buildTreeFromPreIn([-1], [-1]))); // [ -1 ]
+console.log(toLevelArray(buildTreeFromPreIn([1, 2, 3], [3, 2, 1]))); // [ 1, 2, null, 3 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func buildTreeFromPreIn(preorder, inorder []int) *TreeNode {
+	inorderIndex := make(map[int]int, len(inorder)) // value -&gt; position in inorder
+	for i, v := range inorder {
+		inorderIndex[v] = i
+	}
+	preIdx := 0 // the next root to use, moving left to right through preorder
+
+	var build func(inLo, inHi int) *TreeNode
+	build = func(inLo, inHi int) *TreeNode {
+		if inLo &gt; inHi {
+			return nil // empty range: no subtree
+		}
+		rootVal := preorder[preIdx] // preorder always gives the next root
+		preIdx++
+		root := &amp;TreeNode{Val: rootVal}
+		mid := inorderIndex[rootVal]
+		root.Left = build(inLo, mid-1) // must come BEFORE the right: preorder order
+		root.Right = build(mid+1, inHi)
+		return root
+	}
+	return build(0, len(inorder)-1)
+}
+
+func exampleBuildFromPreIn() {
+	fmt.Println(toLevelArray(buildTreeFromPreIn([]int{3, 9, 20, 15, 7}, []int{9, 3, 15, 20, 7}))) // [3 9 20 null null 15 7]
+	fmt.Println(toLevelArray(buildTreeFromPreIn([]int{-1}, []int{-1})))                           // [-1]
+	fmt.Println(toLevelArray(buildTreeFromPreIn([]int{1, 2, 3}, []int{3, 2, 1})))                 // [1 2 null 3]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(n)</code> (map + recursion).</p>
+<p><strong>Why distinct values?</strong> With duplicates, "find the root in inorder" is ambiguous. <strong>Related:</strong> from inorder + postorder (LeetCode 106): the root is the <em>last</em> element of postorder; build the <em>right</em> subtree first. <strong>Preorder alone</strong> does not determine a general tree, but preorder of a <strong>BST</strong> does (insert in order).</p>
+</section>
+<section class="problem" id="p7">
+<h3>Problem 7 · Binary Tree Maximum Path Sum (LeetCode 124, Hard)</h3>
+<p><strong>Task.</strong> A <strong>path</strong> is any sequence of connected nodes (each node used at most once); it does not need to pass through the root. Find the largest sum of a path. Values may be negative. <code>[-10, 9, 20, null, null, 15, 7]</code> → <code>42</code> (the path <code>15 → 20 → 7</code>).</p>
+<p><strong>Why it is hard.</strong> There are two different quantities, and mixing them is the classic mistake:</p>
+<ol>
+<li><strong>What we can return upward:</strong> a path that <em>ends</em> at this node and continues up to the parent can use <strong>at most one</strong> of the two children (a path cannot branch). So the helper returns: <code>node.val + max(0, best left gain, best right gain)</code>, using <code>max(0, …)</code> to ignore negative branches.</li>
+<li><strong>What we record as a candidate answer:</strong> the best path that <strong>bends at this node</strong>, using <em>both</em> children: <code>node.val + leftGain + rightGain</code>. A "bent" path cannot be extended to the parent, so we only store it in a global <code>best</code>.</li>
+</ol>
+<figure class="diagram" id="fig-11"><pre class="mermaid-src">flowchart TD
+    A["At node v"] --&gt; B["leftGain = max(0, gain(left))&lt;br/&gt;rightGain = max(0, gain(right))"]
+    B --&gt; C["Candidate answer: v + leftGain + rightGain&lt;br/&gt;(path bends at v)"]
+    B --&gt; D["Return upward: v + max(leftGain, rightGain)&lt;br/&gt;(path continues to the parent)"]
+    C --&gt; E["best = max(best, candidate)"]</pre></figure>
+<p><strong>Trace.</strong> <code>[-10, 9, 20, null, null, 15, 7]</code></p>
+<div class="table-wrap"><table id="tbl-7" class="trace"><thead><tr><th>Node</th><th>leftGain</th><th>rightGain</th><th>Candidate (bend here)</th><th>Returns up</th></tr></thead><tbody>
+<tr><td>9</td><td>0</td><td>0</td><td>9</td><td>9</td></tr>
+<tr><td>15</td><td>0</td><td>0</td><td>15</td><td>15</td></tr>
+<tr><td>7</td><td>0</td><td>0</td><td>7</td><td>7</td></tr>
+<tr><td>20</td><td>15</td><td>7</td><td>20 + 15 + 7 = <strong>42</strong></td><td>20 + 15 = 35</td></tr>
+<tr><td>−10</td><td>9</td><td>35</td><td>−10 + 9 + 35 = 34</td><td>max(9, 35) − 10 = 25</td></tr>
+</tbody></table></div>
+<p>Best = <strong>42</strong>.</p>
+<div class="stage" id="st-p7" data-anim="maxPathSum" data-code="code-9"></div>
+<div class="code-tabs" id="code-9">
+<pre data-lang="ts"><code class="language-ts">function maxPathSum(root: TreeNode | null): number {
+  let best = -Infinity; // the best path seen anywhere
+  function gain(node: TreeNode | null): number {
+    if (node === null) return 0;
+    const leftGain = Math.max(0, gain(node.left)); // ignore branches that hurt
+    const rightGain = Math.max(0, gain(node.right));
+    best = Math.max(best, node.val + leftGain + rightGain); // a path that bends at this node
+    return node.val + Math.max(leftGain, rightGain); // a path that continues upward: ONE side only
+  }
+  gain(root);
+  return best;
+}
+console.log(maxPathSum(buildTree([1, 2, 3]))); // 6
+console.log(maxPathSum(buildTree([-10, 9, 20, null, null, 15, 7]))); // 42
+console.log(maxPathSum(buildTree([-3]))); // -3
+console.log(maxPathSum(buildTree([2, -1]))); // 2</code></pre>
+<pre data-lang="go"><code class="language-go">func maxPathSum(root *TreeNode) int {
+	best := math.MinInt // the best path seen anywhere
+	var gain func(node *TreeNode) int
+	gain = func(node *TreeNode) int {
+		if node == nil {
+			return 0
+		}
+		leftGain := max(0, gain(node.Left)) // ignore branches that hurt
+		rightGain := max(0, gain(node.Right))
+		best = max(best, node.Val+leftGain+rightGain) // a path that bends at this node
+		return node.Val + max(leftGain, rightGain)    // a path that continues upward: ONE side only
+	}
+	gain(root)
+	return best
+}
+
+func exampleMaxPathSum() {
+	fmt.Println(maxPathSum(buildTree([]int{1, 2, 3})))                          // 6
+	fmt.Println(maxPathSum(buildTree([]int{-10, 9, 20, NULL, NULL, 15, 7})))    // 42
+	fmt.Println(maxPathSum(buildTree([]int{-3})))                               // -3
+	fmt.Println(maxPathSum(buildTree([]int{2, -1})))                            // 2
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(h)</code>.</p>
+<p><strong>The pattern to remember:</strong> <em>return one thing to the parent, record another thing globally.</em> It also solves <strong>Diameter of a Binary Tree</strong> and <strong>Longest Univalue Path</strong>.</p>
+</section>
+</section>
+<section class="sec" id="a-short-story-huffman-coding-from-the-book">
+<h2>7. A short story: Huffman coding (from the book)</h2>
+<p>The book ends the tree chapter with <strong>Huffman coding</strong>, a way to compress text using a tree.</p>
+<p><strong>The idea.</strong> Normally every letter takes the same number of bits (8). But in English, <code>e</code> is common and <code>z</code> is rare. If we give common letters <strong>short</strong> codes and rare letters <strong>long</strong> codes, the text shrinks.</p>
+<p><strong>How the tree helps.</strong> Build a binary tree where each <strong>leaf is a letter</strong>; the code for a letter is the path from the root (<code>0</code> for left, <code>1</code> for right). Common letters sit near the root (short codes). Because letters are only at the leaves, no code is the beginning of another, so a stream of bits decodes without ambiguity.</p>
+<p><strong>How it is built.</strong> Repeatedly take the two <strong>least frequent</strong> items and join them under a new parent whose frequency is their sum. "Repeatedly take the two smallest" is exactly a <strong>min-heap</strong> (file 17), a good follow-up exercise.</p>
+<figure class="diagram" id="fig-12"><pre class="mermaid-src">flowchart TD
+    R["root (total 10)"] --&gt;|0| A["a  (freq 5)"]
+    R --&gt;|1| N["internal (5)"]
+    N --&gt;|0| B["b  (freq 3)"]
+    N --&gt;|1| C["c  (freq 2)"]</pre></figure>
+<p>Codes: <code>a = 0</code>, <code>b = 10</code>, <code>c = 11</code>.</p>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Missing the base case for <code>null</code></strong> (crashes with a null pointer).</li>
+<li><strong>Validating a BST by comparing only parent and child</strong>; you need bounds passed down.</li>
+<li><strong>Forgetting that duplicates</strong> may or may not be allowed in a BST; ask.</li>
+<li><strong>Mixing up depth and height</strong>, or counting nodes vs. edges.</li>
+<li><strong>Using recursion on a very deep, chain-shaped tree</strong> in JavaScript: stack overflow. Offer the iterative version.</li>
+<li><strong>In level order, using <code>queue.length</code> inside the loop</strong> after you started adding children (capture the size <em>first</em>).</li>
+<li><strong>In "max path sum", returning both children</strong> to the parent (a path cannot fork).</li>
+<li><strong>Assuming a balanced tree</strong> when you quote <code>O(log n)</code>; say "<code>O(h)</code>, which is <code>O(log n)</code> if balanced".</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Four contracts</h3>
+<p>Write down the contract, base case, and combine step for: <em>count the nodes</em>, <em>sum of all values</em>, <em>is the tree symmetric?</em>, <em>path sum from root to a leaf equals target (LeetCode 112)</em>.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><ul><li><strong>Count nodes:</strong> count(null) = 0; count(n) = 1 + count(left) + count(right).</li><li><strong>Sum:</strong> sum(null) = 0; sum(n) = n.val + sum(left) + sum(right).</li><li><strong>Symmetric:</strong> mirror(a, b): both null → true; one null → false; else a.val == b.val and mirror(a.left, b.right) and mirror(a.right, b.left). Call mirror(root.left, root.right).</li><li><strong>Path sum:</strong> has(null, t) = false; at a leaf, t == leaf.val; otherwise has(left, t − val) or has(right, t − val).</li></ul></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Why left < node < right is not enough</h3>
+<p>Explain with a picture why checking <code>left &lt; node &lt; right</code> alone does not validate a BST.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>In <code>[5, 4, 6, null, null, 3, 7]</code> every node is bigger than its left child and smaller than its right child, yet 3 sits in 5's right subtree, where everything must be bigger than 5. Each node needs a window from all its ancestors. Run the third preset of the Validate BST animation.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Pushing into the queue you are reading</h3>
+<p>In <code>levelOrder</code>, what breaks if you iterate over the queue while pushing into the <em>same</em> array?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The loop would keep going into the next level's nodes, so levels merge into one list (a <code>for…of</code> over a growing array keeps reading new items). Either build a separate <code>next</code> array, as the TypeScript code does, or record the level size first and read exactly that many, as the Go code does.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Serialize and deserialize</h3>
+<p>Serialize and deserialize a binary tree (LeetCode 297): which traversal gives you an unambiguous encoding if you also write <code>#</code> for null?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><strong>Preorder with # for null</strong> (or level order with nulls). Preorder with null markers is unambiguous: read a value, build the node, then recursively build its left and right subtrees from the following tokens; # ends a branch.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Inserting 1, 2, 3, 4, 5 in order</h3>
+<p>Insert the numbers <code>1, 2, 3, 4, 5</code> in order into an empty BST. What does it look like, and what is the cost of a search? What fixes it? (File 16.)</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Each new value is bigger, so it goes right every time: the tree becomes a chain, height 5. Searching costs <code>O(n)</code> instead of <code>O(log n)</code>. Self-balancing trees (AVL, red-black) fix it by rotating after inserts: lesson 16.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="tree15"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/15.js"></script>
+</body>
+</html>

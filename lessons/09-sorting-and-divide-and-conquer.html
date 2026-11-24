@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="09" data-pattern="Divide and conquer">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>09 Sorting and divide and conquer | Algorithm guide</title>
+<meta name="description" content="Sorting and divide and conquer animated: selection, insertion, merge sort, quicksort, quickselect, inversions and Euclid&#x27;s GCD.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 09</span><span>Recursion family</span><span class="stars" title="Fairly likely in interviews">★★</span></div>
+<h1>Sorting and divide and conquer</h1>
+<p class="sub">Split the problem, solve the pieces, combine.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 2 (how memory works, arrays vs. linked lists, selection sort) and chapter 4 (divide and conquer, quicksort, Big O revisited). This file explains those ideas in my own words, adds merge sort, quickselect, and counting inversions, and shows why interviewers like this topic.</p></blockquote>
+<div class="glance"><div><b>Divide and conquer</b><p>Base case, divide into smaller copies, combine the answers.</p></div><div><b>The two big sorts</b><p>Merge sort: always <code>O(n log n)</code>, stable, <code>O(n)</code> memory. Quicksort: fast in place, random pivot.</p></div><div><b>Selection</b><p>Quickselect finds the k-th item in <code>O(n)</code> on average by keeping one side only.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="part-a-how-memory-works-why-arrays-and-linked-lists-behave-d">
+<h2>1. Part A · How memory works (why arrays and linked lists behave differently)</h2>
+<p>Imagine a drawer chest with numbered drawers. Your computer's memory is like that: a very long row of numbered drawers (addresses). Each drawer holds a small piece of data.</p>
+<h3 id="arrays-seats-in-a-row">Arrays: seats in a row</h3>
+<p>An <strong>array</strong> asks the computer for a <strong>block of neighboring drawers</strong> at once. Because they are neighbors, the computer can jump straight to item number <code>i</code> with simple math: <code>start address + i × size</code>. That is why <code>arr[i]</code> costs <code>O(1)</code>.</p>
+<p>The price: the neighbors must be free. If you want to add an item and the next drawer is taken, the computer has to find a bigger free block and <strong>copy</strong> everything over. Inserting in the middle also means shifting everything after it: <code>O(n)</code>.</p>
+<h3 id="linked-lists-a-treasure-hunt">Linked lists: a treasure hunt</h3>
+<p>A <strong>linked list</strong> puts items in <em>any</em> free drawers. Each item stores its value <em>and the address of the next item</em>. Adding or removing in the middle just changes a couple of addresses: <code>O(1)</code> once you are standing at the right spot.</p>
+<p>The price: to reach item number <code>i</code> you must follow the chain from the start: <code>O(n)</code>. There is no jumping.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    subgraph Array["Array: neighbors in memory"]
+        direction LR
+        A0["[0] 10"] --- A1["[1] 20"] --- A2["[2] 30"] --- A3["[3] 40"]
+    end
+    subgraph LL["Linked list: scattered, each points on"]
+        direction LR
+        L0["10"] --&gt; L1["20"] --&gt; L2["30"] --&gt; L3["40"]
+    end</pre></figure>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Operation</th><th>Array</th><th>Linked list</th></tr></thead><tbody>
+<tr><td>Read item <code>i</code></td><td><strong><code>O(1)</code></strong></td><td><code>O(n)</code></td></tr>
+<tr><td>Insert / delete at the <strong>start</strong></td><td><code>O(n)</code> (shift everything)</td><td><strong><code>O(1)</code></strong></td></tr>
+<tr><td>Insert / delete at the <strong>end</strong></td><td><code>O(1)</code> amortized</td><td><code>O(1)</code> with a tail pointer</td></tr>
+<tr><td>Insert / delete <strong>in the middle</strong> (position already known)</td><td><code>O(n)</code></td><td><strong><code>O(1)</code></strong></td></tr>
+<tr><td>Search for a value</td><td><code>O(n)</code> (<code>O(log n)</code> if sorted)</td><td><code>O(n)</code></td></tr>
+<tr><td>Memory use</td><td>compact</td><td>extra pointer per item</td></tr>
+<tr><td>Cache friendliness</td><td>great (neighbors load together)</td><td>poor</td></tr>
+</tbody></table></div>
+<p><strong>Which is used more?</strong> In real programs arrays win most of the time: random reads are common, and neighbors in memory are fast on modern hardware. Linked lists matter for specific tasks (queues, undo chains, LRU caches, and many interview problems, see file 12).</p>
+</section>
+<section class="sec" id="part-b-sorting-the-toolbox">
+<h2>2. Part B · Sorting: the toolbox</h2>
+<p>Sorting turns messy data into ordered data, which unlocks binary search, two pointers, and grouping. Know these algorithms:</p>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Algorithm</th><th>Best</th><th>Average</th><th>Worst</th><th>Extra memory</th><th>Stable?</th><th>Idea in one line</th></tr></thead><tbody>
+<tr><td>Selection sort</td><td><code>O(n²)</code></td><td><code>O(n²)</code></td><td><code>O(n²)</code></td><td><code>O(1)</code></td><td>no</td><td>Repeatedly pick the smallest remaining item</td></tr>
+<tr><td>Insertion sort</td><td><code>O(n)</code></td><td><code>O(n²)</code></td><td><code>O(n²)</code></td><td><code>O(1)</code></td><td>yes</td><td>Insert each item into the sorted part (great for nearly sorted)</td></tr>
+<tr><td><strong>Merge sort</strong></td><td><code>O(n log n)</code></td><td><code>O(n log n)</code></td><td><code>O(n log n)</code></td><td><code>O(n)</code></td><td>yes</td><td>Split in half, sort halves, merge</td></tr>
+<tr><td><strong>Quicksort</strong></td><td><code>O(n log n)</code></td><td><code>O(n log n)</code></td><td><code>O(n²)</code></td><td><code>O(log n)</code></td><td>no</td><td>Pick a pivot, partition, sort both sides</td></tr>
+<tr><td>Heap sort</td><td><code>O(n log n)</code></td><td><code>O(n log n)</code></td><td><code>O(n log n)</code></td><td><code>O(1)</code></td><td>no</td><td>Build a heap, remove the max repeatedly</td></tr>
+<tr><td>Counting / bucket / radix</td><td><code>O(n + k)</code></td><td></td><td></td><td><code>O(n + k)</code></td><td>yes</td><td>No comparisons; uses the value range</td></tr>
+</tbody></table></div>
+<p><strong>Stable</strong> means equal items keep their original relative order (matters when sorting records by one field, then another).</p>
+<p><strong>A fact worth knowing:</strong> no sorting algorithm that works by <em>comparing</em> items can beat <code>O(n log n)</code> in the worst case. (There are <code>n!</code> possible orderings, and each comparison at best halves the possibilities, so you need about <code>log₂(n!) ≈ n log n</code> comparisons.) Counting sort and radix sort avoid comparing, so they can be faster, but only for limited kinds of data such as small integers.</p>
+<p><strong>What languages use.</strong> JavaScript's <code>Array.prototype.sort</code> is stable and (in modern engines) a hybrid of merge/insertion sort: <code>O(n log n)</code>. Go's <code>sort.Slice</code> is not guaranteed stable (use <code>sort.SliceStable</code> if you need that), and <code>slices.Sort</code> uses a pattern-defeating quicksort.</p>
+<h3 id="selection-sort-the-book-s-first-sort">Selection sort (the book's first sort)</h3>
+<p><em>Plain English:</em> look through the whole list, find the smallest, move it to the front. Look through the rest, find the next smallest, put it second. Repeat. The "looking through" is a loop inside a loop, so <code>O(n²)</code>.</p>
+<div class="stage" id="st-simple" data-anim="selection,insertion" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="selection sort and insertion sort"><code class="language-ts">function selectionSort(items: number[]): number[] {
+  const a = [...items];
+  for (let i = 0; i &lt; a.length - 1; i++) {
+    let smallest = i;
+    for (let j = i + 1; j &lt; a.length; j++) if (a[j] &lt; a[smallest]) smallest = j;
+    [a[i], a[smallest]] = [a[smallest], a[i]]; // put the smallest remaining item in place i
+  }
+  return a;
+}
+
+function insertionSort(items: number[]): number[] {
+  const a = [...items];
+  for (let i = 1; i &lt; a.length; i++) {
+    const x = a[i];
+    let j = i - 1;
+    while (j &gt;= 0 &amp;&amp; a[j] &gt; x) {
+      a[j + 1] = a[j]; // shift bigger items right
+      j--;
+    }
+    a[j + 1] = x;
+  }
+  return a;
+}
+
+console.log(selectionSort([5, 3, 6, 2, 10])); // [ 2, 3, 5, 6, 10 ]
+console.log(insertionSort([5, 3, 6, 2, 10])); // [ 2, 3, 5, 6, 10 ]</code></pre>
+<pre data-lang="go" data-caption="selection sort and insertion sort"><code class="language-go">func selectionSort(items []int) []int {
+	a := append([]int(nil), items...) // copy
+	for i := 0; i &lt; len(a)-1; i++ {
+		smallest := i
+		for j := i + 1; j &lt; len(a); j++ {
+			if a[j] &lt; a[smallest] {
+				smallest = j
+			}
+		}
+		a[i], a[smallest] = a[smallest], a[i] // put the smallest remaining item in place i
+	}
+	return a
+}
+
+func insertionSort(items []int) []int {
+	a := append([]int(nil), items...)
+	for i := 1; i &lt; len(a); i++ {
+		x := a[i]
+		j := i - 1
+		for j &gt;= 0 &amp;&amp; a[j] &gt; x {
+			a[j+1] = a[j] // shift bigger items right
+			j--
+		}
+		a[j+1] = x
+	}
+	return a
+}
+
+func exampleSimpleSorts() {
+	fmt.Println(selectionSort([]int{5, 3, 6, 2, 10})) // [2 3 5 6 10]
+	fmt.Println(insertionSort([]int{5, 3, 6, 2, 10})) // [2 3 5 6 10]
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="part-c-divide-and-conquer-d-c">
+<h2>3. Part C · Divide and conquer (D&amp;C)</h2>
+<p><strong>Plain English.</strong> A big problem is scary; a tiny problem is easy. D&amp;C says: <strong>break the problem into smaller copies of itself, solve each, and combine the answers.</strong> There are always three parts:</p>
+<ol>
+<li><strong>Base case:</strong> a problem so small you can answer it directly.</li>
+<li><strong>Divide:</strong> shrink the problem (cut in half, or remove a piece).</li>
+<li><strong>Combine:</strong> assemble the sub-answers.</li>
+</ol>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    A["Big problem"] --&gt; B{"Small enough?"}
+    B --&gt;|Yes| C["Base case: answer directly"]
+    B --&gt;|No| D["Divide into smaller problems of the same kind"]
+    D --&gt; E["Solve each piece the same way (recursion)"]
+    E --&gt; F["Combine the piece answers"]
+    F --&gt; G["Answer"]</pre></figure>
+<p><strong>The book's farm example.</strong> A farmer has a 1680 × 640 field and wants to cut it into the <em>largest possible equal squares</em>. Trick: the biggest square that fits is 640 × 640. Cut two of those out and you have a smaller leftover field, 400 × 640. The answer for the big field is the <em>same</em> as the answer for the leftover. Repeat on smaller and smaller fields until one divides evenly. That is Euclid's greatest-common-divisor algorithm, and it is D&amp;C where you shrink the problem instead of splitting it.</p>
+<h3 id="d-c-shows-up-everywhere">D&amp;C shows up everywhere</h3>
+<ul>
+<li><strong>Merge sort</strong>: split in half, sort each, merge.</li>
+<li><strong>Quicksort</strong>: partition around a pivot, sort each side.</li>
+<li><strong>Binary search</strong> (a degenerate D&amp;C: only one half is kept).</li>
+<li><strong>Tree recursion</strong> (file 15): solve the left subtree, solve the right subtree, combine at the root.</li>
+<li><strong>Maximum subarray</strong>, <strong>closest pair of points</strong>, <strong>fast exponentiation</strong>.</li>
+</ul>
+<h3 id="counting-the-work-the-recursion-tree">Counting the work: the recursion tree</h3>
+<p>For merge sort on <code>n</code> items: the tree has <code>log n</code> levels, and the work at each level adds up to <code>n</code>. Total <code>O(n log n)</code>.</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    L0["Level 0: 1 problem of size 8, work 8"] --&gt; L1["Level 1: 2 problems of size 4, work 8 total"]
+    L1 --&gt; L2["Level 2: 4 problems of size 2, work 8 total"]
+    L2 --&gt; L3["Level 3: 8 problems of size 1, work 0 (base case)"]
+    L3 --&gt; T["3 levels of 8 work each: 8 x log2(8) = 24"]</pre></figure>
+<p>(The "master theorem" formalizes this for recurrences <code>T(n) = a·T(n/b) + f(n)</code>. In interviews, drawing the tree as above is enough.)</p>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>4. How to recognize it</h2>
+<ul>
+<li>"Sort", "order by", "merge sorted", "median", "k-th largest" → sorting or selection.</li>
+<li>"Count pairs <code>(i, j)</code> with <code>i &lt; j</code> and something about <code>a[i]</code> vs <code>a[j]</code>" → <strong>merge sort that counts while merging</strong> (inversions).</li>
+<li>"Problem has a self-similar structure; the answer for the whole is built from the answers for halves" → D&amp;C.</li>
+<li>"Order items by a custom rule" → sort with a <strong>custom comparator</strong>.</li>
+</ul>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>5. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Greatest Common Divisor, the farm-field idea (Euclid)</h3>
+<p><strong>Task.</strong> Return the largest number that divides both <code>a</code> and <code>b</code>. <code>gcd(1680, 640) = 80</code>.</p>
+<p><strong>Idea.</strong> <code>gcd(a, b) = gcd(b, a mod b)</code>, and <code>gcd(a, 0) = a</code>. Each step replaces the pair with a smaller pair (the base case is <code>b == 0</code>).</p>
+<p><strong>Trace.</strong> <code>gcd(1680, 640)</code></p>
+<div class="table-wrap"><table id="tbl-3" class="trace"><thead><tr><th>a</th><th>b</th><th>a mod b</th></tr></thead><tbody>
+<tr><td>1680</td><td>640</td><td>400</td></tr>
+<tr><td>640</td><td>400</td><td>240</td></tr>
+<tr><td>400</td><td>240</td><td>160</td></tr>
+<tr><td>240</td><td>160</td><td>80</td></tr>
+<tr><td>160</td><td>80</td><td>0</td></tr>
+<tr><td>80</td><td>0</td><td>answer <strong>80</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p1" data-anim="gcd" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function gcd(a: number, b: number): number {
+  if (b === 0) return a; // base case
+  return gcd(b, a % b); // shrink: the same problem, smaller numbers
+}
+console.log(gcd(1680, 640)); // 80
+console.log(gcd(17, 5)); // 1
+console.log(gcd(9, 0)); // 9</code></pre>
+<pre data-lang="go"><code class="language-go">func gcd(a, b int) int {
+	if b == 0 {
+		return a // base case
+	}
+	return gcd(b, a%b) // shrink: the same problem, smaller numbers
+}
+
+func exampleGCD() {
+	fmt.Println(gcd(1680, 640)) // 80
+	fmt.Println(gcd(17, 5))     // 1
+	fmt.Println(gcd(9, 0))      // 9
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(log(min(a, b)))</code> (the numbers shrink very fast), space <code>O(log)</code> for the stack (or <code>O(1)</code> as a loop).</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Merge Sort (LeetCode 912 "Sort an Array", Medium)</h3>
+<p><strong>Task.</strong> Sort an array in <code>O(n log n)</code>.</p>
+<p><strong>Idea.</strong> Split in half, sort each half (recursion), <strong>merge</strong> the two sorted halves. Merging is the clever part: look at the front of each half and take the smaller; since both halves are sorted, the smaller front is the smallest remaining overall.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["[5, 2, 4, 1]"] --&gt; B["[5, 2]"]
+    A --&gt; C["[4, 1]"]
+    B --&gt; D["[5]"]
+    B --&gt; E["[2]"]
+    C --&gt; F["[4]"]
+    C --&gt; G["[1]"]
+    D --&gt; H["merge: [2, 5]"]
+    E --&gt; H
+    F --&gt; I["merge: [1, 4]"]
+    G --&gt; I
+    H --&gt; J["merge: [1, 2, 4, 5]"]
+    I --&gt; J</pre></figure>
+<p><strong>Trace of one merge:</strong> merging <code>[2, 5]</code> and <code>[1, 4]</code></p>
+<div class="table-wrap"><table id="tbl-4"><thead><tr><th>left front</th><th>right front</th><th>take</th><th>output so far</th></tr></thead><tbody>
+<tr><td>2</td><td>1</td><td>1</td><td><code>[1]</code></td></tr>
+<tr><td>2</td><td>4</td><td>2</td><td><code>[1, 2]</code></td></tr>
+<tr><td>5</td><td>4</td><td>4</td><td><code>[1, 2, 4]</code></td></tr>
+<tr><td>5</td><td>(empty)</td><td>5</td><td><code>[1, 2, 4, 5]</code></td></tr>
+</tbody></table></div>
+<p><strong>Stability tip:</strong> on ties (<code>left &lt;= right</code>) take from the <strong>left</strong> so equal items keep their original order.</p>
+<div class="stage" id="st-p2" data-anim="mergeSort" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function mergeSort(a: number[]): number[] {
+  if (a.length &lt;= 1) return a; // base case
+  const mid = a.length &gt;&gt; 1;
+  const left = mergeSort(a.slice(0, mid));
+  const right = mergeSort(a.slice(mid));
+  return mergeTwo(left, right);
+}
+
+function mergeTwo(left: number[], right: number[]): number[] {
+  const out: number[] = [];
+  let i = 0, j = 0;
+  while (i &lt; left.length &amp;&amp; j &lt; right.length) {
+    if (left[i] &lt;= right[j]) out.push(left[i++]); // &lt;= keeps the sort stable
+    else out.push(right[j++]);
+  }
+  while (i &lt; left.length) out.push(left[i++]);
+  while (j &lt; right.length) out.push(right[j++]);
+  return out;
+}
+
+console.log(mergeSort([5, 2, 4, 1])); // [ 1, 2, 4, 5 ]
+console.log(mergeSort([3, 3, 1, 2, 2])); // [ 1, 2, 2, 3, 3 ]
+console.log(mergeSort([])); // []</code></pre>
+<pre data-lang="go"><code class="language-go">func mergeSort(a []int) []int {
+	if len(a) &lt;= 1 {
+		return a // base case
+	}
+	mid := len(a) / 2
+	left := mergeSort(a[:mid])
+	right := mergeSort(a[mid:])
+	return mergeTwo(left, right)
+}
+
+func mergeTwo(left, right []int) []int {
+	out := make([]int, 0, len(left)+len(right))
+	i, j := 0, 0
+	for i &lt; len(left) &amp;&amp; j &lt; len(right) {
+		if left[i] &lt;= right[j] { // &lt;= keeps the sort stable
+			out = append(out, left[i])
+			i++
+		} else {
+			out = append(out, right[j])
+			j++
+		}
+	}
+	out = append(out, left[i:]...)
+	out = append(out, right[j:]...)
+	return out
+}
+
+func exampleMergeSort() {
+	fmt.Println(mergeSort([]int{5, 2, 4, 1}))    // [1 2 4 5]
+	fmt.Println(mergeSort([]int{3, 3, 1, 2, 2})) // [1 2 2 3 3]
+	fmt.Println(mergeSort([]int{}))              // []
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log n)</code> in all cases; space <code>O(n)</code> for the merged arrays.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Quicksort (LeetCode 912 again)</h3>
+<p><strong>Task.</strong> Sort in place, usually faster in practice than merge sort.</p>
+<p><strong>Idea (the book's version).</strong> Pick a <strong>pivot</strong> item. <strong>Partition</strong>: put every item smaller than the pivot to its left and every larger item to its right. The pivot is now in its final position. Recursively sort the left part and the right part.</p>
+<p><strong>Partition, step by step (Lomuto scheme).</strong> Choose the last item as the pivot. Keep a boundary <code>store</code>: everything <em>before</em> <code>store</code> is smaller than the pivot. Scan with <code>i</code>; whenever <code>a[i] &lt; pivot</code>, swap it to <code>store</code> and advance <code>store</code>. At the end, swap the pivot into <code>store</code>.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart LR
+    A["Pivot = last item"] --&gt; B["Scan i from left to right"]
+    B --&gt; C{"a[i] &lt; pivot ?"}
+    C --&gt;|Yes| D["swap a[i] with a[store]&lt;br/&gt;store++"]
+    C --&gt;|No| E["leave it"]
+    D --&gt; B
+    E --&gt; B
+    B --&gt; F["Done scanning: swap pivot into a[store]"]
+    F --&gt; G["Pivot is now in its final place"]</pre></figure>
+<p><strong>Trace.</strong> partition <code>[3, 7, 2, 5]</code> with pivot <code>5</code></p>
+<div class="table-wrap"><table id="tbl-5" class="trace"><thead><tr><th>i</th><th>a[i]</th><th><code>&lt; 5</code>?</th><th>action</th><th>array</th><th>store</th></tr></thead><tbody>
+<tr><td>0</td><td>3</td><td>yes</td><td>swap with itself, store=1</td><td><code>[3, 7, 2, 5]</code></td><td>1</td></tr>
+<tr><td>1</td><td>7</td><td>no</td><td></td><td><code>[3, 7, 2, 5]</code></td><td>1</td></tr>
+<tr><td>2</td><td>2</td><td>yes</td><td>swap a[2] and a[1], store=2</td><td><code>[3, 2, 7, 5]</code></td><td>2</td></tr>
+<tr><td>end</td><td></td><td></td><td>swap pivot with a[2]</td><td><code>[3, 2, 5, 7]</code></td><td>pivot index <strong>2</strong></td></tr>
+</tbody></table></div>
+<p><strong>Why random pivots matter.</strong> If you always take the last item and the array is already sorted, every partition peels off a single item: <code>n</code> levels deep, <code>O(n²)</code>. A <strong>random</strong> pivot makes that terribly unlikely; expected time <code>O(n log n)</code>. (The book calls the already-sorted case the "worst case" and the balanced split the "best case".)</p>
+<div class="stage" id="st-p3" data-anim="quickSort" data-code="code-4" data-flow="fig-5"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function quickSort(a: number[]): number[] {
+  const arr = [...a];
+  sortRange(arr, 0, arr.length - 1);
+  return arr;
+}
+
+function sortRange(a: number[], lo: number, hi: number): void {
+  if (lo &gt;= hi) return; // base case: 0 or 1 item
+  const p = partition(a, lo, hi);
+  sortRange(a, lo, p - 1);
+  sortRange(a, p + 1, hi);
+}
+
+function partition(a: number[], lo: number, hi: number): number {
+  const r = lo + Math.floor(Math.random() * (hi - lo + 1)); // random pivot
+  [a[r], a[hi]] = [a[hi], a[r]]; // move it to the end
+  const pivot = a[hi];
+  let store = lo;
+  for (let i = lo; i &lt; hi; i++) {
+    if (a[i] &lt; pivot) {
+      [a[i], a[store]] = [a[store], a[i]];
+      store++;
+    }
+  }
+  [a[store], a[hi]] = [a[hi], a[store]];
+  return store;
+}
+
+console.log(quickSort([3, 7, 2, 5])); // [ 2, 3, 5, 7 ]
+console.log(quickSort([5, 5, 5, 1, 1])); // [ 1, 1, 5, 5, 5 ]
+console.log(quickSort([9, 8, 7, 6, 5, 4, 3, 2, 1])); // [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func quickSort(a []int) []int {
+	arr := append([]int(nil), a...)
+	sortRange(arr, 0, len(arr)-1)
+	return arr
+}
+
+func sortRange(a []int, lo, hi int) {
+	if lo &gt;= hi {
+		return // base case: 0 or 1 item
+	}
+	p := partition(a, lo, hi)
+	sortRange(a, lo, p-1)
+	sortRange(a, p+1, hi)
+}
+
+func partition(a []int, lo, hi int) int {
+	r := lo + rand.Intn(hi-lo+1) // random pivot
+	a[r], a[hi] = a[hi], a[r]    // move it to the end
+	pivot := a[hi]
+	store := lo
+	for i := lo; i &lt; hi; i++ {
+		if a[i] &lt; pivot {
+			a[i], a[store] = a[store], a[i]
+			store++
+		}
+	}
+	a[store], a[hi] = a[hi], a[store]
+	return store
+}
+
+func exampleQuickSort() {
+	fmt.Println(quickSort([]int{3, 7, 2, 5}))                   // [2 3 5 7]
+	fmt.Println(quickSort([]int{5, 5, 5, 1, 1}))                // [1 1 5 5 5]
+	fmt.Println(quickSort([]int{9, 8, 7, 6, 5, 4, 3, 2, 1})) // [1 2 3 4 5 6 7 8 9]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Expected time <code>O(n log n)</code>; worst case <code>O(n²)</code> (very unlikely with a random pivot). Extra space <code>O(log n)</code> for the recursion stack on average.</p>
+<p><strong>A weakness of Lomuto:</strong> with <em>many equal items</em> (the <code>[5, 5, 5, 1, 1]</code> case, scaled up) it degrades because <code>a[i] &lt; pivot</code> puts all equal items on one side. The fix is <strong>three-way partitioning</strong> (less / equal / greater), which is exactly Sort Colors from file 05 generalized. Mention it if the interviewer asks about duplicates.</p>
+<p><strong>Merge sort vs. quicksort, the interview answer.</strong> Merge sort: guaranteed <code>O(n log n)</code>, stable, needs <code>O(n)</code> extra memory, great for linked lists and external (disk) sorting. Quicksort: in place, usually faster in practice because of cache behavior, but <code>O(n²)</code> in the worst case and not stable.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Kth Largest Element in an Array via Quickselect (LeetCode 215, Medium; v2 Q13)</h3>
+<p><strong>Task.</strong> Return the <code>k</code>-th <strong>largest</strong> element (not the <code>k</code>-th distinct). <code>[3, 2, 1, 5, 6, 4]</code>, <code>k = 2</code> → <code>5</code>.</p>
+<p><strong>Options:</strong></p>
+<ol>
+<li>Sort and index: <code>O(n log n)</code>.</li>
+<li>Min-heap of size <code>k</code>: <code>O(n log k)</code> (file 17).</li>
+<li><strong>Quickselect</strong>: <code>O(n)</code> average. This file's approach.</li>
+</ol>
+<p><strong>Idea.</strong> Partition like quicksort, but then recurse into <strong>only the side that contains the answer</strong>, never both. The <code>k</code>-th largest is the item at sorted index <code>n − k</code>. After a partition the pivot sits at its final sorted index <code>p</code>:</p>
+<ul>
+<li><code>p == n − k</code> → found.</li>
+<li><code>p &lt; n − k</code> → the answer is to the right; search <code>[p + 1, hi]</code>.</li>
+<li><code>p &gt; n − k</code> → search <code>[lo, p − 1]</code>.</li>
+</ul>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["target index t = n - k"] --&gt; B["partition [lo, hi], pivot lands at p"]
+    B --&gt; C{"p compared with t"}
+    C --&gt;|"p == t"| D["Answer is a[p]"]
+    C --&gt;|"p &lt; t"| E["lo = p + 1"] --&gt; B
+    C --&gt;|"p &gt; t"| F["hi = p - 1"] --&gt; B</pre></figure>
+<p>Work shrinks like <code>n + n/2 + n/4 + … ≈ 2n</code> on average: <code>O(n)</code>. This is the "halving with work" example from file 02.</p>
+<div class="stage" id="st-p4" data-anim="quickSelect" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function findKthLargest(nums: number[], k: number): number {
+  const a = [...nums];
+  const target = a.length - k; // index of the answer in sorted order
+  let lo = 0, hi = a.length - 1;
+  while (lo &lt;= hi) {
+    const p = partition(a, lo, hi); // reuses partition() from the quicksort section
+    if (p === target) return a[p];
+    if (p &lt; target) lo = p + 1;
+    else hi = p - 1;
+  }
+  throw new Error("k out of range");
+}
+console.log(findKthLargest([3, 2, 1, 5, 6, 4], 2)); // 5
+console.log(findKthLargest([3, 2, 3, 1, 2, 4, 5, 5, 6], 4)); // 4
+console.log(findKthLargest([1], 1)); // 1</code></pre>
+<pre data-lang="go"><code class="language-go">func findKthLargest(nums []int, k int) int {
+	a := append([]int(nil), nums...)
+	target := len(a) - k // index of the answer in sorted order
+	lo, hi := 0, len(a)-1
+	for lo &lt;= hi {
+		p := partition(a, lo, hi) // reuses partition() from the quicksort section
+		if p == target {
+			return a[p]
+		}
+		if p &lt; target {
+			lo = p + 1
+		} else {
+			hi = p - 1
+		}
+	}
+	panic("k out of range")
+}
+
+func exampleFindKthLargest() {
+	fmt.Println(findKthLargest([]int{3, 2, 1, 5, 6, 4}, 2))             // 5
+	fmt.Println(findKthLargest([]int{3, 2, 3, 1, 2, 4, 5, 5, 6}, 4)) // 4
+	fmt.Println(findKthLargest([]int{1}, 1))                           // 1
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Expected <code>O(n)</code>, worst <code>O(n²)</code>; space <code>O(n)</code> for the copy (or <code>O(1)</code> if modifying the input is allowed).</p>
+<p><strong>Interview talk track.</strong> "I'd mention three approaches and their trade-offs: sort <code>O(n log n)</code>, heap <code>O(n log k)</code> which also works on streams, and quickselect <code>O(n)</code> average. For a stream where numbers keep arriving, the heap is the right tool."</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Count Inversions, merge sort with a twist (hard-ish classic)</h3>
+<p><strong>Task.</strong> An <strong>inversion</strong> is a pair of positions <code>i &lt; j</code> with <code>a[i] &gt; a[j]</code> (a pair that is "out of order"). Count them. <code>[2, 4, 1, 3, 5]</code> → <code>3</code> (the pairs <code>(2,1)</code>, <code>(4,1)</code>, <code>(4,3)</code>). The same idea solves LeetCode 315 and LeetCode 493.</p>
+<p><strong>Brute force.</strong> Check every pair: <code>O(n²)</code>.</p>
+<p><strong>The insight.</strong> In merge sort, during the <strong>merge</strong> step the left half comes entirely from earlier positions than the right half. When we take an item from the <strong>right</strong> half <em>before</em> some items are left in the <strong>left</strong> half, that right item is smaller than <strong>all of the remaining left items</strong> (since the left half is sorted). So it forms an inversion with each of them:</p>
+<blockquote><p>when we take <code>right[j]</code> while <code>left</code> still has <code>leftLength − i</code> items remaining, add <code>leftLength − i</code> to the count.</p></blockquote>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["Merging left = [2, 4] and right = [1, 3]"] --&gt; B["Compare 2 and 1: take 1 from the right"]
+    B --&gt; C["Left still has 2 items (2 and 4), both bigger than 1&lt;br/&gt;add 2 inversions"]
+    C --&gt; D["Compare 2 and 3: take 2 from the left, no inversion"]
+    D --&gt; E["Compare 4 and 3: take 3 from the right&lt;br/&gt;left has 1 item left (4), add 1"]
+    E --&gt; F["Total from this merge: 3"]</pre></figure>
+<div class="stage" id="st-p5" data-anim="inversions" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function countInversions(nums: number[]): number {
+  const work = [...nums];
+  const temp = new Array&lt;number&gt;(work.length);
+  return sortAndCount(work, temp, 0, work.length - 1);
+}
+
+function sortAndCount(a: number[], temp: number[], lo: number, hi: number): number {
+  if (lo &gt;= hi) return 0;
+  const mid = lo + ((hi - lo) &gt;&gt; 1);
+  let count = sortAndCount(a, temp, lo, mid) + sortAndCount(a, temp, mid + 1, hi);
+  let i = lo, j = mid + 1, k = lo;
+  while (i &lt;= mid &amp;&amp; j &lt;= hi) {
+    if (a[i] &lt;= a[j]) temp[k++] = a[i++];
+    else {
+      temp[k++] = a[j++];
+      count += mid - i + 1; // every remaining left item is bigger than a[j]
+    }
+  }
+  while (i &lt;= mid) temp[k++] = a[i++];
+  while (j &lt;= hi) temp[k++] = a[j++];
+  for (let t = lo; t &lt;= hi; t++) a[t] = temp[t];
+  return count;
+}
+console.log(countInversions([2, 4, 1, 3, 5])); // 3
+console.log(countInversions([5, 4, 3, 2, 1])); // 10
+console.log(countInversions([1, 2, 3])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func countInversions(nums []int) int {
+	work := append([]int(nil), nums...)
+	temp := make([]int, len(work))
+	return sortAndCount(work, temp, 0, len(work)-1)
+}
+
+func sortAndCount(a, temp []int, lo, hi int) int {
+	if lo &gt;= hi {
+		return 0
+	}
+	mid := lo + (hi-lo)/2
+	count := sortAndCount(a, temp, lo, mid) + sortAndCount(a, temp, mid+1, hi)
+	i, j, k := lo, mid+1, lo
+	for i &lt;= mid &amp;&amp; j &lt;= hi {
+		if a[i] &lt;= a[j] {
+			temp[k] = a[i]
+			i++
+		} else {
+			temp[k] = a[j]
+			j++
+			count += mid - i + 1 // every remaining left item is bigger than a[j]
+		}
+		k++
+	}
+	for i &lt;= mid {
+		temp[k] = a[i]
+		i++
+		k++
+	}
+	for j &lt;= hi {
+		temp[k] = a[j]
+		j++
+		k++
+	}
+	copy(a[lo:hi+1], temp[lo:hi+1])
+	return count
+}
+
+func exampleCountInversions() {
+	fmt.Println(countInversions([]int{2, 4, 1, 3, 5})) // 3
+	fmt.Println(countInversions([]int{5, 4, 3, 2, 1})) // 10
+	fmt.Println(countInversions([]int{1, 2, 3}))       // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log n)</code>, space <code>O(n)</code>.</p>
+<p><strong>Use cases to name:</strong> measuring how far a list is from sorted, ranking similarity (Kendall tau), and "count smaller numbers to the right".</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · Largest Number, sorting with a custom rule (LeetCode 179, Medium)</h3>
+<p><strong>Task.</strong> Arrange non-negative integers to form the <strong>largest possible number</strong>, returned as a string. <code>[3, 30, 34, 5, 9]</code> → <code>"9534330"</code>.</p>
+<p><strong>The trap.</strong> Sorting numbers descending (<code>9, 5, 34, 30, 3</code>) gives <code>"9534303"</code>, which is smaller than <code>"9534330"</code>. The rule must compare <strong>how two numbers combine</strong>, not their size.</p>
+<p><strong>Rule.</strong> Put <code>a</code> before <code>b</code> if the text <code>a + b</code> is bigger than <code>b + a</code>. For <code>3</code> and <code>30</code>: <code>"330"</code> vs <code>"303"</code>. <code>330 &gt; 303</code>, so <code>3</code> comes first.</p>
+<figure class="diagram" id="fig-8"><pre class="mermaid-src">flowchart LR
+    A["Compare 3 and 30"] --&gt; B["try '3' + '30' = '330'"]
+    A --&gt; C["try '30' + '3' = '303'"]
+    B --&gt; D{"which string is bigger?"}
+    C --&gt; D
+    D --&gt; E["330 is bigger, so 3 goes first"]</pre></figure>
+<p>(The rule is a valid ordering, meaning it is transitive; that is the proof an interviewer may want. It is equivalent to comparing the infinite repetitions <code>333…</code> and <code>3030…</code>.)</p>
+<p><strong>Edge case.</strong> If everything is zero (<code>[0, 0]</code>), the answer is <code>"0"</code>, not <code>"00"</code>.</p>
+<div class="stage" id="st-p6" data-anim="largestNumber" data-code="code-7"></div>
+<div class="code-tabs" id="code-7">
+<pre data-lang="ts"><code class="language-ts">function largestNumber(nums: number[]): string {
+  const words = nums.map(String);
+  words.sort((a, b) =&gt; (b + a).localeCompare(a + b)); // bigger concatenation first
+  return words[0] === "0" ? "0" : words.join(""); // after sorting, a leading "0" means all zeros
+}
+console.log(largestNumber([3, 30, 34, 5, 9])); // 9534330
+console.log(largestNumber([10, 2])); // 210
+console.log(largestNumber([0, 0])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func largestNumber(nums []int) string {
+	words := make([]string, len(nums))
+	for i, x := range nums {
+		words[i] = strconv.Itoa(x)
+	}
+	sort.Slice(words, func(i, j int) bool {
+		return words[i]+words[j] &gt; words[j]+words[i] // bigger concatenation first
+	})
+	if words[0] == "0" {
+		return "0" // all zeros
+	}
+	return strings.Join(words, "")
+}
+
+func exampleLargestNumber() {
+	fmt.Println(largestNumber([]int{3, 30, 34, 5, 9})) // 9534330
+	fmt.Println(largestNumber([]int{10, 2}))           // 210
+	fmt.Println(largestNumber([]int{0, 0}))            // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n log n · L)</code> where <code>L</code> is the digit length (string comparisons cost <code>O(L)</code>), space <code>O(n · L)</code>.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Missing base case</strong> in recursion (infinite recursion).</li>
+<li><strong>Quicksort with a fixed pivot on sorted input</strong> → <code>O(n²)</code> and a possible stack overflow.</li>
+<li><strong>Using <code>&lt;</code> instead of <code>&lt;=</code></strong> in the merge, which breaks stability (and, for inversion counting, double-counts equal items).</li>
+<li><strong>Sorting numbers with the default JavaScript sort</strong> (it sorts as text).</li>
+<li><strong>Creating many slices</strong> (<code>slice</code> copies in JS) inside deep recursion, accidentally adding <code>O(n log n)</code> or worse memory.</li>
+<li><strong>Forgetting that quickselect modifies the array</strong> (copy first if the caller needs the original).</li>
+<li><strong>Assuming <code>sort.Slice</code> is stable</strong> in Go (it is not; use <code>sort.SliceStable</code>).</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1" data-track>
+<h3>1 · mergeTwo from memory</h3>
+<p>Without notes, write <code>mergeTwo</code> for two sorted arrays. What is the invariant while the loop runs?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Invariant: <code>out</code> holds the smallest items of both arrays in sorted order, and <code>left[i]</code>, <code>right[j]</code> are the smallest items not yet taken. Each step takes the smaller front (the left one on ties), so the invariant holds; when one side runs out, the other's rest is already sorted and bigger. Compare with Problem 2's code.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · The recursion tree for 8 items</h3>
+<p>Draw the recursion tree for merge sort on 8 items and say why total work is <code>n log n</code>.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Level 0: one problem of 8; level 1: two of 4; level 2: four of 2; level 3: eight of 1. Each level's merges touch all 8 items once, so each level costs n. There are log₂ 8 = 3 merging levels: 8 × 3 = 24, in general n log n. The merge-sort animation shows the levels as rows.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Fixed pivots on sorted input</h3>
+<p>Why does an already-sorted array hurt a fixed-pivot quicksort, and what is the cheapest fix?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>With the last item as the pivot, a sorted array puts everything on one side every time: partitions of size n−1, n−2, …, so n levels and about n²/2 comparisons, plus an n-deep stack. The cheapest fix is a <strong>random pivot</strong> (or median-of-three). Replay it in Problem 3.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Merge Sorted Array from the back</h3>
+<p>Solve <em>Merge Sorted Array</em> (LeetCode 88) by merging <strong>from the back</strong>. Why does that avoid extra memory?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Fill <code>nums1</code> from its last slot: compare the last real items of both arrays and write the bigger one at the back. Writes land in empty room, never on an unread value, so no copy is needed. Lesson 05's exercise 4 animates exactly this.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Pick a sort for each case</h3>
+<p>Choose and defend a sorting method for: (a) a linked list, (b) a billion numbers on disk, (c) 10 numbers that are almost sorted, (d) ages of people (0–120).</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><ul><li>(a) Linked list: merge sort (sequential access, no extra array).</li><li>(b) A billion numbers on disk: external merge sort (sort chunks in memory, merge runs).</li><li>(c) Ten almost-sorted numbers: insertion sort.</li><li>(d) Ages 0–120: counting sort, <code>O(n + 121)</code>.</li></ul></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="sort09"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/09.js"></script>
+</body>
+</html>

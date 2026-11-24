@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="06" data-pattern="Sliding window">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>06 Sliding window | Algorithm guide</title>
+<meta name="description" content="Sliding window animated: fixed and variable windows, longest substring, minimum window substring and the classic bugs.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 06</span><span>Core patterns on arrays and strings</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Sliding window</h1>
+<p class="sub">Keep a useful stretch of neighbors, and slide it forward.</p>
+<blockquote><p><strong>Book link:</strong> this pattern is not a chapter in <em>Grokking Algorithms</em>. It is the natural partner of two pointers: it also scans an array once, but the stretch <em>between</em> the two pointers carries meaning. This file replaces v2 file 02.</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>A contiguous subarray or substring, with longest, shortest, at most k, or every window of size k.</p></div><div><b>The template</b><p>Grow <code>right</code>; while the rule breaks, shrink <code>left</code>; then record.</p></div><div><b>What it costs</b><p><code>O(n)</code>: each item enters once and leaves once, even with the inner <code>while</code>.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>A <strong>window</strong> is a stretch of <strong>neighboring</strong> items: positions <code>left</code> to <code>right</code>, inclusive. "Sliding" means you move the window along the array one step at a time, instead of rebuilding it from scratch each time.</p>
+<p><strong>An everyday comparison.</strong> You are on a train looking out a window. The scenery slides past: new things appear at the front edge, old things leave at the back edge. You do not re-look at everything each moment; you only notice what <em>entered</em> and what <em>left</em>.</p>
+<p>That is the entire trick. When the window moves one step, you update your answer using <strong>only the one item that entered and the one item that left</strong>, which costs <code>O(1)</code>, instead of recomputing the whole window, which costs <code>O(window size)</code>.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    subgraph Before["Window at positions 0 to 2"]
+        direction LR
+        A0["[2]"] --- A1["[1]"] --- A2["[5]"] --- A3["1"] --- A4["3"]
+    end
+    subgraph After["Window at positions 1 to 3"]
+        direction LR
+        B0["2"] --- B1["[1]"] --- B2["[5]"] --- B3["[1]"] --- B4["3"]
+    end
+    Before --&gt;|"2 leaves, 1 enters"| After</pre></figure>
+<h3 id="two-kinds-of-windows">Two kinds of windows</h3>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    W["Sliding window"] --&gt; F["Fixed size&lt;br/&gt;The size k is given.&lt;br/&gt;Add the new item, drop the old one."]
+    W --&gt; V["Variable size&lt;br/&gt;The size is what you are optimizing.&lt;br/&gt;Grow with right, shrink with left&lt;br/&gt;to keep a rule true."]</pre></figure>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th></th><th>Fixed window</th><th>Variable window</th></tr></thead><tbody>
+<tr><td>Question wording</td><td>"every subarray of size <code>k</code>"</td><td>"longest / shortest / at most / at least …"</td></tr>
+<tr><td>Pointers</td><td><code>right</code> moves; <code>left = right - k + 1</code></td><td>both move forward; <code>left</code> moves only to <em>restore the rule</em></td></tr>
+<tr><td>Typical state</td><td>running sum, count</td><td>counts in a map, a running sum, a counter</td></tr>
+</tbody></table></div>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>2. How to recognize it</h2>
+<p>Think "sliding window" when the problem asks about a <strong>contiguous</strong> part of an array or string (a <em>subarray</em> or <em>substring</em>, never a subsequence) and says something like:</p>
+<ul>
+<li>"<strong>longest</strong> substring such that…" or "<strong>shortest</strong> subarray with…"</li>
+<li>"at most <code>k</code> distinct / at most <code>k</code> zeros / sum at least <code>S</code>"</li>
+<li>"every subarray of size <code>k</code>"</li>
+<li>"<strong>without repeating</strong> characters", "containing all characters of…"</li>
+</ul>
+<p><strong>The big warning:</strong> a <em>variable</em> window needs a rule whose truth moves in one direction as you grow or shrink.</p>
+<ul>
+<li><em>"Sum ≥ target, with only positive numbers"</em>: growing the window can only increase the sum, shrinking can only decrease it. ✔ Window works.</li>
+<li><em>"Sum ≥ target, with negative numbers allowed"</em>: growing might <em>decrease</em> the sum; the rule is no longer one-directional. ✘ Window breaks. Use prefix sums + a map (file 07) instead.</li>
+</ul>
+<div class="quiz" data-quiz="window06"></div>
+</section>
+<section class="sec" id="the-template-for-a-variable-window">
+<h2>3. The template for a variable window</h2>
+<p>Say it in words: <strong>"Expand <code>right</code> one step at a time. While the window breaks the rule, shrink <code>left</code>. Then record the answer."</strong></p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    A["right = 0 to n-1"] --&gt; B["Add item at right to the window state"]
+    B --&gt; C{"Does the window break the rule?"}
+    C --&gt;|Yes| D["Remove item at left from the state&lt;br/&gt;left++"]
+    D --&gt; C
+    C --&gt;|No| E["Record the answer using left and right"]
+    E --&gt; A</pre></figure>
+<p>The inner <code>while</code> does not make the algorithm quadratic: <code>left</code> only moves forward and never exceeds <code>right</code>, so over the whole run <code>left</code> moves at most <code>n</code> times in total. Time is <code>O(n)</code> (amortized, see file 02).</p>
+<h3 id="two-ways-to-record-the-answer">Two ways to record the answer</h3>
+<ul>
+<li><strong>Longest window</strong> → record <em>after</em> the <code>while</code> loop (the window is valid then).</li>
+<li><strong>Shortest window</strong> → record <em>inside</em> the <code>while</code> loop (as long as the window is <em>still valid</em> while you shrink it).</li>
+</ul>
+<p>Step through both skeletons. In the variable version, the decision map below the stage shows the template's loop.</p>
+<div class="stage" id="st-skel" data-anim="fixedWindow,varWindow" data-code="code-1" data-flow=",fig-3"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="fixed and variable window skeletons"><code class="language-ts">// Fixed window of size k: best sum.
+function bestSumOfSizeK(nums: number[], k: number): number {
+  if (k &gt; nums.length) return NaN;
+  let windowSum = 0;
+  for (let i = 0; i &lt; k; i++) windowSum += nums[i]; // build the first window
+  let best = windowSum;
+  for (let right = k; right &lt; nums.length; right++) {
+    windowSum += nums[right] - nums[right - k]; // one enters, one leaves
+    best = Math.max(best, windowSum);
+  }
+  return best;
+}
+
+// Variable window skeleton: longest stretch with at most `limit` zeros.
+function longestWithAtMostZeros(bits: number[], limit: number): number {
+  let left = 0, zeros = 0, best = 0;
+  for (let right = 0; right &lt; bits.length; right++) {
+    if (bits[right] === 0) zeros++; // add the right item
+    while (zeros &gt; limit) { // the rule is broken: shrink
+      if (bits[left] === 0) zeros--;
+      left++;
+    }
+    best = Math.max(best, right - left + 1); // record after the window is valid
+  }
+  return best;
+}
+
+console.log(bestSumOfSizeK([2, 1, 5, 1, 3, 2], 3)); // 9
+console.log(longestWithAtMostZeros([1, 0, 1, 1, 0, 1], 1)); // 4</code></pre>
+<pre data-lang="go" data-caption="fixed and variable window skeletons"><code class="language-go">// Fixed window of size k: best sum.
+func bestSumOfSizeK(nums []int, k int) int {
+	windowSum := 0
+	for i := 0; i &lt; k; i++ {
+		windowSum += nums[i] // build the first window
+	}
+	best := windowSum
+	for right := k; right &lt; len(nums); right++ {
+		windowSum += nums[right] - nums[right-k] // one enters, one leaves
+		best = max(best, windowSum)
+	}
+	return best
+}
+
+// Variable window skeleton: longest stretch with at most `limit` zeros.
+func longestWithAtMostZeros(bits []int, limit int) int {
+	left, zeros, best := 0, 0, 0
+	for right := 0; right &lt; len(bits); right++ {
+		if bits[right] == 0 {
+			zeros++ // add the right item
+		}
+		for zeros &gt; limit { // the rule is broken: shrink
+			if bits[left] == 0 {
+				zeros--
+			}
+			left++
+		}
+		best = max(best, right-left+1) // record after the window is valid
+	}
+	return best
+}
+
+func exampleWindowSkeletons() {
+	fmt.Println(bestSumOfSizeK([]int{2, 1, 5, 1, 3, 2}, 3))          // 9
+	fmt.Println(longestWithAtMostZeros([]int{1, 0, 1, 1, 0, 1}, 1)) // 4
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>4. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Maximum Sum Subarray of Size K (fixed window; like LeetCode 643)</h3>
+<p><strong>Task.</strong> Find the largest sum of any <code>k</code> consecutive numbers. <code>[2, 1, 5, 1, 3, 2]</code>, <code>k = 3</code> → <code>9</code> (the window <code>5, 1, 3</code>).</p>
+<p><strong>Brute force.</strong> For each start, add <code>k</code> numbers: <code>O(n · k)</code>.</p>
+<p><strong>Window idea.</strong> Once you have the sum of window <code>[0..2]</code>, the sum of <code>[1..3]</code> is the old sum, <strong>plus</strong> the new item, <strong>minus</strong> the item that left.</p>
+<p><strong>Trace.</strong> (shown in the skeleton above)</p>
+<div class="table-wrap"><table id="tbl-2" class="trace"><thead><tr><th>Window</th><th>Computation</th><th>Sum</th></tr></thead><tbody>
+<tr><td><code>[2, 1, 5]</code></td><td>2+1+5</td><td>8</td></tr>
+<tr><td><code>[1, 5, 1]</code></td><td>8 + 1 − 2</td><td>7</td></tr>
+<tr><td><code>[5, 1, 3]</code></td><td>7 + 3 − 1</td><td><strong>9</strong></td></tr>
+<tr><td><code>[1, 3, 2]</code></td><td>9 + 2 − 5</td><td>6</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p1" data-anim="fixedWindow" data-code="code-1" data-clone></div>
+<p>The code is <code>bestSumOfSizeK</code> in the skeleton section above. <strong>Complexity:</strong> <code>O(n)</code> time, <code>O(1)</code> space. (For <em>average</em>, divide by <code>k</code>.)</p>
+<p><strong>Edge cases:</strong> <code>k</code> larger than the array (decide what to return: ask the interviewer), <code>k = 1</code>, negative numbers (fine for a <em>fixed</em> window, since the size doesn't change).</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Longest Substring Without Repeating Characters (LeetCode 3, Medium)</h3>
+<p><strong>Task.</strong> Return the length of the longest substring in which no character repeats. <code>"abcabcbb"</code> → <code>3</code> (<code>"abc"</code>). <code>"bbbbb"</code> → <code>1</code>. <code>"pwwkew"</code> → <code>3</code> (<code>"wke"</code>).</p>
+<p><strong>Brute force.</strong> Check every substring for duplicates: <code>O(n³)</code> naive, <code>O(n²)</code> with a set.</p>
+<p><strong>Window idea.</strong> The rule is "no repeats inside the window". When the new right character is already inside the window, <strong>jump <code>left</code> to just after its previous position</strong>. To jump instantly, keep a map <code>lastSeen[char] = index</code>.</p>
+<p><strong>One subtle point.</strong> The old position of a character might be <em>left</em> of the current window (already removed). So take the <code>max</code>: <code>left = max(left, lastSeen[ch] + 1)</code>. Without the <code>max</code>, <code>left</code> could move backward, which is the number one bug here.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["right sees character ch"] --&gt; B{"ch seen before at index p,&lt;br/&gt;and p is inside the window (p &gt;= left)?"}
+    B --&gt;|Yes| C["left = p + 1"]
+    B --&gt;|No| D["keep left"]
+    C --&gt; E["lastSeen[ch] = right"]
+    D --&gt; E
+    E --&gt; F["best = max(best, right - left + 1)"]</pre></figure>
+<p><strong>Trace.</strong> <code>"abba"</code>  (the famous tricky one)</p>
+<div class="table-wrap"><table id="tbl-3" class="trace"><thead><tr><th>right</th><th>ch</th><th>lastSeen before</th><th>left after</th><th>window</th><th>best</th></tr></thead><tbody>
+<tr><td>0</td><td>a</td><td>none</td><td>0</td><td><code>a</code></td><td>1</td></tr>
+<tr><td>1</td><td>b</td><td>none</td><td>0</td><td><code>ab</code></td><td>2</td></tr>
+<tr><td>2</td><td>b</td><td>b@1 (inside)</td><td>2</td><td><code>b</code></td><td>2</td></tr>
+<tr><td>3</td><td>a</td><td>a@0 (<strong>outside</strong>: 0 &lt; left 2)</td><td><strong>stays 2</strong> (not 1!)</td><td><code>ba</code></td><td>2</td></tr>
+</tbody></table></div>
+<p>At the last step, without <code>max</code>, <code>left</code> would drop to 1 and wrongly give length 3.</p>
+<div class="stage" id="st-p2" data-anim="longestNoRepeat" data-code="code-2" data-flow="fig-4"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function lengthOfLongestSubstring(s: string): number {
+  const lastSeen = new Map&lt;string, number&gt;();
+  let left = 0, best = 0;
+  for (let right = 0; right &lt; s.length; right++) {
+    const ch = s[right];
+    const prev = lastSeen.get(ch);
+    if (prev !== undefined) left = Math.max(left, prev + 1); // never move left backward
+    lastSeen.set(ch, right);
+    best = Math.max(best, right - left + 1);
+  }
+  return best;
+}
+console.log(lengthOfLongestSubstring("abcabcbb")); // 3
+console.log(lengthOfLongestSubstring("bbbbb")); // 1
+console.log(lengthOfLongestSubstring("pwwkew")); // 3
+console.log(lengthOfLongestSubstring("abba")); // 2
+console.log(lengthOfLongestSubstring("")); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func lengthOfLongestSubstring(s string) int {
+	lastSeen := make(map[byte]int) // assumes single-byte characters; use runes for Unicode
+	left, best := 0, 0
+	for right := 0; right &lt; len(s); right++ {
+		ch := s[right]
+		if prev, ok := lastSeen[ch]; ok {
+			left = max(left, prev+1) // never move left backward
+		}
+		lastSeen[ch] = right
+		best = max(best, right-left+1)
+	}
+	return best
+}
+
+func exampleLengthOfLongestSubstring() {
+	fmt.Println(lengthOfLongestSubstring("abcabcbb")) // 3
+	fmt.Println(lengthOfLongestSubstring("bbbbb"))    // 1
+	fmt.Println(lengthOfLongestSubstring("pwwkew"))   // 3
+	fmt.Println(lengthOfLongestSubstring("abba"))     // 2
+	fmt.Println(lengthOfLongestSubstring(""))         // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(k)</code> where <code>k</code> is the alphabet size (at most 128 for ASCII: effectively <code>O(1)</code>).</p>
+<p><strong>Follow-up.</strong> <em>"Return the substring itself."</em> Save <code>bestLeft</code> whenever you improve <code>best</code>.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Minimum Size Subarray Sum (LeetCode 209, Medium)</h3>
+<p><strong>Task.</strong> All numbers are <strong>positive</strong>. Find the <em>shortest</em> contiguous subarray whose sum is at least <code>target</code>. <code>target = 7</code>, <code>[2, 3, 1, 2, 4, 3]</code> → <code>2</code> (the subarray <code>[4, 3]</code>). If none exists, return <code>0</code>.</p>
+<p><strong>Brute force.</strong> Try every start and end: <code>O(n²)</code>.</p>
+<p><strong>Window idea.</strong> Because all numbers are positive, <em>growing</em> the window only raises the sum and <em>shrinking</em> only lowers it. So: grow <code>right</code> until the sum reaches the target (the rule "sum ≥ target" is now <em>true</em>). Then <strong>shrink from the left as long as it stays true</strong>, recording the length each time. Since we want the <em>shortest</em>, the record happens <strong>inside</strong> the <code>while</code> loop.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["Add nums[right] to sum"] --&gt; B{"sum &gt;= target?"}
+    B --&gt;|No| C["right++ to grow"]
+    B --&gt;|Yes| D["Record length = right - left + 1"]
+    D --&gt; E["Subtract nums[left]&lt;br/&gt;left++"]
+    E --&gt; B</pre></figure>
+<p><strong>Trace.</strong> <code>target = 7</code>, <code>[2, 3, 1, 2, 4, 3]</code></p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>right</th><th>add</th><th>sum</th><th>left</th><th>action</th><th>best</th></tr></thead><tbody>
+<tr><td>0</td><td>2</td><td>2</td><td>0</td><td>below target</td><td>∞</td></tr>
+<tr><td>1</td><td>3</td><td>5</td><td>0</td><td>below</td><td>∞</td></tr>
+<tr><td>2</td><td>1</td><td>6</td><td>0</td><td>below</td><td>∞</td></tr>
+<tr><td>3</td><td>2</td><td>8</td><td>0</td><td>≥7: record 4; remove 2 → sum 6, left=1</td><td>4</td></tr>
+<tr><td>4</td><td>4</td><td>10</td><td>1</td><td>≥7: record 4; remove 3 → 7, left=2; ≥7: record 3; remove 1 → 6, left=3</td><td>3</td></tr>
+<tr><td>5</td><td>3</td><td>9</td><td>3</td><td>≥7: record 3; remove 2 → 7, left=4; record 2; remove 4 → 3, left=5</td><td><strong>2</strong></td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p3" data-anim="minSubArray" data-code="code-3" data-flow="fig-5"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function minSubArrayLen(target: number, nums: number[]): number {
+  let left = 0, sum = 0, best = Infinity;
+  for (let right = 0; right &lt; nums.length; right++) {
+    sum += nums[right];
+    while (sum &gt;= target) {
+      best = Math.min(best, right - left + 1); // record inside: we want the shortest
+      sum -= nums[left];
+      left++;
+    }
+  }
+  return best === Infinity ? 0 : best;
+}
+console.log(minSubArrayLen(7, [2, 3, 1, 2, 4, 3])); // 2
+console.log(minSubArrayLen(4, [1, 4, 4])); // 1
+console.log(minSubArrayLen(11, [1, 1, 1, 1, 1])); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func minSubArrayLen(target int, nums []int) int {
+	left, sum, best := 0, 0, math.MaxInt
+	for right := 0; right &lt; len(nums); right++ {
+		sum += nums[right]
+		for sum &gt;= target {
+			best = min(best, right-left+1) // record inside: we want the shortest
+			sum -= nums[left]
+			left++
+		}
+	}
+	if best == math.MaxInt {
+		return 0
+	}
+	return best
+}
+
+func exampleMinSubArrayLen() {
+	fmt.Println(minSubArrayLen(7, []int{2, 3, 1, 2, 4, 3})) // 2
+	fmt.Println(minSubArrayLen(4, []int{1, 4, 4}))          // 1
+	fmt.Println(minSubArrayLen(11, []int{1, 1, 1, 1, 1}))   // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(1)</code>.</p>
+<p><strong>The classic follow-up:</strong> <em>"What if negative numbers are allowed?"</em> The window logic collapses (shrinking might <em>raise</em> the sum). Use prefix sums with a monotonic deque (file 14) for the shortest-subarray version, or a prefix-sum map for the "sum equals K" version (file 07).</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Longest Substring with At Most K Distinct Characters (LeetCode 340, Medium)</h3>
+<p><strong>Task.</strong> Longest substring containing at most <code>k</code> different characters. <code>"eceba"</code>, <code>k = 2</code> → <code>3</code> (<code>"ece"</code>).</p>
+<p><strong>Window idea.</strong> State: a <strong>count map</strong> of each character inside the window. The window is valid when the map has at most <code>k</code> keys. When it exceeds <code>k</code>, remove characters from the left, <strong>deleting a key when its count reaches zero</strong> (otherwise the map size lies).</p>
+<p><strong>Trace.</strong> <code>"eceba"</code>, <code>k = 2</code></p>
+<div class="table-wrap"><table id="tbl-5" class="trace"><thead><tr><th>right</th><th>add</th><th>counts</th><th>distinct</th><th>left after</th><th>window</th><th>best</th></tr></thead><tbody>
+<tr><td>0</td><td>e</td><td>e:1</td><td>1</td><td>0</td><td><code>e</code></td><td>1</td></tr>
+<tr><td>1</td><td>c</td><td>e:1, c:1</td><td>2</td><td>0</td><td><code>ec</code></td><td>2</td></tr>
+<tr><td>2</td><td>e</td><td>e:2, c:1</td><td>2</td><td>0</td><td><code>ece</code></td><td>3</td></tr>
+<tr><td>3</td><td>b</td><td>e:2, c:1, b:1</td><td>3 → too many</td><td>remove e (e:1), remove c (c:0, delete) → left=2</td><td><code>eb</code></td><td>3</td></tr>
+<tr><td>4</td><td>a</td><td>e:1, b:1, a:1</td><td>3 → too many</td><td>remove e (e:0, delete) → left=3</td><td><code>ba</code></td><td>3</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p4" data-anim="kDistinct" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function lengthOfLongestSubstringKDistinct(s: string, k: number): number {
+  if (k === 0) return 0;
+  const counts = new Map&lt;string, number&gt;();
+  let left = 0, best = 0;
+  for (let right = 0; right &lt; s.length; right++) {
+    counts.set(s[right], (counts.get(s[right]) ?? 0) + 1);
+    while (counts.size &gt; k) {
+      const out = s[left];
+      const c = counts.get(out)! - 1;
+      if (c === 0) counts.delete(out); // delete at zero so counts.size stays truthful
+      else counts.set(out, c);
+      left++;
+    }
+    best = Math.max(best, right - left + 1);
+  }
+  return best;
+}
+console.log(lengthOfLongestSubstringKDistinct("eceba", 2)); // 3
+console.log(lengthOfLongestSubstringKDistinct("aa", 1)); // 2
+console.log(lengthOfLongestSubstringKDistinct("abc", 0)); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func lengthOfLongestSubstringKDistinct(s string, k int) int {
+	if k == 0 {
+		return 0
+	}
+	counts := make(map[byte]int)
+	left, best := 0, 0
+	for right := 0; right &lt; len(s); right++ {
+		counts[s[right]]++
+		for len(counts) &gt; k {
+			out := s[left]
+			counts[out]--
+			if counts[out] == 0 {
+				delete(counts, out) // delete at zero so len(counts) stays truthful
+			}
+			left++
+		}
+		best = max(best, right-left+1)
+	}
+	return best
+}
+
+func exampleKDistinct() {
+	fmt.Println(lengthOfLongestSubstringKDistinct("eceba", 2)) // 3
+	fmt.Println(lengthOfLongestSubstringKDistinct("aa", 1))    // 2
+	fmt.Println(lengthOfLongestSubstringKDistinct("abc", 0))   // 0
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(k)</code>.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Longest Repeating Character Replacement (LeetCode 424, Medium)</h3>
+<p><strong>Task.</strong> You may change at most <code>k</code> characters of an uppercase string to any letter. What is the longest run of one repeated letter you can make? <code>"AABABBA"</code>, <code>k = 1</code> → <code>4</code>.</p>
+<p><strong>Key reasoning (this is the hard part).</strong> For a window, the <em>cheapest</em> way to make all letters equal is to keep the <strong>most frequent</strong> letter and replace all the others. The number of replacements needed is</p>
+<blockquote><p><code>windowLength − (count of the most frequent letter in the window)</code>.</p></blockquote>
+<p>The window is <strong>valid</strong> when that number is <code>≤ k</code>.</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart LR
+    A["Window: A A B A B"] --&gt; B["Most frequent letter: A, 3 times"]
+    B --&gt; C["Replacements needed = 5 - 3 = 2"]
+    C --&gt; D{"2 &lt;= k ?"}
+    D --&gt;|"k = 1: no, shrink"| E["Shrink from the left"]
+    D --&gt;|"k = 2: yes"| F["Window is valid"]</pre></figure>
+<p><strong>A neat trick explained.</strong> Keeping the <em>exact</em> current max count after shrinking is awkward (we would need to scan 26 counts). Instead keep <code>maxCount</code> as "the largest count we have <strong>ever</strong> seen in any window". It never needs to go down. Why is that safe? We only care about finding a <em>longer</em> window than the best so far. A longer window can only appear if some letter's count exceeds the old max, so an out-of-date (too high) <code>maxCount</code> can never cause a <em>wrong larger</em> answer: when the window is invalid with a stale <code>maxCount</code>, we just shift the window along without growing. This is subtle; explain it slowly in an interview, or use the safe option: recompute the max over 26 counts each time (<code>O(26 n)</code>, which is still <code>O(n)</code>).</p>
+<p><strong>Trace.</strong> <code>"AABABBA"</code>, <code>k = 1</code></p>
+<div class="table-wrap"><table id="tbl-6" class="trace"><thead><tr><th>right</th><th>char</th><th>counts</th><th>maxCount</th><th>length</th><th>length − maxCount</th><th>action</th></tr></thead><tbody>
+<tr><td>0</td><td>A</td><td>A:1</td><td>1</td><td>1</td><td>0</td><td>ok, best 1</td></tr>
+<tr><td>1</td><td>A</td><td>A:2</td><td>2</td><td>2</td><td>0</td><td>ok, best 2</td></tr>
+<tr><td>2</td><td>B</td><td>A:2 B:1</td><td>2</td><td>3</td><td>1</td><td>ok (≤1), best 3</td></tr>
+<tr><td>3</td><td>A</td><td>A:3 B:1</td><td>3</td><td>4</td><td>1</td><td>ok, best 4</td></tr>
+<tr><td>4</td><td>B</td><td>A:3 B:2</td><td>3</td><td>5</td><td>2 &gt; 1</td><td>shrink: remove A (left 1) → window length 4</td></tr>
+<tr><td>5</td><td>B</td><td>A:2 B:3</td><td>3</td><td>5</td><td>2 &gt; 1</td><td>shrink: remove A → length 4</td></tr>
+<tr><td>6</td><td>A</td><td>…</td><td>3</td><td>5</td><td>2 &gt; 1</td><td>shrink → length 4</td></tr>
+</tbody></table></div>
+<p>Best = <strong>4</strong>.</p>
+<div class="stage" id="st-p5" data-anim="charReplace" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function characterReplacement(s: string, k: number): number {
+  const counts = new Array&lt;number&gt;(26).fill(0);
+  let left = 0, maxCount = 0, best = 0;
+  for (let right = 0; right &lt; s.length; right++) {
+    const idx = s.charCodeAt(right) - 65; // 'A' = 65
+    counts[idx]++;
+    maxCount = Math.max(maxCount, counts[idx]); // largest count ever seen in a window
+    // Replacements needed = window length - count of the most common letter.
+    while (right - left + 1 - maxCount &gt; k) {
+      counts[s.charCodeAt(left) - 65]--;
+      left++;
+    }
+    best = Math.max(best, right - left + 1);
+  }
+  return best;
+}
+console.log(characterReplacement("AABABBA", 1)); // 4
+console.log(characterReplacement("ABAB", 2)); // 4
+console.log(characterReplacement("A", 0)); // 1</code></pre>
+<pre data-lang="go"><code class="language-go">func characterReplacement(s string, k int) int {
+	var counts [26]int
+	left, maxCount, best := 0, 0, 0
+	for right := 0; right &lt; len(s); right++ {
+		counts[s[right]-'A']++
+		maxCount = max(maxCount, counts[s[right]-'A']) // largest count ever seen in a window
+		// Replacements needed = window length - count of the most common letter.
+		for right-left+1-maxCount &gt; k {
+			counts[s[left]-'A']--
+			left++
+		}
+		best = max(best, right-left+1)
+	}
+	return best
+}
+
+func exampleCharacterReplacement() {
+	fmt.Println(characterReplacement("AABABBA", 1)) // 4
+	fmt.Println(characterReplacement("ABAB", 2))    // 4
+	fmt.Println(characterReplacement("A", 0))       // 1
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(1)</code> (26 counters).</p>
+</section>
+<section class="problem" id="p6">
+<h3>Problem 6 · Minimum Window Substring (LeetCode 76, Hard)</h3>
+<p><strong>Task.</strong> Given strings <code>s</code> and <code>t</code>, find the <strong>shortest</strong> substring of <code>s</code> that contains <strong>every</strong> character of <code>t</code>, <em>including duplicates</em>. <code>s = "ADOBECODEBANC"</code>, <code>t = "ABC"</code> → <code>"BANC"</code>. If none exists, return <code>""</code>.</p>
+<p><strong>Why it is hard.</strong> Two things have to be tracked at once: <em>which</em> letters are needed and <em>how many of each</em>. A clean way to avoid re-checking all counts every step is a single number: <strong><code>missing</code> = how many required letters are still absent from the window</strong>.</p>
+<p><strong>Setup.</strong></p>
+<ul>
+<li><code>need[c]</code> = how many copies of <code>c</code> the target <code>t</code> requires.</li>
+<li><code>missing</code> starts as <code>t.length</code> (total letters still needed).</li>
+<li>When the window gains a character <code>c</code>: if <code>need[c] &gt; 0</code> <em>before</em> we use it up, then it fills a real gap: <code>missing--</code>. Then decrement <code>need[c]</code> (it can go <strong>negative</strong>, which means "we have a surplus of <code>c</code>").</li>
+<li>The window is <strong>valid</strong> when <code>missing == 0</code>.</li>
+</ul>
+<p><strong>The loop (it is the shortest-window template).</strong></p>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["Expand: add s[right]"] --&gt; B["If need[c] &gt; 0, missing--&lt;br/&gt;then need[c]--"]
+    B --&gt; C{"missing == 0 ?"}
+    C --&gt;|No| D["right++"]
+    C --&gt;|Yes| E["Record the window if it is the shortest"]
+    E --&gt; F["Shrink: take s[left] out&lt;br/&gt;need[c]++ ; if need[c] &gt; 0 then missing++&lt;br/&gt;left++"]
+    F --&gt; C
+    D --&gt; A</pre></figure>
+<p>When removing <code>s[left]</code>: we put its copy back with <code>need[c]++</code>. If <code>need[c]</code> becomes positive, we have just <strong>lost a required</strong> letter (it was not surplus), so <code>missing++</code> and the window becomes invalid; the <code>while</code> loop ends.</p>
+<p><strong>Trace</strong> on <code>s = "ADOBECODEBANC"</code>, <code>t = "ABC"</code> (initially <code>need = {A:1, B:1, C:1}</code>, <code>missing = 3</code>). I show only the interesting moments:</p>
+<div class="table-wrap"><table id="tbl-7" class="trace"><thead><tr><th>right</th><th>char</th><th>effect</th><th>missing</th><th>window valid?</th><th>shortest so far</th></tr></thead><tbody>
+<tr><td>0</td><td>A</td><td>need[A] 1→0, missing falls to 2</td><td>2</td><td>no</td><td>none</td></tr>
+<tr><td>3</td><td>B</td><td>need[B] 1→0, missing 1</td><td>1</td><td>no</td><td>none</td></tr>
+<tr><td>5</td><td>C</td><td>need[C] 1→0, missing 0</td><td><strong>0</strong></td><td><strong>yes</strong>: <code>ADOBEC</code> (positions 0 to 5)</td><td>length 6</td></tr>
+<tr><td>(shrink)</td><td>A leaves</td><td>need[A] 0→1 (positive), missing back to 1, left=1</td><td>1</td><td>no</td><td>6</td></tr>
+<tr><td>9</td><td>B</td><td>a surplus copy: need[B] goes 0→−1, missing stays 1</td><td>1</td><td>no</td><td>6</td></tr>
+<tr><td>10</td><td>A</td><td>need[A] 1→0, missing 0</td><td>0</td><td>yes: <code>DOBECODEBA</code> (1 to 10)</td><td>6</td></tr>
+<tr><td>(shrink)</td><td>D, O, B, E leave</td><td>none is a <em>lost</em> requirement (B had a surplus), so the window stays valid; lengths 10, 9, 8, 7 are seen, then 6 (<code>CODEBA</code>)</td><td>0</td><td>yes</td><td>6</td></tr>
+<tr><td>(shrink)</td><td>C leaves</td><td>need[C] 0→1, missing 1, left=6</td><td>1</td><td>no</td><td>6</td></tr>
+<tr><td>12</td><td>C</td><td>need[C] 1→0, missing 0</td><td>0</td><td>yes: positions 6 to 12</td><td>6</td></tr>
+<tr><td>(shrink)</td><td>O, D, E, B leave</td><td>O, D, E are irrelevant; when B leaves, need[B] goes 0→1 so missing=1. The window just before that was positions 9 to 12</td><td>1</td><td>no</td><td><strong>4</strong> (<code>BANC</code>)</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p6" data-anim="minWindow" data-code="code-6" data-flow="fig-7"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function minWindow(s: string, t: string): string {
+  if (t.length === 0 || t.length &gt; s.length) return "";
+  const need = new Map&lt;string, number&gt;();
+  for (const ch of t) need.set(ch, (need.get(ch) ?? 0) + 1);
+  let missing = t.length; // how many required characters are still absent
+  let left = 0, bestStart = 0, bestLen = Infinity;
+  for (let right = 0; right &lt; s.length; right++) {
+    const add = s[right];
+    if (need.has(add)) {
+      if (need.get(add)! &gt; 0) missing--; // this copy fills a real gap
+      need.set(add, need.get(add)! - 1); // may go negative: a surplus
+    }
+    while (missing === 0) { // valid window: try to shrink it
+      if (right - left + 1 &lt; bestLen) {
+        bestLen = right - left + 1;
+        bestStart = left;
+      }
+      const out = s[left];
+      if (need.has(out)) {
+        need.set(out, need.get(out)! + 1);
+        if (need.get(out)! &gt; 0) missing++; // we just lost a required character
+      }
+      left++;
+    }
+  }
+  return bestLen === Infinity ? "" : s.slice(bestStart, bestStart + bestLen);
+}
+console.log(minWindow("ADOBECODEBANC", "ABC")); // BANC
+console.log(minWindow("a", "a")); // a
+console.log(minWindow("a", "aa")); // (empty string)
+console.log(minWindow("aab", "aab")); // aab</code></pre>
+<pre data-lang="go"><code class="language-go">func minWindow(s, t string) string {
+	if len(t) == 0 || len(t) &gt; len(s) {
+		return ""
+	}
+	var need [128]int // ASCII; use a map for Unicode
+	for i := 0; i &lt; len(t); i++ {
+		need[t[i]]++
+	}
+	missing := len(t) // how many required characters are still absent
+	left, bestStart, bestLen := 0, 0, math.MaxInt
+	for right := 0; right &lt; len(s); right++ {
+		if need[s[right]] &gt; 0 {
+			missing-- // this copy fills a real gap
+		}
+		need[s[right]]-- // may go negative: a surplus (also fine for letters not in t)
+		for missing == 0 { // valid window: try to shrink it
+			if right-left+1 &lt; bestLen {
+				bestLen = right - left + 1
+				bestStart = left
+			}
+			need[s[left]]++
+			if need[s[left]] &gt; 0 {
+				missing++ // we just lost a required character
+			}
+			left++
+		}
+	}
+	if bestLen == math.MaxInt {
+		return ""
+	}
+	return s[bestStart : bestStart+bestLen]
+}
+
+func exampleMinWindow() {
+	fmt.Println(minWindow("ADOBECODEBANC", "ABC")) // BANC
+	fmt.Println(minWindow("a", "a"))               // a
+	fmt.Printf("%q\n", minWindow("a", "aa"))       // ""
+	fmt.Println(minWindow("aab", "aab"))           // aab
+}</code></pre>
+</div>
+<p><strong>A detail worth saying aloud (Go version).</strong> Letters <em>not</em> in <code>t</code> start with <code>need = 0</code>, and the line <code>need[s[right]]--</code> makes them negative. When they leave, <code>need++</code> returns them to <code>0</code>, which is <em>not</em> <code>&gt; 0</code>, so <code>missing</code> is not wrongly incremented. This lets one array handle both required and irrelevant letters without an <code>if</code>.</p>
+<p><strong>Complexity.</strong> Time <code>O(|s| + |t|)</code>: each character enters and leaves the window at most once. Space <code>O(alphabet)</code>.</p>
+<p><strong>Follow-ups.</strong> <em>"Permutation in String (LeetCode 567)"</em>: fixed window of size <code>|t|</code> with the same counting trick. <em>"Find All Anagrams (LeetCode 438)"</em>: same idea, record every start.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Using a window when negatives are allowed</strong> and the rule is about sums.</li>
+<li><strong>Not deleting a map key at zero</strong> when the rule is "number of distinct keys".</li>
+<li><strong>Moving <code>left</code> backward</strong> (the <code>abba</code> bug): always use <code>max(left, previous + 1)</code>.</li>
+<li><strong>Recording at the wrong place:</strong> <em>longest</em> → after the shrink loop; <em>shortest</em> → inside it.</li>
+<li><strong>Off-by-one in length:</strong> the window <code>[left, right]</code> inclusive has length <code>right − left + 1</code>.</li>
+<li><strong>Treating a subsequence like a substring.</strong> A window only handles <em>contiguous</em> parts.</li>
+<li><strong>Writing <code>if</code> instead of <code>while</code></strong> for the shrink step (you may need to remove several items).</li>
+</ul>
+<div class="callout bug"><b>Watch these bugs happen</b><p>Each button jumps to the animation and replays the mistake on an input that exposes it.</p><div class="presets"><button class="chip bug" data-bug="st-p2:0">Moving left backward (abba)</button><button class="chip bug" data-bug="st-p4:0">Not deleting a key at zero</button><button class="chip bug" data-bug="st-p3:0">A window with negative numbers</button></div></div>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · The rule, and where to record</h3>
+<p>For each of the six problems, say in one sentence <strong>what the rule is</strong> and <strong>whether you record inside or after the shrink loop</strong>.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><ol><li><strong>Max sum of size k:</strong> fixed size k; record after each slide.</li><li><strong>No repeating characters:</strong> no character twice in the window; longest, so record after adjusting <code>left</code>.</li><li><strong>Minimum size subarray sum:</strong> sum ≥ target; shortest, so record inside the shrink loop.</li><li><strong>At most k distinct:</strong> the count map has at most k keys; longest, record after the loop.</li><li><strong>Character replacement:</strong> length − maxCount ≤ k; longest, record after the loop.</li><li><strong>Minimum window substring:</strong> missing = 0; shortest, record inside the loop.</li></ol></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Why positives only</h3>
+<p>Why is Minimum Size Subarray Sum correct only for positive numbers? Give a tiny counter-example with a negative number.</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>Find an input where shrinking the window makes the sum bigger.</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The algorithm assumes that removing an item from the left can only lower the sum, so once the sum drops below the target it stops shrinking. A negative number breaks that. Counter-example: <code>[1, -1, 3]</code>, target 3. The window reaches sum 3 at <code>[1, -1, 3]</code> (length 3), removes 1 (sum 2), and stops. But <code>[3]</code> alone has length 1. Removing the −1 would have <em>raised</em> the sum. The bug replay in Problem 3 shows another case.</p></div></details>
+</div>
+<div class="exercise" id="ex3" data-track>
+<h3>3 · Permutation in String</h3>
+<p>Permutation in String: write the fixed-window version using a 26-slot array in both languages.</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>Keep a window exactly as long as t, and the same missing-count trick as Minimum Window Substring.</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>A fixed window of size <code>|t|</code> slides over <code>s</code>. <code>need[c]</code> starts as the letter counts of <code>t</code>; <code>missing</code> starts at <code>|t|</code>. When a letter enters and <code>need[c]</code> was positive, <code>missing--</code>; when a letter leaves and <code>need[c]</code> becomes positive again, <code>missing++</code>. If <code>missing</code> hits 0, the window is a permutation. <code>O(|s|)</code> time, 26 counters.</p><div class="stage" id="st-ex3" data-anim="permInString" data-code="code-ex3"></div>
+<div class="code-tabs" id="code-ex3">
+<pre data-lang="ts"><code class="language-ts">function checkInclusion(t: string, s: string): boolean {
+  if (t.length &gt; s.length) return false;
+  const need = new Array&lt;number&gt;(26).fill(0); // letters t still needs inside the window
+  for (let i = 0; i &lt; t.length; i++) need[t.charCodeAt(i) - 97]++;
+  let missing = t.length;
+  for (let right = 0; right &lt; s.length; right++) {
+    if (need[s.charCodeAt(right) - 97]-- &gt; 0) missing--; // a needed letter entered
+    const left = right - t.length; // the letter that just left the fixed window
+    if (left &gt;= 0 &amp;&amp; ++need[s.charCodeAt(left) - 97] &gt; 0) missing++; // a needed letter left
+    if (missing === 0) return true;
+  }
+  return false;
+}
+console.log(checkInclusion("ab", "eidbaooo")); // true
+console.log(checkInclusion("ab", "eidboaoo")); // false
+console.log(checkInclusion("adc", "dcda")); // true</code></pre>
+<pre data-lang="go"><code class="language-go">func checkInclusion(t, s string) bool {
+	if len(t) &gt; len(s) {
+		return false
+	}
+	var need [26]int // letters t still needs inside the window
+	for i := 0; i &lt; len(t); i++ {
+		need[t[i]-'a']++
+	}
+	missing := len(t)
+	for right := 0; right &lt; len(s); right++ {
+		if need[s[right]-'a'] &gt; 0 {
+			missing-- // a needed letter entered
+		}
+		need[s[right]-'a']--
+		left := right - len(t) // the letter that just left the fixed window
+		if left &gt;= 0 {
+			need[s[left]-'a']++
+			if need[s[left]-'a'] &gt; 0 {
+				missing++ // a needed letter left
+			}
+		}
+		if missing == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func exampleCheckInclusion() {
+	fmt.Println(checkInclusion("ab", "eidbaooo"))  // true
+	fmt.Println(checkInclusion("ab", "eidboaoo"))  // false
+	fmt.Println(checkInclusion("adc", "dcda"))     // true
+}</code></pre>
+</div></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Fruit Into Baskets in disguise</h3>
+<p>Fruit Into Baskets (LeetCode 904) is secretly which problem on this page?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>It is <strong>Problem 4 with k = 2</strong>: the longest subarray with at most two distinct values (two baskets, one fruit type each). Same counts map, delete a key at zero, record after the shrink loop.</p></div></details>
+</div>
+<div class="exercise" id="ex5" data-track>
+<h3>5 · Count subarrays with sum below k</h3>
+<p>Count the subarrays with sum less than <code>k</code> (all positive numbers). <em>Hint:</em> when the window <code>[left, right]</code> is valid, there are <code>right − left + 1</code> valid subarrays ending at <code>right</code>.</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>When the window [left, right] is valid, how many valid subarrays end exactly at right?</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Grow <code>right</code>; while the sum is at least <code>k</code>, shrink from the left. Now every subarray that ends at <code>right</code> and starts anywhere from <code>left</code> to <code>right</code> has a smaller sum (all numbers are positive), so add <code>right − left + 1</code> to the count. <code>O(n)</code> time.</p><div class="stage" id="st-ex5" data-anim="countBelow" data-code="code-ex5"></div>
+<div class="code-tabs" id="code-ex5">
+<pre data-lang="ts"><code class="language-ts">function countSubarraysBelow(nums: number[], k: number): number {
+  let left = 0, sum = 0, count = 0;
+  for (let right = 0; right &lt; nums.length; right++) {
+    sum += nums[right];
+    while (sum &gt;= k &amp;&amp; left &lt;= right) { // shrink until the window is valid again
+      sum -= nums[left];
+      left++;
+    }
+    count += right - left + 1; // every valid subarray that ends at right
+  }
+  return count;
+}
+console.log(countSubarraysBelow([2, 5, 6], 10)); // 4
+console.log(countSubarraysBelow([1, 1, 1], 3)); // 5
+console.log(countSubarraysBelow([10, 20], 5)); // 0</code></pre>
+<pre data-lang="go"><code class="language-go">func countSubarraysBelow(nums []int, k int) int {
+	left, sum, count := 0, 0, 0
+	for right := 0; right &lt; len(nums); right++ {
+		sum += nums[right]
+		for sum &gt;= k &amp;&amp; left &lt;= right { // shrink until the window is valid again
+			sum -= nums[left]
+			left++
+		}
+		count += right - left + 1 // every valid subarray that ends at right
+	}
+	return count
+}
+
+func exampleCountSubarraysBelow() {
+	fmt.Println(countSubarraysBelow([]int{2, 5, 6}, 10)) // 4
+	fmt.Println(countSubarraysBelow([]int{1, 1, 1}, 3))  // 5
+	fmt.Println(countSubarraysBelow([]int{10, 20}, 5))   // 0
+}</code></pre>
+</div></div></details>
+</div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/06.js"></script>
+</body>
+</html>

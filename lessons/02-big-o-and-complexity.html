@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="02" data-pattern="Big O">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>02 Big O and complexity | Algorithm guide</title>
+<meta name="description" content="Big O with animations: growth families, loop shapes, halving, recursion trees, amortized cost and hidden costs.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 02</span><span>Foundations</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Big O and complexity</h1>
+<p class="sub">How the work grows as the input grows, and how to read it straight from code.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 1 (binary search and Big O notation) and the "Big O revisited" part of chapter 4. This file explains the same ideas in my own words and goes further, into the details that interviewers actually ask about: amortized cost, recursion memory, and the hidden cost of built-in functions.</p></blockquote>
+<div class="glance"><div><b>The one question</b><p>If the input gets 10 times bigger, how much more work does the code do?</p></div><div><b>Read code fast</b><p>After one another: add. Inside one another: multiply. Different inputs: different letters.</p></div><div><b>The traps</b><p>Shrinking inner loops, pointers that only move forward, and built-ins that hide a loop.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>When you ask "how fast is this code?", the honest answer depends on the computer, the language, and the input. That is useless for comparing ideas. So computer scientists ask a better question:</p>
+<blockquote><p><strong>"If I make the input 10 times bigger, how much more work does the code do?"</strong></p></blockquote>
+<p>That is all Big O is. It describes how the amount of work <strong>grows</strong> as the input grows. It ignores the exact seconds.</p>
+<p><strong>An everyday comparison.</strong> Imagine you must find one name in a phone book.</p>
+<ul>
+<li><strong>Way 1: read every name from page 1.</strong> Double the book, double the work. That growth is <em>linear</em>: <code>O(n)</code>.</li>
+<li><strong>Way 2: open in the middle, see if your name is before or after, discard half, repeat.</strong> Double the book and you need only <em>one extra</em> step. That growth is <em>logarithmic</em>: <code>O(log n)</code>.</li>
+</ul>
+<p>For a book with 1,000,000 names, way 1 may need up to 1,000,000 looks. Way 2 needs about 20. That difference is why we care.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    A["Input gets 10x bigger"] --&gt; B{"How does the work change?"}
+    B --&gt; C["Same work: O(1)"]
+    B --&gt; D["About 3 more steps: O(log n)"]
+    B --&gt; E["10x more work: O(n)"]
+    B --&gt; F["About 33x more: O(n log n)"]
+    B --&gt; G["100x more work: O(n squared)"]
+    B --&gt; H["Hopeless: O(2 to the n)"]</pre></figure>
+</section>
+<section class="sec" id="the-growth-families-you-must-know">
+<h2>2. The growth families you must know</h2>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Name</th><th>Big O</th><th>10 items</th><th>1,000 items</th><th>1,000,000 items</th><th>Typical code shape</th></tr></thead><tbody>
+<tr><td>Constant</td><td><code>O(1)</code></td><td>1</td><td>1</td><td>1</td><td>Read <code>arr[i]</code>; push on a stack; Map lookup (average)</td></tr>
+<tr><td>Logarithmic</td><td><code>O(log n)</code></td><td>~3</td><td>~10</td><td>~20</td><td>Binary search; walking down a balanced tree; heap push/pop</td></tr>
+<tr><td>Linear</td><td><code>O(n)</code></td><td>10</td><td>1,000</td><td>1,000,000</td><td>One loop over the input</td></tr>
+<tr><td>Linearithmic</td><td><code>O(n log n)</code></td><td>~33</td><td>~10,000</td><td>~20,000,000</td><td>Good sorting; loop that does a log-sized job each time</td></tr>
+<tr><td>Quadratic</td><td><code>O(n²)</code></td><td>100</td><td>1,000,000</td><td>10¹² (too slow)</td><td>Two nested loops over the input</td></tr>
+<tr><td>Cubic</td><td><code>O(n³)</code></td><td>1,000</td><td>10⁹</td><td>impossible</td><td>Three nested loops</td></tr>
+<tr><td>Exponential</td><td><code>O(2ⁿ)</code></td><td>1,024</td><td>astronomically large</td><td>impossible</td><td>Trying every subset</td></tr>
+<tr><td>Factorial</td><td><code>O(n!)</code></td><td>3.6 million</td><td>impossible</td><td>impossible</td><td>Trying every ordering</td></tr>
+</tbody></table></div>
+<p>Race the families yourself. Each step makes n ten times bigger.</p>
+<div class="stage" id="st-growth" data-anim="growthRace" data-code=""></div>
+<h3 id="how-big-can-n-be-the-interview-speed-limit">How big can <code>n</code> be? (the interview "speed limit")</h3>
+<p>Computers do very roughly 10⁸ to 10⁹ simple operations per second. Interviews and online judges usually allow about one second. So the <strong>input size tells you which complexity you need</strong>:</p>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>If <code>n</code> is up to…</th><th>You probably need…</th></tr></thead><tbody>
+<tr><td>10–12</td><td><code>O(n!)</code> can be fine (permutations)</td></tr>
+<tr><td>20–25</td><td><code>O(2ⁿ)</code> is fine (all subsets, simple backtracking)</td></tr>
+<tr><td>500</td><td><code>O(n³)</code> is fine</td></tr>
+<tr><td>5,000</td><td><code>O(n²)</code> is fine</td></tr>
+<tr><td>10⁵–10⁶</td><td><code>O(n log n)</code> or <code>O(n)</code></td></tr>
+<tr><td>10⁹ or more</td><td><code>O(log n)</code> or <code>O(1)</code> (binary search on a number, or math)</td></tr>
+</tbody></table></div>
+<p><strong>This is a clarifying question you should ask in every interview: "How large can the input be?"</strong> The answer tells you what is allowed.</p>
+</section>
+<section class="sec" id="the-three-simplification-rules">
+<h2>3. The three simplification rules</h2>
+<p>Big O describes the <em>shape</em> of growth, so we simplify. There are only three rules.</p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    A["Count the steps your code takes&lt;br/&gt;for input size n"] --&gt; B["Rule 1: Drop constants&lt;br/&gt;3n becomes n"]
+    B --&gt; C["Rule 2: Keep only the biggest term&lt;br/&gt;n squared + n becomes n squared"]
+    C --&gt; D["Rule 3: Different inputs get different letters&lt;br/&gt;a loop over A then a loop over B is O of a plus b"]</pre></figure>
+<p><strong>Rule 1: drop constants.</strong> A loop that does 3 things per item is still <code>O(n)</code>. <code>O(2n)</code> is <code>O(n)</code>. Constants matter in real life, but not for the <em>growth shape</em>.</p>
+<p><strong>Rule 2: keep the biggest term.</strong> If your code takes <code>n² + 5n + 100</code> steps, then for big <code>n</code> the <code>n²</code> part is all that matters. The answer is <code>O(n²)</code>.</p>
+<p><strong>Rule 3: use a different letter for each independent input.</strong> If you loop over array <code>A</code> (size <code>a</code>) and then over array <code>B</code> (size <code>b</code>), the cost is <code>O(a + b)</code>, not <code>O(n)</code>. If you nest them, it is <code>O(a × b)</code>. Interviewers love this because candidates often write <code>O(n²)</code> when the truth is <code>O(rows × cols)</code>.</p>
+<p><strong>Add vs. multiply:</strong></p>
+<ul>
+<li>Steps one <strong>after</strong> another → <strong>add</strong>.</li>
+<li>Steps <strong>inside</strong> another → <strong>multiply</strong>.</li>
+</ul>
+</section>
+<section class="sec" id="reading-code-and-finding-its-complexity">
+<h2>4. Reading code and finding its complexity</h2>
+<p>Here are the patterns, from easiest to trickiest. Each one has a small example in both languages. They are all runnable.</p>
+<h3 id="4-1-sequential-and-nested-loops">4.1 Sequential and nested loops</h3>
+<div class="stage" id="st-loops" data-anim="countPairs,countCommon" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="loop shapes and their costs"><code class="language-ts">// O(n): one loop.
+function sumAll(nums: number[]): number {
+  let total = 0;
+  for (const x of nums) total += x;
+  return total;
+}
+
+// O(n): two loops one AFTER the other -&gt; n + n = 2n -&gt; O(n).
+function minAndMax(nums: number[]): [number, number] {
+  let lo = Infinity, hi = -Infinity;
+  for (const x of nums) lo = Math.min(lo, x);
+  for (const x of nums) hi = Math.max(hi, x);
+  return [lo, hi];
+}
+
+// O(n^2): loop INSIDE a loop -&gt; n * n.
+function countPairsWithSum(nums: number[], target: number): number {
+  let count = 0;
+  for (let i = 0; i &lt; nums.length; i++) {
+    for (let j = i + 1; j &lt; nums.length; j++) {
+      if (nums[i] + nums[j] === target) count++;
+    }
+  }
+  return count;
+}
+
+// O(a + b): two independent inputs, one after the other.
+// O(a * b) if we nested them. Different letters for different inputs.
+function countCommon(a: number[], b: number[]): number {
+  const set = new Set(a); // O(a)
+  let count = 0;
+  for (const x of b) if (set.has(x)) count++; // O(b)
+  return count; // total O(a + b)
+}
+
+console.log(sumAll([1, 2, 3])); // 6
+console.log(minAndMax([4, -2, 9])); // [ -2, 9 ]
+console.log(countPairsWithSum([1, 2, 3, 4], 5)); // 2
+console.log(countCommon([1, 2, 3], [2, 3, 4])); // 2</code></pre>
+<pre data-lang="go" data-caption="loop shapes and their costs"><code class="language-go">// O(n): one loop.
+func sumAll(nums []int) int {
+	total := 0
+	for _, x := range nums {
+		total += x
+	}
+	return total
+}
+
+// O(n): two loops one AFTER the other -&gt; n + n = 2n -&gt; O(n).
+func minAndMax(nums []int) (int, int) {
+	lo, hi := nums[0], nums[0]
+	for _, x := range nums {
+		if x &lt; lo {
+			lo = x
+		}
+	}
+	for _, x := range nums {
+		if x &gt; hi {
+			hi = x
+		}
+	}
+	return lo, hi
+}
+
+// O(n^2): loop INSIDE a loop -&gt; n * n.
+func countPairsWithSum(nums []int, target int) int {
+	count := 0
+	for i := 0; i &lt; len(nums); i++ {
+		for j := i + 1; j &lt; len(nums); j++ {
+			if nums[i]+nums[j] == target {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+// O(a + b): two independent inputs, one after the other.
+func countCommon(a, b []int) int {
+	set := make(map[int]struct{}, len(a))
+	for _, x := range a { // O(a)
+		set[x] = struct{}{}
+	}
+	count := 0
+	for _, x := range b { // O(b)
+		if _, ok := set[x]; ok {
+			count++
+		}
+	}
+	return count // total O(a + b)
+}
+
+func exampleLoopShapes() {
+	fmt.Println(sumAll([]int{1, 2, 3})) // 6
+	lo, hi := minAndMax([]int{4, -2, 9})
+	fmt.Println(lo, hi)                                      // -2 9
+	fmt.Println(countPairsWithSum([]int{1, 2, 3, 4}, 5))     // 2
+	fmt.Println(countCommon([]int{1, 2, 3}, []int{2, 3, 4})) // 2
+}</code></pre>
+</div>
+<p><strong>Why <code>j = i + 1</code> is still <code>O(n²)</code>:</strong> the inner loop runs <code>n-1</code>, then <code>n-2</code>, … then <code>0</code> times. That sum is <code>n(n-1)/2</code>, which is about <code>n²/2</code>. Drop the constant <code>1/2</code> (rule 1) and you get <code>O(n²)</code>.</p>
+<h3 id="4-2-loops-that-halve-or-double-logarithms">4.2 Loops that halve or double: logarithms</h3>
+<p>If a loop cuts the remaining work in half each time, it runs about <code>log₂ n</code> times. Why? Ask: "How many times can I halve 1,000,000 before I reach 1?" About 20 times (since 2²⁰ ≈ 1,000,000).</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart LR
+    A["n = 16"] --&gt;|"halve"| B["8"] --&gt;|"halve"| C["4"] --&gt;|"halve"| D["2"] --&gt;|"halve"| E["1"]</pre></figure>
+<p>That is 4 halvings for 16 items, and <code>log₂ 16 = 4</code>. If you doubled the input to 32 you would get just <em>one more</em> step.</p>
+<div class="stage" id="st-halving" data-anim="countHalvings,halvingWithWork" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts" data-caption="logarithmic loops"><code class="language-ts">// O(log n): the work left is cut in half each pass.
+function countHalvings(n: number): number {
+  let steps = 0;
+  while (n &gt; 1) {
+    n = Math.floor(n / 2);
+    steps++;
+  }
+  return steps;
+}
+
+// O(n): the classic trap. The loop runs log n times, but each pass
+// does work proportional to what is left: n + n/2 + n/4 + ... = 2n -&gt; O(n).
+function halvingWithWork(n: number): number {
+  let work = 0;
+  for (let size = n; size &gt;= 1; size = Math.floor(size / 2)) {
+    for (let i = 0; i &lt; size; i++) work++;
+  }
+  return work;
+}
+
+console.log(countHalvings(16)); // 4
+console.log(countHalvings(1_000_000)); // 19
+console.log(halvingWithWork(1024)); // 2047  (about 2n, so O(n))</code></pre>
+<pre data-lang="go" data-caption="logarithmic loops"><code class="language-go">// O(log n): the work left is cut in half each pass.
+func countHalvings(n int) int {
+	steps := 0
+	for n &gt; 1 {
+		n /= 2
+		steps++
+	}
+	return steps
+}
+
+// O(n): n + n/2 + n/4 + ... = 2n.
+func halvingWithWork(n int) int {
+	work := 0
+	for size := n; size &gt;= 1; size /= 2 {
+		for i := 0; i &lt; size; i++ {
+			work++
+		}
+	}
+	return work
+}
+
+func exampleHalving() {
+	fmt.Println(countHalvings(16))        // 4
+	fmt.Println(countHalvings(1_000_000)) // 19
+	fmt.Println(halvingWithWork(1024))    // 2047
+}</code></pre>
+</div>
+<p>The second function is a famous trap. The outer loop runs <code>log n</code> times, so many people write <code>O(n log n)</code>. But the inner loop shrinks each time. Adding <code>n + n/2 + n/4 + …</code> gives about <code>2n</code>, so the true answer is <code>O(n)</code>. <strong>Always check whether the inner loop's size depends on the outer loop.</strong></p>
+<h3 id="4-3-a-loop-that-does-a-log-sized-job-each-time-o-n-log-n">4.3 A loop that does a log-sized job each time: <code>O(n log n)</code></h3>
+<p>Sorting is the main example. A good sort splits the array in half repeatedly (<code>log n</code> levels), and every level touches all <code>n</code> items.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["8 items: one pass over 8 = 8 work"] --&gt; B["2 groups of 4: 8 work total"]
+    B --&gt; C["4 groups of 2: 8 work total"]
+    C --&gt; D["8 groups of 1: 8 work total"]
+    D --&gt; E["levels = log 8 = 3, work per level = 8, total = 8 x 3"]</pre></figure>
+<h3 id="4-4-recursion-draw-the-call-tree">4.4 Recursion: draw the call tree</h3>
+<p>For recursive code, draw a tree where each node is one call. Then answer two questions:</p>
+<ol>
+<li><strong>How many nodes are in the tree?</strong> That is roughly the <em>time</em>.</li>
+<li><strong>How deep is the tree?</strong> That is the <em>extra memory</em> (call stack).</li>
+</ol>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    F4["fib(4)"] --&gt; F3["fib(3)"]
+    F4 --&gt; F2a["fib(2)"]
+    F3 --&gt; F2b["fib(2)"]
+    F3 --&gt; F1a["fib(1)"]
+    F2a --&gt; F1b["fib(1)"]
+    F2a --&gt; F0a["fib(0)"]
+    F2b --&gt; F1c["fib(1)"]
+    F2b --&gt; F0b["fib(0)"]</pre></figure>
+<p>Notice <code>fib(2)</code> appears twice. For <code>fib(n)</code> each call makes two more, so the tree roughly doubles at every level: <code>O(2ⁿ)</code> time. The depth is only <code>n</code>, so the stack memory is <code>O(n)</code>. The <em>waste</em> here (calling <code>fib(2)</code> twice) is exactly what dynamic programming fixes (files 25 and 26).</p>
+<div class="stage" id="st-fib" data-anim="fibNaive,fibMemo" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts" data-caption="naive vs. saved-answers Fibonacci"><code class="language-ts">let naiveCalls = 0;
+function fibNaive(n: number): number {
+  naiveCalls++;
+  if (n &lt; 2) return n;
+  return fibNaive(n - 1) + fibNaive(n - 2); // two calls -&gt; tree doubles -&gt; O(2^n)
+}
+
+function fibMemo(n: number, memo = new Map&lt;number, number&gt;()): number {
+  if (n &lt; 2) return n;
+  const saved = memo.get(n);
+  if (saved !== undefined) return saved;
+  const result = fibMemo(n - 1, memo) + fibMemo(n - 2, memo);
+  memo.set(n, result);
+  return result; // each n computed once -&gt; O(n)
+}
+
+console.log(fibNaive(20), "calls:", naiveCalls); // 6765 calls: 21891
+console.log(fibMemo(20)); // 6765
+console.log(fibMemo(70)); // 190392490709135
+// fib(80) would print 23416728348467684 in TypeScript: it is above
+// Number.MAX_SAFE_INTEGER (2^53 - 1), so a number can no longer be exact.</code></pre>
+<pre data-lang="go" data-caption="naive vs. saved-answers Fibonacci"><code class="language-go">var naiveCalls int
+
+func fibNaive(n int) int {
+	naiveCalls++
+	if n &lt; 2 {
+		return n
+	}
+	return fibNaive(n-1) + fibNaive(n-2) // two calls -&gt; tree doubles -&gt; O(2^n)
+}
+
+func fibMemo(n int, memo map[int]int) int {
+	if n &lt; 2 {
+		return n
+	}
+	if v, ok := memo[n]; ok {
+		return v
+	}
+	memo[n] = fibMemo(n-1, memo) + fibMemo(n-2, memo)
+	return memo[n] // each n computed once -&gt; O(n)
+}
+
+func exampleFib() {
+	fmt.Println(fibNaive(20), "calls:", naiveCalls) // 6765 calls: 21891
+	fmt.Println(fibMemo(20, map[int]int{}))          // 6765
+	fmt.Println(fibMemo(70, map[int]int{}))          // 190392490709135
+	// Go int is 64-bit, so fib(80) = 23416728348467685 is still exact here.
+}</code></pre>
+</div>
+</section>
+<section class="sec" id="best-worst-and-average-case">
+<h2>5. Best, worst, and average case</h2>
+<p>The same algorithm can behave differently on different inputs. Searching a list for a value with a loop:</p>
+<ul>
+<li><strong>Best case:</strong> the value is first → 1 step → <code>O(1)</code>.</li>
+<li><strong>Worst case:</strong> the value is last or missing → <code>n</code> steps → <code>O(n)</code>.</li>
+<li><strong>Average case:</strong> about <code>n/2</code> steps → still <code>O(n)</code>.</li>
+</ul>
+<p>Unless told otherwise, <strong>Big O means the worst case.</strong> But you should mention when the average differs. Two famous examples:</p>
+<div class="table-wrap"><table id="tbl-3"><thead><tr><th>Algorithm</th><th>Worst</th><th>Average</th><th>What triggers the worst case</th></tr></thead><tbody>
+<tr><td>Hash map lookup</td><td><code>O(n)</code></td><td><code>O(1)</code></td><td>Many keys collide into the same bucket</td></tr>
+<tr><td>Quicksort</td><td><code>O(n²)</code></td><td><code>O(n log n)</code></td><td>Always picking the smallest or largest item as the pivot</td></tr>
+<tr><td>BST search</td><td><code>O(n)</code></td><td><code>O(log n)</code></td><td>Inserting already-sorted data makes a chain</td></tr>
+</tbody></table></div>
+<p>Interview habit: "Hash map operations are <code>O(1)</code> on average; in the worst case they degrade, but that is rare with a good hash function."</p>
+</section>
+<section class="sec" id="amortized-cost-expensive-sometimes-cheap-on-average">
+<h2>6. Amortized cost: "expensive sometimes, cheap on average"</h2>
+<p>Some operations are cheap almost always and expensive once in a while. <strong>Amortized</strong> cost spreads the rare expensive moment across the many cheap ones.</p>
+<p>The classic example is a dynamic array (<code>push</code> in TypeScript, <code>append</code> in Go). When the array is full, it allocates a bigger one (about double) and copies everything. That single copy costs <code>O(n)</code>. But it only happens after <code>n</code> cheap pushes, so averaged out each push costs <code>O(1)</code>.</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart LR
+    A["Capacity 1: push, full"] --&gt; B["Grow to 2, copy 1"]
+    B --&gt; C["Push, full"] --&gt; D["Grow to 4, copy 2"]
+    D --&gt; E["Push, push, full"] --&gt; F["Grow to 8, copy 4"]
+    F --&gt; G["Total copies: 1 + 2 + 4 + ... &lt; 2n, so about 2 per push: amortized O(1)"]</pre></figure>
+<div class="stage" id="st-doubling" data-anim="doubling" data-code=""></div>
+<p>Where this shows up in interviews:</p>
+<ul>
+<li><strong>Sliding window / two pointers:</strong> the inner <code>while</code> loop looks like it makes the code <code>O(n²)</code>. But each element is added once and removed once, so the total work across the <em>whole</em> run is <code>O(n)</code>. (Amortized thinking.)</li>
+<li><strong>Monotonic stack:</strong> every item is pushed once and popped at most once → <code>O(n)</code>.</li>
+<li><strong>Union-find:</strong> nearly <code>O(1)</code> per operation, amortized.</li>
+</ul>
+</section>
+<section class="sec" id="space-complexity">
+<h2>7. Space complexity</h2>
+<p>Space complexity counts the <strong>extra memory</strong> your algorithm needs as <code>n</code> grows. It does <em>not</em> count the input itself (unless the problem says to).</p>
+<div class="table-wrap"><table id="tbl-4"><thead><tr><th>What uses memory</th><th>Cost</th></tr></thead><tbody>
+<tr><td>A few variables</td><td><code>O(1)</code></td></tr>
+<tr><td>A new array, set, or map with up to <code>n</code> items</td><td><code>O(n)</code></td></tr>
+<tr><td>A <code>rows × cols</code> table</td><td><code>O(rows × cols)</code></td></tr>
+<tr><td><strong>The recursion call stack</strong></td><td><code>O(recursion depth)</code></td></tr>
+<tr><td>The output (some interviewers count it, some do not)</td><td>say which you count</td></tr>
+</tbody></table></div>
+<p><strong>Recursion uses memory even with no arrays.</strong> Every call that has not finished waits on the <em>call stack</em>, holding its variables. A recursive function that goes <code>n</code> levels deep uses <code>O(n)</code> space, even if it creates no data structure. This is a favorite follow-up. File 10 explains the stack in detail.</p>
+<p><strong>In-place tricks:</strong> many "optimize the space" follow-ups ask you to go from <code>O(n)</code> to <code>O(1)</code> by reusing the input array or by keeping only the last few values (rolling variables). Two pointers and DP-with-two-variables are the usual answers.</p>
+</section>
+<section class="sec" id="hidden-costs-of-built-in-functions">
+<h2>8. Hidden costs of built-in functions</h2>
+<p>This is where real interview bugs live: you write a loop that looks <code>O(n)</code> but calls a built-in that is secretly <code>O(n)</code>.</p>
+<h3 id="typescript-javascript">TypeScript / JavaScript</h3>
+<div class="table-wrap"><table id="tbl-5"><thead><tr><th>Operation</th><th>Cost</th><th>Warning</th></tr></thead><tbody>
+<tr><td><code>arr[i]</code>, <code>arr.push(x)</code>, <code>arr.pop()</code></td><td><code>O(1)</code></td><td><code>push</code> is amortized</td></tr>
+<tr><td><code>arr.shift()</code>, <code>arr.unshift(x)</code></td><td><strong><code>O(n)</code></strong></td><td>Moves every item. Use a head index for queues.</td></tr>
+<tr><td><code>arr.slice(a,b)</code>, <code>arr.concat(...)</code>, <code>[...arr]</code></td><td><code>O(length copied)</code></td><td>Copies. In a loop this creates <code>O(n²)</code>.</td></tr>
+<tr><td><code>arr.splice(i,1)</code></td><td><code>O(n)</code></td><td>Shifts the tail</td></tr>
+<tr><td><code>arr.includes(x)</code>, <code>indexOf</code></td><td><code>O(n)</code></td><td>Use a <code>Set</code> for repeated checks</td></tr>
+<tr><td><code>arr.sort(cmp)</code></td><td><code>O(n log n)</code></td><td>Mutates; default sort is <em>alphabetical</em></td></tr>
+<tr><td><code>str += ch</code> in a loop</td><td>Often <code>O(n)</code> each, can reach <code>O(n²)</code></td><td>Collect in an array and <code>join("")</code></td></tr>
+<tr><td><code>str.slice</code>, <code>substring</code></td><td><code>O(length)</code></td><td>Copying substrings in a loop adds a factor</td></tr>
+<tr><td><code>Map</code> / <code>Set</code> get, set, has, delete</td><td><code>O(1)</code> average</td><td></td></tr>
+<tr><td><code>Object.keys(obj)</code></td><td><code>O(keys)</code></td><td></td></tr>
+</tbody></table></div>
+<h3 id="go">Go</h3>
+<div class="table-wrap"><table id="tbl-6"><thead><tr><th>Operation</th><th>Cost</th><th>Warning</th></tr></thead><tbody>
+<tr><td><code>s[i]</code>, <code>append(s, x)</code></td><td><code>O(1)</code> / amortized <code>O(1)</code></td><td></td></tr>
+<tr><td><code>s = s[1:]</code> (pop front)</td><td><code>O(1)</code></td><td>Just moves the slice start (but the memory is kept alive)</td></tr>
+<tr><td><code>copy</code>, <code>append(a, b...)</code></td><td><code>O(length copied)</code></td><td></td></tr>
+<tr><td>Insert or delete in the middle with <code>append(s[:i], s[i+1:]...)</code></td><td><code>O(n)</code></td><td></td></tr>
+<tr><td><code>sort.Ints</code>, <code>sort.Slice</code>, <code>slices.Sort</code></td><td><code>O(n log n)</code></td><td></td></tr>
+<tr><td><code>string</code> concatenation <code>s += "x"</code> in a loop</td><td><code>O(n)</code> each → <code>O(n²)</code></td><td>Use <code>strings.Builder</code></td></tr>
+<tr><td><code>string</code> indexing <code>s[i]</code></td><td><code>O(1)</code> but gives a <strong>byte</strong>, not a character</td><td>Use <code>[]rune</code> for Unicode</td></tr>
+<tr><td><code>map</code> read / write / delete</td><td><code>O(1)</code> average</td><td>Iteration order is random</td></tr>
+<tr><td><code>len(s)</code> of a slice, map, or string</td><td><code>O(1)</code></td><td></td></tr>
+</tbody></table></div>
+<p><strong>Interview takeaway:</strong> when you say "this loop is <code>O(n)</code>", mentally check every line inside the loop for these hidden costs.</p>
+</section>
+<section class="sec" id="practice-problems-what-is-the-complexity">
+<h2>Practice problems: "what is the complexity?"</h2>
+<p>For each snippet: say the time and space, with a reason. Answers are in collapsed sections after the code. Try before you open them.</p>
+<section class="problem" id="pa">
+<h3>Problem A · The "innocent" shift</h3>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts" data-caption="snippet"><code class="language-ts">function processQueue(items: number[]): number {
+  let total = 0;
+  while (items.length &gt; 0) {
+    const first = items.shift()!; // look closely at this line
+    total += first;
+  }
+  return total;
+}
+console.log(processQueue([1, 2, 3, 4])); // 10</code></pre>
+<pre data-lang="go" data-caption="snippet"><code class="language-go">func processQueue(items []int) int {
+	total := 0
+	for len(items) &gt; 0 {
+		first := items[0]
+		items = items[1:] // look closely at this line
+		total += first
+	}
+	return total
+}
+
+func exampleProcessQueue() {
+	fmt.Println(processQueue([]int{1, 2, 3, 4})) // 10
+}</code></pre>
+</div>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body">
+<div class="stage" id="st-pa" data-anim="queueShift,queueSlice" data-code="code-4" data-clone></div>
+<ul>
+<li><strong>TypeScript:</strong> <code>shift()</code> is <code>O(n)</code> (it moves all remaining items), and it runs <code>n</code> times, so the total is <strong><code>O(n²)</code> time</strong>, <code>O(1)</code> space. Fix: loop with an index (<code>for (const x of items)</code>) or keep a <code>head</code> pointer.</li>
+<li><strong>Go:</strong> <code>items = items[1:]</code> is <code>O(1)</code> because it only moves the start of the slice. Total is <strong><code>O(n)</code> time</strong>, <code>O(1)</code> space.</li>
+</ul>
+<p>This is a great illustration of the same-looking idea having different costs in each language.</p>
+</div></details>
+</section>
+<section class="problem" id="pb">
+<h3>Problem B · Triangle loops</h3>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts" data-caption="snippet"><code class="language-ts">function triangle(n: number): number {
+  let count = 0;
+  for (let i = 0; i &lt; n; i++) {
+    for (let j = 0; j &lt; i; j++) count++;
+  }
+  return count;
+}
+console.log(triangle(5)); // 10</code></pre>
+<pre data-lang="go" data-caption="snippet"><code class="language-go">func triangle(n int) int {
+	count := 0
+	for i := 0; i &lt; n; i++ {
+		for j := 0; j &lt; i; j++ {
+			count++
+		}
+	}
+	return count
+}
+
+func exampleTriangle() {
+	fmt.Println(triangle(5)) // 10
+}</code></pre>
+</div>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body">
+<div class="stage" id="st-pb" data-anim="triangle" data-code="code-5" data-clone></div>
+<p>The inner loop runs <code>0 + 1 + 2 + … + (n-1) = n(n-1)/2</code> times. For <code>n = 5</code> that is 10, matching the output. Drop the <code>1/2</code> and the lower term: <strong><code>O(n²)</code> time</strong>, <code>O(1)</code> space.</p>
+</div></details>
+</section>
+<section class="problem" id="pc">
+<h3>Problem C · The doubling loop and a hash map</h3>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts" data-caption="snippet"><code class="language-ts">function countDigitsPairs(nums: number[]): number {
+  const seen = new Map&lt;number, number&gt;();
+  for (const x of nums) seen.set(x, (seen.get(x) ?? 0) + 1); // line 1
+  let pairs = 0;
+  for (const count of seen.values()) pairs += (count * (count - 1)) / 2; // line 2
+  return pairs;
+}
+console.log(countDigitsPairs([1, 1, 1, 2, 2])); // 4</code></pre>
+<pre data-lang="go" data-caption="snippet"><code class="language-go">func countDigitsPairs(nums []int) int {
+	seen := make(map[int]int)
+	for _, x := range nums { // line 1
+		seen[x]++
+	}
+	pairs := 0
+	for _, count := range seen { // line 2
+		pairs += count * (count - 1) / 2
+	}
+	return pairs
+}
+
+func exampleCountPairs() {
+	fmt.Println(countDigitsPairs([]int{1, 1, 1, 2, 2})) // 4
+}</code></pre>
+</div>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body">
+<div class="stage" id="st-pc" data-anim="countPairsMap" data-code="code-6" data-clone></div>
+<p>Line 1 loops <code>n</code> times with <code>O(1)</code> average map work. Line 2 loops over the distinct keys (at most <code>n</code>). They are one <strong>after</strong> the other, so add: <code>O(n)</code> time. The map can hold up to <code>n</code> distinct keys: <code>O(n)</code> space. (Three 1s give 3 pairs, two 2s give 1 pair: total 4.)</p>
+</div></details>
+</section>
+<section class="problem" id="pd">
+<h3>Problem D · Recursion with branching</h3>
+<div class="code-tabs" id="code-7">
+<pre data-lang="ts" data-caption="snippet"><code class="language-ts">function countSubsets(items: number[], index = 0): number {
+  if (index === items.length) return 1;
+  const without = countSubsets(items, index + 1); // skip this item
+  const withIt = countSubsets(items, index + 1); // take this item
+  return without + withIt;
+}
+console.log(countSubsets([1, 2, 3])); // 8</code></pre>
+<pre data-lang="go" data-caption="snippet"><code class="language-go">func countSubsets(items []int, index int) int {
+	if index == len(items) {
+		return 1
+	}
+	without := countSubsets(items, index+1) // skip this item
+	withIt := countSubsets(items, index+1)  // take this item
+	return without + withIt
+}
+
+func exampleCountSubsets() {
+	fmt.Println(countSubsets([]int{1, 2, 3}, 0)) // 8
+}</code></pre>
+</div>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body">
+<div class="stage" id="st-pd" data-anim="countSubsets" data-code="code-7" data-clone></div>
+<p>Each call makes two calls, and there are <code>n</code> levels, so the call tree has about <code>2ⁿ</code> leaves: <strong><code>O(2ⁿ)</code> time</strong>. The tree is only <code>n</code> levels deep, so the call stack uses <strong><code>O(n)</code> space</strong>. This "take it or skip it" shape is the root of backtracking (file 11).</p>
+</div></details>
+</section>
+<section class="problem" id="pe">
+<h3>Problem E · Nested loop that is <em>not</em> quadratic</h3>
+<div class="code-tabs" id="code-8">
+<pre data-lang="ts" data-caption="snippet"><code class="language-ts">// Sliding window: longest run with at most `limit` zeros.
+function longestAtMostKZeros(bits: number[], limit: number): number {
+  let left = 0, zeros = 0, best = 0;
+  for (let right = 0; right &lt; bits.length; right++) {
+    if (bits[right] === 0) zeros++;
+    while (zeros &gt; limit) {          // a loop inside a loop...
+      if (bits[left] === 0) zeros--;
+      left++;
+    }
+    best = Math.max(best, right - left + 1);
+  }
+  return best;
+}
+console.log(longestAtMostKZeros([1, 0, 1, 1, 0, 1], 1)); // 4</code></pre>
+<pre data-lang="go" data-caption="snippet"><code class="language-go">func longestAtMostKZeros(bits []int, limit int) int {
+	left, zeros, best := 0, 0, 0
+	for right := 0; right &lt; len(bits); right++ {
+		if bits[right] == 0 {
+			zeros++
+		}
+		for zeros &gt; limit { // a loop inside a loop...
+			if bits[left] == 0 {
+				zeros--
+			}
+			left++
+		}
+		if right-left+1 &gt; best {
+			best = right - left + 1
+		}
+	}
+	return best
+}
+
+func exampleLongestAtMostKZeros() {
+	fmt.Println(longestAtMostKZeros([]int{1, 0, 1, 1, 0, 1}, 1)) // 4
+}</code></pre>
+</div>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body">
+<div class="stage" id="st-pe" data-anim="atMostKZeros" data-code="code-8" data-clone></div>
+<p>It <em>looks</em> quadratic, but <strong><code>left</code> only ever moves forward and never moves backward</strong>. Across the whole run, <code>right</code> takes <code>n</code> steps and <code>left</code> takes at most <code>n</code> steps in total. That is <code>n + n = 2n</code>, so <strong><code>O(n)</code> time</strong> (amortized), <code>O(1)</code> space. Count how many times each <em>pointer</em> moves in total, not how deeply the loops are nested.</p>
+</div></details>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li>Writing <code>O(n²)</code> when two <em>different</em> inputs are involved (<code>O(a × b)</code>).</li>
+<li>Forgetting recursion stack memory when saying "<code>O(1)</code> space".</li>
+<li>Calling a nested loop quadratic when the pointers only move forward (amortized <code>O(n)</code>).</li>
+<li>Treating <code>O(1)</code> hash map time as a guarantee instead of an average.</li>
+<li>Using <code>shift()</code>, string <code>+=</code>, or array <code>slice</code> inside a loop and not counting their cost.</li>
+<li>Saying a log-factor loop is <code>O(n log n)</code> when the inner work shrinks (Problem in 4.2).</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Why binary search needs about 20 steps</h3>
+<p>Explain, in plain words and without symbols, why binary search takes only about 20 steps for a million items.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Each look throws away half of what is left. Starting from a million, after one look about half a million remain, after two a quarter of a million, and so on. Halving a million until one item is left takes about 20 halvings, because doubling 1 twenty times gives about a million. A book twice as big needs only one more look.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Why building a heap is O(n)</h3>
+<p>Why is the time of building a heap from <code>n</code> items <code>O(n)</code> and not <code>O(n log n)</code>? (We revisit this in file 17; try reasoning from the "halving with work" example.)</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>Most nodes sit near the bottom of the tree. How far can a node near the bottom move?</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Heapify sifts each node <em>down</em>, starting from the last parent. A node can only move as far as its height. Half of the nodes are leaves and move 0 steps, a quarter move at most 1, an eighth at most 2, and so on. The total is n/4 · 1 + n/8 · 2 + n/16 · 3 + …, which adds up to less than n. This is the same shape as the halving-with-work loop: the big work happens on few nodes, so the sum is <code>O(n)</code>, not <code>O(n log n)</code>.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Four costs to state</h3>
+<p>State the Big O of: reversing a string with <code>+=</code> in a loop (TypeScript), joining with <code>strings.Builder</code> (Go), <code>Array.includes</code> inside a loop, sorting then scanning once.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><ul><li>Reversing a string with <code>+=</code> in a loop (TypeScript): each <code>+=</code> may copy the whole string so far, so it can reach <code>O(n²)</code>. Collect characters in an array and <code>join</code>.</li><li>Joining with <code>strings.Builder</code> (Go): amortized <code>O(1)</code> per write, <code>O(n)</code> total.</li><li><code>Array.includes</code> inside a loop: <code>O(n · m)</code>, because <code>includes</code> is a hidden loop. Use a <code>Set</code> for <code>O(n + m)</code>.</li><li>Sorting, then scanning once: <code>O(n log n) + O(n)</code> = <code>O(n log n)</code>.</li></ul></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · The call tree for fib(5)</h3>
+<p>Draw the call tree for <code>fib(5)</code>. How many calls are made?</p>
+<details class="reveal"><summary>Hint</summary><div class="reveal-body"><p>fib(5) calls fib(4) and fib(3). You already know how many calls fib(4) and fib(3) make.</p></div></details>
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><strong>15 calls.</strong> calls(n) = 1 + calls(n − 1) + calls(n − 2), with calls(0) = calls(1) = 1: so calls(2) = 3, calls(3) = 5, calls(4) = 9, calls(5) = 15. Check it by setting the call-tree animation in section 4.4 to <code>5</code>: it ends with "15 calls". With the memo it drops to 9.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="bigo02"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/02.js"></script>
+</body>
+</html>

@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="11" data-pattern="Backtracking">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11 Backtracking | Algorithm guide</title>
+<meta name="description" content="Backtracking animated as growing decision trees: subsets, permutations, combination sum, parentheses and N-Queens.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 11</span><span>Recursion family</span><span class="stars" title="Very likely in interviews">★★★</span></div>
+<h1>Backtracking</h1>
+<p class="sub">Try a choice, explore, undo it, try the next.</p>
+<blockquote><p><strong>Book link:</strong> backtracking is not a separate chapter in <em>Grokking Algorithms</em>. It is recursion (chapter 3) applied to a decision tree, and it is the honest, slow cousin of the "NP-complete" problems discussed in chapter 10 and appendix B: when no clever shortcut exists, you try the possibilities, but you <strong>prune</strong> the hopeless ones early. This file replaces the backtracking questions from v2 (Generate Parentheses, Combination Sum, Subsets, N-Queens I and II).</p></blockquote>
+<div class="glance"><div><b>Reach for it when</b><p>"Generate all…", "every way to…", small inputs, answers built piece by piece.</p></div><div><b>The rhythm</b><p>Choose, explore, un-choose. Save a copy of the path, never the live one.</p></div><div><b>What it costs</b><p>Exponential: 2ⁿ subsets, n! permutations. Pruning shrinks the tree.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p><strong>The maze story.</strong> You walk into a maze. At every fork you pick a corridor and keep going. If you reach a dead end, you <strong>walk back to the last fork and take a different corridor</strong>. You never need a map of the whole maze, only the ability to <em>undo your last choice</em>.</p>
+<p>Backtracking is that: build an answer one choice at a time, and when a path cannot lead to a valid answer (or you have recorded a finished answer), <strong>undo the last choice</strong> and try the next option.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart TD
+    S["Start: nothing chosen"] --&gt; A["Choose option 1"]
+    S --&gt; B["Choose option 2"]
+    A --&gt; A1["Choose again..."]
+    A --&gt; A2["Choose again..."]
+    A1 --&gt; X["Dead end or a full answer"]
+    X --&gt;|"undo the last choice (backtrack)"| A
+    A --&gt;|"all options tried: undo"| S</pre></figure>
+<h3 id="the-three-beat-rhythm-choose-explore-un-choose">The three-beat rhythm: choose, explore, un-choose</h3>
+<p>Every backtracking solution has the same shape:</p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart LR
+    A["CHOOSE&lt;br/&gt;add an option to the current path"] --&gt; B["EXPLORE&lt;br/&gt;recurse to make the next choice"]
+    B --&gt; C["UN-CHOOSE&lt;br/&gt;remove it so the next option starts clean"]</pre></figure>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>2. How to recognize it</h2>
+<p>Think backtracking when the problem says:</p>
+<ul>
+<li>"Generate <strong>all</strong> …" (all subsets, permutations, combinations, valid parentheses, board arrangements).</li>
+<li>"Find <strong>every</strong> way to …" or "does <strong>any</strong> arrangement exist that …".</li>
+<li>The input is <strong>small</strong> (n ≤ about 20, or a 8×8 board): that signals an exponential algorithm is expected.</li>
+<li>You are building something <strong>piece by piece</strong> and later pieces depend on earlier choices (constraints).</li>
+</ul>
+<p>If the problem asks for only the <em>count</em> or the <em>best value</em> and sub-problems repeat, dynamic programming (files 25 and 26) may be better. Backtracking is for <em>listing</em> or when constraints are too tangled for DP.</p>
+</section>
+<section class="sec" id="the-master-template">
+<h2>3. The master template</h2>
+<pre class="plain"><code class="language-text">backtrack(state):
+    if state is a complete answer:
+        save a COPY of it
+        return
+    for each option available from this state:
+        if the option breaks a rule: skip it          &lt;- pruning
+        choose it       (modify the state)
+        backtrack(new state)
+        un-choose it    (restore the state exactly)</code></pre>
+<h3 id="the-three-details-that-cause-most-bugs">The three details that cause most bugs</h3>
+<ol>
+<li><strong>Save a copy, not the live path.</strong> The <code>path</code> array keeps changing. If you push the same array into your results, every saved answer will end up identical (all empty at the end). Always <code>push([...path])</code> in TypeScript and <code>append([]int(nil), path...)</code> in Go.</li>
+<li><strong>Un-choose must exactly undo choose.</strong> Every <code>push</code> needs a matching <code>pop</code>, every <code>used[i] = true</code> needs a <code>used[i] = false</code>.</li>
+<li><strong>Prune early.</strong> The smaller the tree, the faster the code. Check constraints <em>before</em> you recurse, not after.</li>
+</ol>
+<p>Watch the bug: every saved entry is the same array, so they all change together and end up empty.</p>
+<div class="stage" id="st-bug" data-anim="buggySubsets" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="the template, and the aliasing bug shown on purpose"><code class="language-ts">// BUG DEMO: saving the live array instead of a copy.
+function buggySubsets(nums: number[]): number[][] {
+  const res: number[][] = [];
+  const path: number[] = [];
+  function dfs(start: number): void {
+    res.push(path); // &lt;-- bug: every entry is the SAME array object
+    for (let i = start; i &lt; nums.length; i++) {
+      path.push(nums[i]);
+      dfs(i + 1);
+      path.pop();
+    }
+  }
+  dfs(0);
+  return res;
+}
+console.log(buggySubsets([1, 2])); // [ [], [], [], [] ]  &lt;- all empty at the end!</code></pre>
+<pre data-lang="go" data-caption="the same aliasing bug, and why a slice does not save you"><code class="language-go">// BUG DEMO: appending the live slice. The inner slices share one backing array,
+// so later changes overwrite earlier "saved" answers.
+func buggySubsets(nums []int) [][]int {
+	res := [][]int{}
+	path := []int{}
+	var dfs func(start int)
+	dfs = func(start int) {
+		res = append(res, path) // &lt;-- bug: saved slices may share memory with path
+		for i := start; i &lt; len(nums); i++ {
+			path = append(path, nums[i])
+			dfs(i + 1)
+			path = path[:len(path)-1]
+		}
+	}
+	dfs(0)
+	return res
+}
+
+func exampleBuggySubsets() {
+	// Saved answers share memory with `path`, so later writes corrupt earlier ones.
+	fmt.Println(buggySubsets([]int{1, 2, 3}))
+	// Actual output: [[] [1] [1 2] [3 3 3] [3 3] [3] [3 3] [3]]   &lt;- wrong! (should be 8 correct subsets)
+	// The fix: append([]int(nil), path...) makes an independent copy.
+}</code></pre>
+</div>
+<p>(Notice how the Go output is <em>partly</em> right: <code>[]</code>, <code>[1]</code>, <code>[1 2]</code> look fine, then it goes wrong. Whether it breaks depends on how much spare capacity <code>append</code> happened to leave, so the bug can hide on small inputs, which makes it even more dangerous. Always copy.)</p>
+</section>
+<section class="sec" id="counting-the-work">
+<h2>4. Counting the work</h2>
+<p>Backtracking is exponential by nature. Know the sizes of the classic outputs so you can state complexity:</p>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Problem</th><th>Number of answers</th><th>Typical time</th></tr></thead><tbody>
+<tr><td>Subsets of <code>n</code> items</td><td><code>2ⁿ</code></td><td><code>O(n · 2ⁿ)</code> (copying each subset)</td></tr>
+<tr><td>Permutations of <code>n</code> items</td><td><code>n!</code></td><td><code>O(n · n!)</code></td></tr>
+<tr><td>Combinations <code>C(n, k)</code></td><td><code>n! / (k!(n−k)!)</code></td><td><code>O(k · C(n, k))</code></td></tr>
+<tr><td>Valid parentheses pairs <code>n</code></td><td>Catalan number <code>Cₙ ≈ 4ⁿ / (n·√n)</code></td><td><code>O(4ⁿ / √n)</code></td></tr>
+<tr><td>N-Queens</td><td>far fewer than <code>n!</code> after pruning</td><td>roughly <code>O(n!)</code> bound</td></tr>
+</tbody></table></div>
+<p>When the output itself is exponentially large, no algorithm can beat that, so the time is dominated by the <strong>output size</strong>.</p>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>5. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Subsets (LeetCode 78, Medium; v2 list #18)</h3>
+<p><strong>Task.</strong> Return all subsets (the power set) of a list of <strong>distinct</strong> integers. <code>[1, 2, 3]</code> → <code>[[], [1], [1,2], [1,2,3], [1,3], [2], [2,3], [3]]</code> (any order).</p>
+<p><strong>Thinking.</strong> For each item there are only two choices: <strong>in</strong> or <strong>out</strong>. That gives <code>2ⁿ</code> subsets. A neat way to generate them: at each step the <em>current path is itself a valid subset</em>, so record it immediately; then try adding each remaining item (only items <strong>after</strong> the last one chosen, so we never create the same set in a different order).</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    R["path = []"] --&gt; A["path = [1]"]
+    R --&gt; B["path = [2]"]
+    R --&gt; C["path = [3]"]
+    A --&gt; A2["[1, 2]"]
+    A --&gt; A3["[1, 3]"]
+    A2 --&gt; A23["[1, 2, 3]"]
+    B --&gt; B3["[2, 3]"]</pre></figure>
+<p>Every node of this tree is one answer. The <code>start</code> index prevents <code>[2, 1]</code> after <code>[1, 2]</code>.</p>
+<p><strong>Trace</strong> (order of recording): <code>[]</code>, <code>[1]</code>, <code>[1,2]</code>, <code>[1,2,3]</code>, then un-choose 3, un-choose 2, choose 3 → <code>[1,3]</code>, un-choose all the way back, choose 2 → <code>[2]</code>, <code>[2,3]</code>, then <code>[3]</code>.</p>
+<div class="stage" id="st-p1" data-anim="subsets" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">function subsets(nums: number[]): number[][] {
+  const result: number[][] = [];
+  const path: number[] = [];
+  function dfs(start: number): void {
+    result.push([...path]); // record a COPY: every path is a valid subset
+    for (let i = start; i &lt; nums.length; i++) {
+      path.push(nums[i]); // choose
+      dfs(i + 1); // explore, only items after i
+      path.pop(); // un-choose
+    }
+  }
+  dfs(0);
+  return result;
+}
+console.log(subsets([1, 2, 3]));
+// [ [], [ 1 ], [ 1, 2 ], [ 1, 2, 3 ], [ 1, 3 ], [ 2 ], [ 2, 3 ], [ 3 ] ]
+console.log(subsets([0])); // [ [], [ 0 ] ]</code></pre>
+<pre data-lang="go"><code class="language-go">func subsets(nums []int) [][]int {
+	result := [][]int{}
+	path := []int{}
+	var dfs func(start int)
+	dfs = func(start int) {
+		result = append(result, append([]int(nil), path...)) // record a COPY
+		for i := start; i &lt; len(nums); i++ {
+			path = append(path, nums[i]) // choose
+			dfs(i + 1)                   // explore, only items after i
+			path = path[:len(path)-1]    // un-choose
+		}
+	}
+	dfs(0)
+	return result
+}
+
+func exampleSubsets() {
+	fmt.Println(subsets([]int{1, 2, 3})) // [[] [1] [1 2] [1 2 3] [1 3] [2] [2 3] [3]]
+	fmt.Println(subsets([]int{0}))       // [[] [0]]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n · 2ⁿ)</code>, space <code>O(n)</code> for the recursion (plus the output).</p>
+<p><strong>Follow-up: duplicates (Subsets II, LeetCode 90).</strong> Sort the array first, then inside the <code>for</code> loop skip <code>nums[i]</code> when <code>i &gt; start &amp;&amp; nums[i] === nums[i-1]</code>: "don't start two siblings with the same value".</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Permutations (LeetCode 46, Medium)</h3>
+<p><strong>Task.</strong> Return all orderings of distinct numbers. <code>[1, 2, 3]</code> → 6 permutations.</p>
+<p><strong>Thinking.</strong> Unlike subsets, order matters, so at each position we may choose <strong>any unused item</strong>. Track which items are used with a boolean array <code>used</code>. The path is complete when its length equals <code>n</code>.</p>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    R["path = []"] --&gt; A["[1]"]
+    R --&gt; B["[2]"]
+    R --&gt; C["[3]"]
+    A --&gt; A1["[1, 2] then [1, 2, 3]"]
+    A --&gt; A2["[1, 3] then [1, 3, 2]"]
+    B --&gt; B1["[2, 1] then [2, 1, 3]"]
+    B --&gt; B2["[2, 3] then [2, 3, 1]"]</pre></figure>
+<div class="stage" id="st-p2" data-anim="permutations" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">function permutations(nums: number[]): number[][] {
+  const result: number[][] = [];
+  const path: number[] = [];
+  const used = new Array&lt;boolean&gt;(nums.length).fill(false);
+  function dfs(): void {
+    if (path.length === nums.length) {
+      result.push([...path]); // complete: save a copy
+      return;
+    }
+    for (let i = 0; i &lt; nums.length; i++) {
+      if (used[i]) continue; // prune: already in the path
+      used[i] = true; // choose
+      path.push(nums[i]);
+      dfs(); // explore
+      path.pop(); // un-choose
+      used[i] = false;
+    }
+  }
+  dfs();
+  return result;
+}
+console.log(permutations([1, 2, 3]));
+// [ [1,2,3], [1,3,2], [2,1,3], [2,3,1], [3,1,2], [3,2,1] ]
+console.log(permutations([1]).length, permutations([1, 2, 3, 4]).length); // 1 24</code></pre>
+<pre data-lang="go"><code class="language-go">func permutations(nums []int) [][]int {
+	result := [][]int{}
+	path := []int{}
+	used := make([]bool, len(nums))
+	var dfs func()
+	dfs = func() {
+		if len(path) == len(nums) {
+			result = append(result, append([]int(nil), path...)) // complete: save a copy
+			return
+		}
+		for i := range nums {
+			if used[i] {
+				continue // prune: already in the path
+			}
+			used[i] = true // choose
+			path = append(path, nums[i])
+			dfs()                     // explore
+			path = path[:len(path)-1] // un-choose
+			used[i] = false
+		}
+	}
+	dfs()
+	return result
+}
+
+func examplePermutations() {
+	fmt.Println(permutations([]int{1, 2, 3}))
+	// [[1 2 3] [1 3 2] [2 1 3] [2 3 1] [3 1 2] [3 2 1]]
+	fmt.Println(len(permutations([]int{1})), len(permutations([]int{1, 2, 3, 4}))) // 1 24
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n · n!)</code>, space <code>O(n)</code> besides the output.</p>
+<p><strong>Follow-ups.</strong> <em>"Permutations with duplicate values (LeetCode 47)"</em>: sort, and skip <code>nums[i]</code> if <code>nums[i] === nums[i-1]</code> and <code>nums[i-1]</code> is <strong>not</strong> currently used. <em>"Next permutation"</em> is a famous in-place algorithm (not backtracking).</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Combination Sum (LeetCode 39, Medium; v2 list #17)</h3>
+<p><strong>Task.</strong> <code>candidates</code> are distinct positive integers. Return all unique combinations that sum to <code>target</code>. <strong>Each number may be used any number of times.</strong> <code>candidates = [2, 3, 6, 7]</code>, <code>target = 7</code> → <code>[[2,2,3],[7]]</code>.</p>
+<p><strong>Thinking.</strong> Choose a number, subtract it from the remaining target, and recurse. Two ideas keep it correct and fast:</p>
+<ol>
+<li><strong>Allow reuse:</strong> recurse with the <em>same</em> index <code>i</code> (not <code>i + 1</code>).</li>
+<li><strong>Avoid duplicates like <code>[2,3]</code> and <code>[3,2]</code>:</strong> only move forward (<code>start</code> index), as in subsets.</li>
+<li><strong>Prune:</strong> sort the candidates; once <code>candidates[i] &gt; remaining</code>, every later one is bigger too, so <code>break</code>.</li>
+</ol>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["remaining 7, path []"] --&gt; B["choose 2: remaining 5, path [2]"]
+    A --&gt; C["choose 7: remaining 0, path [7] -&gt; save"]
+    B --&gt; D["choose 2: remaining 3, path [2, 2]"]
+    B --&gt; E["choose 3: remaining 2, path [2, 3] -&gt; dead end (needs 2 but start is 3)"]
+    D --&gt; F["choose 2: remaining 1 -&gt; dead end"]
+    D --&gt; G["choose 3: remaining 0, path [2, 2, 3] -&gt; save"]</pre></figure>
+<div class="stage" id="st-p3" data-anim="combinationSum" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function combinationSum(candidates: number[], target: number): number[][] {
+  const sorted = [...candidates].sort((a, b) =&gt; a - b); // sorting enables the break below
+  const result: number[][] = [];
+  const path: number[] = [];
+  function dfs(start: number, remaining: number): void {
+    if (remaining === 0) {
+      result.push([...path]);
+      return;
+    }
+    for (let i = start; i &lt; sorted.length; i++) {
+      if (sorted[i] &gt; remaining) break; // prune: this and all later ones are too big
+      path.push(sorted[i]); // choose
+      dfs(i, remaining - sorted[i]); // same i: the number may be reused
+      path.pop(); // un-choose
+    }
+  }
+  dfs(0, target);
+  return result;
+}
+console.log(combinationSum([2, 3, 6, 7], 7)); // [ [ 2, 2, 3 ], [ 7 ] ]
+console.log(combinationSum([2, 3, 5], 8)); // [ [ 2, 2, 2, 2 ], [ 2, 3, 3 ], [ 3, 5 ] ]
+console.log(combinationSum([2], 1)); // []</code></pre>
+<pre data-lang="go"><code class="language-go">func combinationSum(candidates []int, target int) [][]int {
+	sorted := append([]int(nil), candidates...)
+	sort.Ints(sorted) // sorting enables the break below
+	result := [][]int{}
+	path := []int{}
+	var dfs func(start, remaining int)
+	dfs = func(start, remaining int) {
+		if remaining == 0 {
+			result = append(result, append([]int(nil), path...))
+			return
+		}
+		for i := start; i &lt; len(sorted); i++ {
+			if sorted[i] &gt; remaining {
+				break // prune: this and all later ones are too big
+			}
+			path = append(path, sorted[i]) // choose
+			dfs(i, remaining-sorted[i])    // same i: the number may be reused
+			path = path[:len(path)-1]      // un-choose
+		}
+	}
+	dfs(0, target)
+	return result
+}
+
+func exampleCombinationSum() {
+	fmt.Println(combinationSum([]int{2, 3, 6, 7}, 7)) // [[2 2 3] [7]]
+	fmt.Println(combinationSum([]int{2, 3, 5}, 8))    // [[2 2 2 2] [2 3 3] [3 5]]
+	fmt.Println(combinationSum([]int{2}, 1))          // []
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time about <code>O(N^(T/M))</code> where <code>T</code> is the target and <code>M</code> the smallest candidate (depth up to <code>T/M</code>); in practice far less thanks to pruning. Space <code>O(T/M)</code> for the recursion.</p>
+<p><strong>Related:</strong> Combination Sum II (each number used once, input has duplicates) → move to <code>i + 1</code> and skip equal siblings.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Generate Parentheses (LeetCode 22, Medium; v2 list #16)</h3>
+<p><strong>Task.</strong> Given <code>n</code> pairs, generate all well-formed parentheses strings. <code>n = 3</code> → <code>["((()))","(()())","(())()","()(())","()()()"]</code>.</p>
+<p><strong>Thinking.</strong> Build the string one character at a time. Instead of generating all <code>2^(2n)</code> strings and filtering, <strong>only add a character if it keeps the string valid</strong>:</p>
+<ul>
+<li>You may add <code>(</code> if you still have opens left (<code>open &lt; n</code>).</li>
+<li>You may add <code>)</code> only if it closes something already open (<code>close &lt; open</code>).</li>
+</ul>
+<p>These two rules <em>are</em> the pruning. Every string produced is valid.</p>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["'' open=0 close=0"] --&gt; B["'(' open=1"]
+    B --&gt; C["'((' open=2"]
+    B --&gt; D["'()' close=1"]
+    C --&gt; E["'(()' close=1"]
+    C --&gt; F["'(((' open=3"]
+    D --&gt; G["'()(' open=2"]
+    A -.-&gt;|"')' is blocked: close would exceed open"| X["pruned"]</pre></figure>
+<div class="stage" id="st-p4" data-anim="parens" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function generateParenthesis(n: number): string[] {
+  const result: string[] = [];
+  function dfs(current: string, open: number, close: number): void {
+    if (current.length === 2 * n) {
+      result.push(current); // strings are immutable, so no copy needed
+      return;
+    }
+    if (open &lt; n) dfs(current + "(", open + 1, close); // can still open
+    if (close &lt; open) dfs(current + ")", open, close + 1); // can close an open one
+  }
+  dfs("", 0, 0);
+  return result;
+}
+console.log(generateParenthesis(3)); // [ '((()))', '(()())', '(())()', '()(())', '()()()' ]
+console.log(generateParenthesis(1)); // [ '()' ]
+console.log(generateParenthesis(4).length); // 14</code></pre>
+<pre data-lang="go"><code class="language-go">func generateParenthesis(n int) []string {
+	result := []string{}
+	buf := make([]byte, 0, 2*n)
+	var dfs func(open, close int)
+	dfs = func(open, close int) {
+		if len(buf) == 2*n {
+			result = append(result, string(buf)) // string(...) copies the bytes
+			return
+		}
+		if open &lt; n {
+			buf = append(buf, '(') // choose
+			dfs(open+1, close)
+			buf = buf[:len(buf)-1] // un-choose
+		}
+		if close &lt; open {
+			buf = append(buf, ')')
+			dfs(open, close+1)
+			buf = buf[:len(buf)-1]
+		}
+	}
+	dfs(0, 0)
+	return result
+}
+
+func exampleGenerateParenthesis() {
+	fmt.Println(generateParenthesis(3))        // [((())) (()()) (())() ()(()) ()()()]
+	fmt.Println(generateParenthesis(1))        // [()]
+	fmt.Println(len(generateParenthesis(4)))   // 14
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> The number of results is the Catalan number: 1, 2, 5, 14, 42, … Time <code>O(4ⁿ / √n)</code>, space <code>O(n)</code> recursion.</p>
+<p><strong>Why the TypeScript version did not need "un-choose".</strong> Strings are immutable: <code>current + "("</code> makes a <em>new</em> string, so there is nothing to undo. Mutable buffers (the Go version, or an array) need explicit un-choose.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · N-Queens (LeetCode 51, Hard) and N-Queens II (LeetCode 52, Hard); v2 list #29, #30</h3>
+<p><strong>Task.</strong> Place <code>n</code> queens on an <code>n × n</code> board so no two attack each other (no shared row, column, or diagonal). <strong>(51)</strong> Return all board layouts. <strong>(52)</strong> Return only the <em>count</em> of solutions. For <code>n = 4</code> there are 2 solutions; for <code>n = 8</code> there are 92.</p>
+<p><strong>Thinking.</strong></p>
+<ol>
+<li><strong>One queen per row</strong> is forced (two queens in a row attack each other). So make one decision per row: <em>which column?</em> The recursion goes row by row.</li>
+<li>For a candidate square <code>(row, col)</code> we must check three things quickly:</li>
+<ul>
+<li>the <strong>column</strong> is not already used,</li>
+<li>the <strong>"/" diagonal</strong> is free: all squares on it share the same <code>row + col</code>,</li>
+<li>the <strong>"\" diagonal</strong> is free: all squares on it share the same <code>row − col</code>.</li>
+</ul>
+<li>Keep three lookup tables (sets or boolean arrays) so each check is <code>O(1)</code>. This is the pruning that makes <code>n = 8</code> or <code>10</code> finish instantly.</li>
+</ol>
+<figure class="diagram" id="fig-7"><pre class="mermaid-src">flowchart TD
+    A["row 0: try col 0, 1, 2, 3"] --&gt; B["place queen at (0, 1)"]
+    B --&gt; C["row 1: cols 0,1,2 are attacked.&lt;br/&gt;Only col 3 is free"]
+    C --&gt; D["place queen at (1, 3)"]
+    D --&gt; E["row 2: try col 0: free"]
+    E --&gt; F["place queen at (2, 0)"]
+    F --&gt; G["row 3: col 2 is free"]
+    G --&gt; H["all 4 placed: save the board"]</pre></figure>
+<p><strong>Diagonal numbering for a 4×4 board</strong> (squares sharing a number lie on the same diagonal):</p>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th><code>row + col</code> (the "/" direction)</th><th>col 0</th><th>col 1</th><th>col 2</th><th>col 3</th></tr></thead><tbody>
+<tr><td>row 0</td><td>0</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>row 1</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>
+<tr><td>row 2</td><td>2</td><td>3</td><td>4</td><td>5</td></tr>
+<tr><td>row 3</td><td>3</td><td>4</td><td>5</td><td>6</td></tr>
+</tbody></table></div>
+<p>For the other direction use <code>row − col + (n − 1)</code> to keep the index non-negative.</p>
+<div class="stage" id="st-p5" data-anim="nQueens" data-code="code-6"></div>
+<div class="code-tabs" id="code-6">
+<pre data-lang="ts"><code class="language-ts">function solveNQueens(n: number): string[][] {
+  const results: string[][] = [];
+  const colUsed = new Array&lt;boolean&gt;(n).fill(false);
+  const diagUsed = new Array&lt;boolean&gt;(2 * n - 1).fill(false); // "/"  : row + col
+  const antiUsed = new Array&lt;boolean&gt;(2 * n - 1).fill(false); // "\"  : row - col + n - 1
+  const queenCol: number[] = []; // queenCol[row] = column of the queen in that row
+
+  function dfs(row: number): void {
+    if (row === n) {
+      results.push(queenCol.map((c) =&gt; ".".repeat(c) + "Q" + ".".repeat(n - c - 1)));
+      return;
+    }
+    for (let col = 0; col &lt; n; col++) {
+      const d = row + col, a = row - col + n - 1;
+      if (colUsed[col] || diagUsed[d] || antiUsed[a]) continue; // attacked: prune
+      colUsed[col] = diagUsed[d] = antiUsed[a] = true; // choose
+      queenCol.push(col);
+      dfs(row + 1); // explore
+      queenCol.pop(); // un-choose
+      colUsed[col] = diagUsed[d] = antiUsed[a] = false;
+    }
+  }
+  dfs(0);
+  return results;
+}
+
+function totalNQueens(n: number): number {
+  let count = 0;
+  const colUsed = new Array&lt;boolean&gt;(n).fill(false);
+  const diagUsed = new Array&lt;boolean&gt;(2 * n - 1).fill(false);
+  const antiUsed = new Array&lt;boolean&gt;(2 * n - 1).fill(false);
+  function dfs(row: number): void {
+    if (row === n) {
+      count++; // a counted solution: no board to build
+      return;
+    }
+    for (let col = 0; col &lt; n; col++) {
+      const d = row + col, a = row - col + n - 1;
+      if (colUsed[col] || diagUsed[d] || antiUsed[a]) continue;
+      colUsed[col] = diagUsed[d] = antiUsed[a] = true;
+      dfs(row + 1);
+      colUsed[col] = diagUsed[d] = antiUsed[a] = false;
+    }
+  }
+  dfs(0);
+  return count;
+}
+
+console.log(solveNQueens(4));
+// [ [ '.Q..', '...Q', 'Q...', '..Q.' ], [ '..Q.', 'Q...', '...Q', '.Q..' ] ]
+console.log(totalNQueens(4), totalNQueens(6), totalNQueens(8)); // 2 4 92
+console.log(solveNQueens(1)); // [ [ 'Q' ] ]</code></pre>
+<pre data-lang="go"><code class="language-go">func solveNQueens(n int) [][]string {
+	results := [][]string{}
+	colUsed := make([]bool, n)
+	diagUsed := make([]bool, 2*n-1) // "/"  : row + col
+	antiUsed := make([]bool, 2*n-1) // "\"  : row - col + n - 1
+	queenCol := make([]int, 0, n)   // queenCol[row] = column of the queen in that row
+
+	var dfs func(row int)
+	dfs = func(row int) {
+		if row == n {
+			board := make([]string, n)
+			for r, c := range queenCol {
+				board[r] = strings.Repeat(".", c) + "Q" + strings.Repeat(".", n-c-1)
+			}
+			results = append(results, board)
+			return
+		}
+		for col := 0; col &lt; n; col++ {
+			d, a := row+col, row-col+n-1
+			if colUsed[col] || diagUsed[d] || antiUsed[a] {
+				continue // attacked: prune
+			}
+			colUsed[col], diagUsed[d], antiUsed[a] = true, true, true // choose
+			queenCol = append(queenCol, col)
+			dfs(row + 1)                                                  // explore
+			queenCol = queenCol[:len(queenCol)-1]                         // un-choose
+			colUsed[col], diagUsed[d], antiUsed[a] = false, false, false
+		}
+	}
+	dfs(0)
+	return results
+}
+
+func totalNQueens(n int) int {
+	count := 0
+	colUsed := make([]bool, n)
+	diagUsed := make([]bool, 2*n-1)
+	antiUsed := make([]bool, 2*n-1)
+	var dfs func(row int)
+	dfs = func(row int) {
+		if row == n {
+			count++ // a counted solution: no board to build
+			return
+		}
+		for col := 0; col &lt; n; col++ {
+			d, a := row+col, row-col+n-1
+			if colUsed[col] || diagUsed[d] || antiUsed[a] {
+				continue
+			}
+			colUsed[col], diagUsed[d], antiUsed[a] = true, true, true
+			dfs(row + 1)
+			colUsed[col], diagUsed[d], antiUsed[a] = false, false, false
+		}
+	}
+	dfs(0)
+	return count
+}
+
+func exampleNQueens() {
+	fmt.Println(solveNQueens(4)) // [[.Q.. ...Q Q... ..Q.] [..Q. Q... ...Q .Q..]]
+	fmt.Println(totalNQueens(4), totalNQueens(6), totalNQueens(8)) // 2 4 92
+	fmt.Println(solveNQueens(1)) // [[Q]]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Upper bound <code>O(n!)</code> (row 0 has <code>n</code> choices, row 1 has at most <code>n−1</code>, …); with pruning it is much smaller in practice. Space <code>O(n)</code>.</p>
+<p><strong>Optimization to mention for N-Queens II.</strong> Use three integers as bitmasks instead of three boolean arrays. Each check and update becomes a single bit operation (file 27). Because we only count, no board needs to be built.</p>
+<p><strong>Symmetry trick.</strong> Solutions come in mirror pairs, so you can search only the left half of row 0 and double the count (careful with the middle column when <code>n</code> is odd).</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Saving the live path</strong> instead of a copy (all answers identical / empty).</li>
+<li><strong>Forgetting to un-choose</strong>, or un-choosing in the wrong order, leaving stale state.</li>
+<li><strong>Using <code>i + 1</code> when reuse is allowed</strong>, or <code>i</code> when it is not (Combination Sum I vs. II).</li>
+<li><strong>No pruning</strong>, leading to time-outs (for example, not sorting before <code>break</code>).</li>
+<li><strong>Duplicates in the input</strong> producing duplicate answers (sort and skip equal siblings).</li>
+<li><strong>Treating a decision as "free"</strong> when it changes shared state used by other branches (mutating the input array).</li>
+<li><strong>Off-by-one in diagonals</strong> (<code>row − col</code> is negative: shift by <code>n − 1</code>).</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · The tree for subsets([1, 2])</h3>
+<p>Draw the decision tree for <code>subsets([1, 2])</code> and label each node with the saved answer.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Root <code>[]</code> (saved). Its children: <code>[1]</code> (saved) and <code>[2]</code> (saved). <code>[1]</code> has one child <code>[1,2]</code> (saved). <code>[2]</code> has none, because only items after 2 may follow. Four nodes, four subsets. Run the Subsets animation with <code>1 2</code>.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · i versus i + 1</h3>
+<p>Explain, in two sentences, why <code>combinationSum</code> recurses with <code>i</code> and <code>subsets</code> with <code>i + 1</code>.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>In Combination Sum a number may be used again, so after choosing <code>candidates[i]</code> the next choice may still be <code>i</code>. In Subsets each item is used at most once, so the next choice must come strictly after it: <code>i + 1</code>. Both only move forward, which is what prevents reordered duplicates.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Letter Combinations of a Phone Number</h3>
+<p><em>Letter Combinations of a Phone Number</em> (LeetCode 17): what are the choices at each level, and how long is the path?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Level k chooses one letter for digit k (3 or 4 options). The path length equals the number of digits; when it is full, save the string. About <code>O(4ⁿ · n)</code> time.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Word Search</h3>
+<p><em>Word Search</em> (LeetCode 79): which state do you mark and un-mark? (Hint: the visited cell.)</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Mark the current cell as visited before exploring its four neighbors, and un-mark it when you return, so other paths can use it. A common trick: overwrite the cell with a marker character and restore it afterwards.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Palindrome Partitioning</h3>
+<p><em>Palindrome Partitioning</em> (LeetCode 131): what is "the choice"? (Where to cut next.) How does a palindrome check prune?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The choice is <strong>where to cut next</strong>: from position <code>start</code>, try every end <code>e</code>. Only recurse when <code>s[start..e]</code> is a palindrome, which prunes every branch that starts with a non-palindrome. Save the list of pieces when <code>start</code> reaches the end.</p></div></details>
+</div>
+<div class="exercise" id="ex6">
+<h3>6 · No filter for parentheses</h3>
+<p>Explain why <code>generateParenthesis</code> never needs a filter step afterwards.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Every partial string obeys the two rules: never more than n opens, never more closes than opens. A string of length 2n built this way has n opens and n closes and never dips below zero, which is exactly a valid string. Invalid strings are never created, so there is nothing to filter.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="back11"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/11.js"></script>
+</body>
+</html>

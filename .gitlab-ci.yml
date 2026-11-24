@@ -1,0 +1,13 @@
+image: alpine:latest
+
+pages:
+  stage: deploy
+  script:
+    - rm -rf public
+    - mkdir -p public
+    - cp -R index.html assets lessons lib public/
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

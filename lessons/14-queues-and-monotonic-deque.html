@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="14" data-pattern="Queue and deque">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14 Queues and the monotonic deque | Algorithm guide</title>
+<meta name="description" content="Queues animated: recent calls, a queue from two stacks, a circular buffer, the sliding window maximum and the shortest subarray with negatives.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 14</span><span>Data structures</span><span class="stars" title="Fairly likely in interviews">★★</span></div>
+<h1>Queues and the monotonic deque</h1>
+<p class="sub">First come, first served, and the window maximum in O(n).</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 6 introduces the <strong>queue</strong> as the heart of breadth-first search (the "friends first, then friends of friends" waiting line). This file builds queues and the double-ended queue (<strong>deque</strong>) as tools, which file 19 then uses for BFS. It also finishes a thread from file 06: sliding-window maximum, and shortest subarray with negative numbers.</p></blockquote>
+<div class="glance"><div><b>Queue</b><p>Process in order of arrival: BFS, recent events, round-robin.</p></div><div><b>Monotonic deque</b><p>Keep indexes with decreasing values; the front is the window's maximum.</p></div><div><b>What it costs</b><p><code>O(1)</code> per operation (amortized); <code>O(n)</code> for all windows.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-in-plain-english">
+<h2>1. The idea in plain English</h2>
+<p>A <strong>queue</strong> is a line at a ticket counter. People join at the <strong>back</strong> and are served from the <strong>front</strong>: <strong>first in, first out (FIFO)</strong>.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    IN["enqueue (join at the back)"] --&gt; B["back: 4"]
+    B --&gt; C["3"] --&gt; D["2"] --&gt; F["front: 1"]
+    F --&gt; OUT["dequeue (leave from the front)"]</pre></figure>
+<p>Compare with a stack (file 13):</p>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th></th><th>Stack</th><th>Queue</th></tr></thead><tbody>
+<tr><td>Rule</td><td>last in, first out</td><td>first in, first out</td></tr>
+<tr><td>Real life</td><td>plates, undo</td><td>ticket line, print jobs</td></tr>
+<tr><td>Used for</td><td>nesting, backtracking, DFS</td><td>fairness, level by level, BFS</td></tr>
+</tbody></table></div>
+<h3 id="deque-a-line-you-can-join-and-leave-at-both-ends">Deque: a line you can join and leave at <em>both</em> ends</h3>
+<p>A <strong>deque</strong> ("deck", double-ended queue) allows push and pop at the <strong>front and back</strong>. It can act as a stack, a queue, or something in between. Its special power is the <strong>monotonic deque</strong>, a sliding-window version of the monotonic stack from file 13.</p>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart LR
+    PF["push front"] --&gt; D1["front"] --- D2["..."] --- D3["back"] --&gt; PB["push back"]
+    D1 --&gt; OF["pop front"]
+    D3 --&gt; OB["pop back"]</pre></figure>
+<h3 id="cost-of-queue-operations-honestly">Cost of queue operations, honestly</h3>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>Implementation</th><th>enqueue</th><th>dequeue</th><th>Note</th></tr></thead><tbody>
+<tr><td>JavaScript array <code>push</code> + <code>shift</code></td><td><code>O(1)</code></td><td><strong><code>O(n)</code></strong></td><td><code>shift</code> moves every item. Avoid on big inputs.</td></tr>
+<tr><td>JavaScript array + <code>head</code> index</td><td><code>O(1)</code></td><td><code>O(1)</code></td><td>the standard interview fix</td></tr>
+<tr><td>Go slice <code>append</code> + <code>q = q[1:]</code></td><td><code>O(1)</code></td><td><code>O(1)</code></td><td>fine; slightly wasteful of memory</td></tr>
+<tr><td>Go <code>container/list</code></td><td><code>O(1)</code></td><td><code>O(1)</code></td><td>a linked list; handy for a deque</td></tr>
+<tr><td>Circular buffer (fixed array)</td><td><code>O(1)</code></td><td><code>O(1)</code></td><td>no memory growth</td></tr>
+</tbody></table></div>
+</section>
+<section class="sec" id="how-to-recognize-it">
+<h2>2. How to recognize it</h2>
+<ul>
+<li>"Process in the order received", "recent requests", "time window of the last N events".</li>
+<li><strong>BFS</strong> (shortest path in an unweighted graph, level-order traversal): file 19.</li>
+<li>"<strong>Maximum / minimum of every window</strong> of size <code>k</code>" → monotonic deque.</li>
+<li>"Shortest subarray with sum at least <code>K</code>" <strong>with negatives</strong> → prefix sums + monotonic deque.</li>
+<li>Simulating <strong>round-robin</strong> or turn-taking.</li>
+</ul>
+</section>
+<section class="sec" id="the-monotonic-deque-in-plain-english">
+<h2>3. The monotonic deque, in plain English</h2>
+<p>In the sliding window maximum problem we need the maximum of the <strong>current window</strong> as it moves right. Observe:</p>
+<blockquote><p>If a <strong>newer</strong> number is <strong>bigger</strong> than an <strong>older</strong> number, the older number can <strong>never be the maximum again</strong>: it leaves the window earlier <em>and</em> is smaller than the newcomer.</p></blockquote>
+<p>So we keep a deque of <strong>indexes</strong> whose values are <strong>decreasing</strong> from front to back:</p>
+<ul>
+<li><strong>front</strong> = the index of the current maximum.</li>
+<li>Before adding a new index at the back, <strong>pop from the back</strong> every index with a smaller or equal value (they are dead).</li>
+<li><strong>Pop from the front</strong> the index that has just <strong>slid out of the window</strong>.</li>
+</ul>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart TD
+    A["New number x at index i"] --&gt; B{"Back of the deque has a value &lt;= x ?"}
+    B --&gt;|Yes| C["pop back (it can never win again)"]
+    C --&gt; B
+    B --&gt;|No| D["push i at the back"]
+    D --&gt; E{"Front index is outside the window?"}
+    E --&gt;|Yes| F["pop front"]
+    E --&gt;|No| G["front of the deque = max of the window"]
+    F --&gt; G</pre></figure>
+<p>Same amortized argument as the monotonic stack: each index enters once and leaves once, so the total is <code>O(n)</code>.</p>
+</section>
+<section class="sec" id="practice-problems-easy-hard">
+<h2>4. Practice problems (easy → hard)</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · Number of Recent Calls (LeetCode 933, Easy)</h3>
+<p><strong>Task.</strong> Count calls in the last 3000 milliseconds. <code>ping(t)</code> is called with strictly increasing times <code>t</code> and returns how many pings happened in <code>[t − 3000, t]</code>.</p>
+<p><strong>Thinking.</strong> Times arrive in order, so the oldest are at the front. Store each ping time in a queue; on each new ping, <strong>drop from the front</strong> every time older than <code>t − 3000</code>. The queue length is the answer.</p>
+<p><strong>Trace.</strong> pings at <code>1, 100, 3001, 3002</code></p>
+<div class="table-wrap"><table id="tbl-3" class="trace"><thead><tr><th>t</th><th>queue after dropping times <code>&lt; t − 3000</code></th><th>answer</th></tr></thead><tbody>
+<tr><td>1</td><td><code>[1]</code></td><td>1</td></tr>
+<tr><td>100</td><td><code>[1, 100]</code></td><td>2</td></tr>
+<tr><td>3001</td><td>drop nothing (1 ≥ 1): <code>[1, 100, 3001]</code></td><td>3</td></tr>
+<tr><td>3002</td><td>drop 1 (1 &lt; 2): <code>[100, 3001, 3002]</code></td><td>3</td></tr>
+</tbody></table></div>
+<div class="stage" id="st-p1" data-anim="recentCounter" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts"><code class="language-ts">class RecentCounter {
+  private times: number[] = [];
+  private head = 0; // index of the front of the queue; avoids O(n) shift()
+  ping(t: number): number {
+    this.times.push(t);
+    while (this.times[this.head] &lt; t - 3000) this.head++; // drop expired requests
+    return this.times.length - this.head;
+  }
+}
+const counter = new RecentCounter();
+console.log(counter.ping(1)); // 1
+console.log(counter.ping(100)); // 2
+console.log(counter.ping(3001)); // 3
+console.log(counter.ping(3002)); // 3</code></pre>
+<pre data-lang="go"><code class="language-go">type RecentCounter struct{ times []int }
+
+func (c *RecentCounter) Ping(t int) int {
+	c.times = append(c.times, t)
+	for c.times[0] &lt; t-3000 {
+		c.times = c.times[1:] // dequeue from the front: O(1) in Go
+	}
+	return len(c.times)
+}
+
+func exampleRecentCounter() {
+	c := &amp;RecentCounter{}
+	fmt.Println(c.Ping(1))    // 1
+	fmt.Println(c.Ping(100))  // 2
+	fmt.Println(c.Ping(3001)) // 3
+	fmt.Println(c.Ping(3002)) // 3
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Each ping is <code>O(1)</code> amortized (every time is added once and dropped at most once). Space <code>O(window size)</code> in Go; the TypeScript version keeps old entries, so for a long-running service trim the array occasionally.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · Implement Queue using Stacks (LeetCode 232, Easy)</h3>
+<p><strong>Task.</strong> Build a FIFO queue using only stack operations (push, pop, peek on a stack).</p>
+<p><strong>Thinking.</strong> One stack reverses order. <strong>Two</strong> reversals restore it. Use an <code>inbox</code> stack for new items and an <code>outbox</code> stack for items ready to leave:</p>
+<ul>
+<li><code>push(x)</code>: push onto <code>inbox</code>.</li>
+<li><code>pop()</code>/<code>peek()</code>: if <code>outbox</code> is empty, move <strong>everything</strong> from <code>inbox</code> to <code>outbox</code> (this reverses it, so the oldest ends up on top); then take from <code>outbox</code>.</li>
+</ul>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart LR
+    A["push 1, 2, 3"] --&gt; B["inbox (top to bottom): 3, 2, 1"]
+    B --&gt;|"outbox is empty: move all"| C["outbox (top to bottom): 1, 2, 3"]
+    C --&gt; D["pop returns 1: first in, first out"]</pre></figure>
+<p><strong>Why it is <code>O(1)</code> amortized.</strong> An item moves from <code>inbox</code> to <code>outbox</code> <strong>at most once</strong>. So across <code>n</code> operations, the moving costs at most <code>n</code> in total.</p>
+<div class="stage" id="st-p2" data-anim="queueStacks" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">class QueueViaStacks {
+  private inbox: number[] = [];
+  private outbox: number[] = [];
+  push(x: number): void {
+    this.inbox.push(x);
+  }
+  private shiftIfNeeded(): void {
+    if (this.outbox.length === 0) {
+      while (this.inbox.length &gt; 0) this.outbox.push(this.inbox.pop()!); // reverses the order
+    }
+  }
+  pop(): number {
+    this.shiftIfNeeded();
+    return this.outbox.pop()!;
+  }
+  peek(): number {
+    this.shiftIfNeeded();
+    return this.outbox[this.outbox.length - 1];
+  }
+  empty(): boolean {
+    return this.inbox.length === 0 &amp;&amp; this.outbox.length === 0;
+  }
+}
+const qs = new QueueViaStacks();
+qs.push(1);
+qs.push(2);
+qs.push(3);
+console.log(qs.pop(), qs.peek()); // 1 2
+qs.push(4);
+console.log(qs.pop(), qs.pop(), qs.pop(), qs.empty()); // 2 3 4 true</code></pre>
+<pre data-lang="go"><code class="language-go">type QueueViaStacks struct{ inbox, outbox []int }
+
+func (q *QueueViaStacks) Push(x int) { q.inbox = append(q.inbox, x) }
+
+func (q *QueueViaStacks) shiftIfNeeded() {
+	if len(q.outbox) == 0 {
+		for len(q.inbox) &gt; 0 {
+			top := q.inbox[len(q.inbox)-1]
+			q.inbox = q.inbox[:len(q.inbox)-1]
+			q.outbox = append(q.outbox, top) // reverses the order
+		}
+	}
+}
+
+func (q *QueueViaStacks) Pop() int {
+	q.shiftIfNeeded()
+	top := q.outbox[len(q.outbox)-1]
+	q.outbox = q.outbox[:len(q.outbox)-1]
+	return top
+}
+
+func (q *QueueViaStacks) Peek() int {
+	q.shiftIfNeeded()
+	return q.outbox[len(q.outbox)-1]
+}
+
+func (q *QueueViaStacks) Empty() bool { return len(q.inbox) == 0 &amp;&amp; len(q.outbox) == 0 }
+
+func exampleQueueViaStacks() {
+	q := &amp;QueueViaStacks{}
+	q.Push(1)
+	q.Push(2)
+	q.Push(3)
+	fmt.Println(q.Pop(), q.Peek()) // 1 2
+	q.Push(4)
+	fmt.Println(q.Pop(), q.Pop(), q.Pop(), q.Empty()) // 2 3 4 true
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> <code>push</code> <code>O(1)</code>; <code>pop</code> and <code>peek</code> amortized <code>O(1)</code>, worst case <code>O(n)</code> for a single call.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · Design Circular Queue (LeetCode 622, Medium)</h3>
+<p><strong>Task.</strong> A fixed-capacity queue that <strong>reuses freed space</strong>, built on an array. Operations: <code>enQueue</code>, <code>deQueue</code>, <code>Front</code>, <code>Rear</code>, <code>isEmpty</code>, <code>isFull</code>.</p>
+<p><strong>Thinking.</strong> Imagine the array bent into a ring. Keep <code>head</code> (index of the front), <code>size</code> (count), and compute the back as <code>(head + size − 1) mod capacity</code>. Adding places an item at <code>(head + size) mod capacity</code>. The <strong>modulo</strong> makes indexes wrap around from the end to the start.</p>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart LR
+    subgraph Ring["Array of capacity 5, head = 3, size = 3"]
+        direction LR
+        S0["[0] item C"] --- S1["[1] empty"] --- S2["[2] empty"] --- S3["[3] item A  (head)"] --- S4["[4] item B"]
+    end
+    N["Items in order: A at 3, B at 4, C wraps to 0"] --&gt; Ring</pre></figure>
+<p>Tracking <code>size</code> (rather than <code>head</code>/<code>tail</code> only) avoids the classic ambiguity "head equals tail means empty or full?".</p>
+<div class="stage" id="st-p3" data-anim="circularQueue" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts"><code class="language-ts">class CircularQueue {
+  private data: number[];
+  private head = 0; // index of the front item
+  private size = 0;
+  constructor(private capacity: number) {
+    this.data = new Array&lt;number&gt;(capacity).fill(0);
+  }
+  enQueue(value: number): boolean {
+    if (this.isFull()) return false;
+    this.data[(this.head + this.size) % this.capacity] = value; // wrap with modulo
+    this.size++;
+    return true;
+  }
+  deQueue(): boolean {
+    if (this.isEmpty()) return false;
+    this.head = (this.head + 1) % this.capacity;
+    this.size--;
+    return true;
+  }
+  front(): number {
+    return this.isEmpty() ? -1 : this.data[this.head];
+  }
+  rear(): number {
+    return this.isEmpty() ? -1 : this.data[(this.head + this.size - 1) % this.capacity];
+  }
+  isEmpty(): boolean {
+    return this.size === 0;
+  }
+  isFull(): boolean {
+    return this.size === this.capacity;
+  }
+}
+const cq = new CircularQueue(3);
+console.log(cq.enQueue(1), cq.enQueue(2), cq.enQueue(3), cq.enQueue(4)); // true true true false
+console.log(cq.rear(), cq.isFull()); // 3 true
+console.log(cq.deQueue(), cq.enQueue(4), cq.rear()); // true true 4
+console.log(cq.front()); // 2</code></pre>
+<pre data-lang="go"><code class="language-go">type CircularQueue struct {
+	data     []int
+	head     int // index of the front item
+	size     int
+	capacity int
+}
+
+func NewCircularQueue(capacity int) *CircularQueue {
+	return &amp;CircularQueue{data: make([]int, capacity), capacity: capacity}
+}
+
+func (q *CircularQueue) EnQueue(value int) bool {
+	if q.IsFull() {
+		return false
+	}
+	q.data[(q.head+q.size)%q.capacity] = value // wrap with modulo
+	q.size++
+	return true
+}
+
+func (q *CircularQueue) DeQueue() bool {
+	if q.IsEmpty() {
+		return false
+	}
+	q.head = (q.head + 1) % q.capacity
+	q.size--
+	return true
+}
+
+func (q *CircularQueue) Front() int {
+	if q.IsEmpty() {
+		return -1
+	}
+	return q.data[q.head]
+}
+
+func (q *CircularQueue) Rear() int {
+	if q.IsEmpty() {
+		return -1
+	}
+	return q.data[(q.head+q.size-1)%q.capacity]
+}
+
+func (q *CircularQueue) IsEmpty() bool { return q.size == 0 }
+func (q *CircularQueue) IsFull() bool  { return q.size == q.capacity }
+
+func exampleCircularQueue() {
+	cq := NewCircularQueue(3)
+	fmt.Println(cq.EnQueue(1), cq.EnQueue(2), cq.EnQueue(3), cq.EnQueue(4)) // true true true false
+	fmt.Println(cq.Rear(), cq.IsFull())                                      // 3 true
+	fmt.Println(cq.DeQueue(), cq.EnQueue(4), cq.Rear())                     // true true 4
+	fmt.Println(cq.Front())                                                  // 2
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Every operation <code>O(1)</code>, space <code>O(capacity)</code>.</p>
+</section>
+<section class="problem" id="p4">
+<h3>Problem 4 · Sliding Window Maximum (LeetCode 239, Hard)</h3>
+<p><strong>Task.</strong> For every window of size <code>k</code>, return its maximum. <code>[1, 3, -1, -3, 5, 3, 6, 7]</code>, <code>k = 3</code> → <code>[3, 3, 5, 5, 6, 7]</code>.</p>
+<p><strong>Brute force.</strong> Scan each window: <code>O(n·k)</code>. A heap with lazy deletion gives <code>O(n log n)</code>. The monotonic deque gives <code>O(n)</code>.</p>
+<p><strong>Walk through the idea</strong> with the invariant <em>"the deque holds indexes with strictly decreasing values; the front is the maximum"</em>:</p>
+<p><strong>Trace.</strong> <code>[1, 3, -1, -3, 5, 3, 6, 7]</code>, <code>k = 3</code> (deque shows indexes with values in parentheses, front on the left)</p>
+<div class="table-wrap"><table id="tbl-4" class="trace"><thead><tr><th>i</th><th>x</th><th>Pop back while ≤ x</th><th>Push</th><th>Pop front if out of window (index ≤ i−k)</th><th>deque</th><th>window max (once <code>i ≥ k−1</code>)</th></tr></thead><tbody>
+<tr><td>0</td><td>1</td><td></td><td>0</td><td></td><td><code>0(1)</code></td><td></td></tr>
+<tr><td>1</td><td>3</td><td>pop 0 (1 ≤ 3)</td><td>1</td><td></td><td><code>1(3)</code></td><td></td></tr>
+<tr><td>2</td><td>−1</td><td></td><td>2</td><td></td><td><code>1(3) 2(−1)</code></td><td><strong>3</strong></td></tr>
+<tr><td>3</td><td>−3</td><td></td><td>3</td><td></td><td><code>1(3) 2(−1) 3(−3)</code></td><td><strong>3</strong></td></tr>
+<tr><td>4</td><td>5</td><td>pop 3, 2, 1 (all ≤ 5)</td><td>4</td><td></td><td><code>4(5)</code></td><td><strong>5</strong></td></tr>
+<tr><td>5</td><td>3</td><td></td><td>5</td><td></td><td><code>4(5) 5(3)</code></td><td><strong>5</strong></td></tr>
+<tr><td>6</td><td>6</td><td>pop 5, 4</td><td>6</td><td></td><td><code>6(6)</code></td><td><strong>6</strong></td></tr>
+<tr><td>7</td><td>7</td><td>pop 6</td><td>7</td><td></td><td><code>7(7)</code></td><td><strong>7</strong></td></tr>
+</tbody></table></div>
+<p>(At <code>i = 3</code> index 0 is already gone; at <code>i = 4</code> index 1 would be out of the window <code>[2..4]</code>, but it has been popped from the back anyway.)</p>
+<div class="stage" id="st-p4" data-anim="windowMax" data-code="code-4" data-flow="fig-3"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function maxSlidingWindow(nums: number[], k: number): number[] {
+  const result: number[] = [];
+  const deque: number[] = []; // indexes; values decreasing from front to back
+  let head = 0; // front of the deque (avoids O(n) shift)
+  for (let i = 0; i &lt; nums.length; i++) {
+    while (deque.length &gt; head &amp;&amp; nums[deque[deque.length - 1]] &lt;= nums[i]) deque.pop(); // dead items
+    deque.push(i);
+    if (deque[head] &lt;= i - k) head++; // the front slid out of the window
+    if (i &gt;= k - 1) result.push(nums[deque[head]]); // the front is the window's max
+  }
+  return result;
+}
+console.log(maxSlidingWindow([1, 3, -1, -3, 5, 3, 6, 7], 3)); // [ 3, 3, 5, 5, 6, 7 ]
+console.log(maxSlidingWindow([1], 1)); // [ 1 ]
+console.log(maxSlidingWindow([9, 8, 7], 2)); // [ 9, 8 ]
+console.log(maxSlidingWindow([1, 2, 3], 3)); // [ 3 ]</code></pre>
+<pre data-lang="go"><code class="language-go">func maxSlidingWindow(nums []int, k int) []int {
+	result := []int{}
+	deque := []int{} // indexes; values decreasing from front to back
+	head := 0        // front of the deque
+	for i, x := range nums {
+		for len(deque) &gt; head &amp;&amp; nums[deque[len(deque)-1]] &lt;= x {
+			deque = deque[:len(deque)-1] // dead items
+		}
+		deque = append(deque, i)
+		if deque[head] &lt;= i-k {
+			head++ // the front slid out of the window
+		}
+		if i &gt;= k-1 {
+			result = append(result, nums[deque[head]]) // the front is the window's max
+		}
+	}
+	return result
+}
+
+func exampleMaxSlidingWindow() {
+	fmt.Println(maxSlidingWindow([]int{1, 3, -1, -3, 5, 3, 6, 7}, 3)) // [3 3 5 5 6 7]
+	fmt.Println(maxSlidingWindow([]int{1}, 1))                       // [1]
+	fmt.Println(maxSlidingWindow([]int{9, 8, 7}, 2))                 // [9 8]
+	fmt.Println(maxSlidingWindow([]int{1, 2, 3}, 3))                 // [3]
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code>, space <code>O(k)</code>.</p>
+<p><strong>Why we pop on <code>&lt;=</code> (not <code>&lt;</code>).</strong> Among equal values the <em>newer</em> one outlives the older one, so the older is useless. Either choice gives correct answers; <code>&lt;=</code> keeps the deque smaller.</p>
+<p><strong>Follow-ups.</strong> <em>Sliding window minimum</em>: flip the comparison. <em>Max of all windows with an unknown size that changes</em>: a segment tree or sparse table. <em>"Why not a heap?"</em> A heap needs lazy deletion of items that left the window, giving <code>O(n log n)</code>.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · Shortest Subarray with Sum at Least K (LeetCode 862, Hard)</h3>
+<p><strong>Task.</strong> <code>nums</code> may contain <strong>negative</strong> numbers. Return the length of the shortest non-empty subarray with sum <code>≥ K</code>, or <code>−1</code>. <code>[2, −1, 2]</code>, <code>K = 3</code> → <code>3</code>.</p>
+<p><strong>Why earlier tools fail.</strong> A sliding window (file 06) breaks with negatives: adding a negative number lowers the sum, so "shrink when valid" is not safe. So use <strong>prefix sums</strong> (file 07): <code>P[0] = 0</code>, <code>P[j+1] = P[j] + nums[j]</code>. A subarray <code>i..j−1</code> has sum <code>P[j] − P[i]</code>. We need, for each <code>j</code>, the <strong>largest</strong> <code>i &lt; j</code> with <code>P[i] ≤ P[j] − K</code> (largest <code>i</code> = shortest subarray).</p>
+<p><strong>Deque rules</strong> (the deque stores indexes into <code>P</code>, with <code>P</code> values <strong>increasing</strong> from front to back):</p>
+<ol>
+<li><strong>Answer from the front.</strong> While <code>P[j] − P[front] ≥ K</code>: record <code>j − front</code> and <strong>pop the front</strong>. Why is popping safe? Any <em>later</em> <code>j'</code> would give a longer subarray for the same <code>front</code>, so this <code>front</code> is never useful again.</li>
+<li><strong>Keep it increasing.</strong> Before pushing <code>j</code>, <strong>pop the back</strong> while <code>P[back] ≥ P[j]</code>. Why? A later <code>j'</code> prefers a <strong>smaller</strong> <code>P[i]</code> (bigger difference) and a <strong>later</strong> <code>i</code> (shorter length). The new <code>j</code> is both later and has a smaller-or-equal <code>P</code>, so the old back is never better.</li>
+<li>Push <code>j</code>.</li>
+</ol>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["For each j from 0 to n (P is the prefix array)"] --&gt; B{"deque non-empty and&lt;br/&gt;P[j] - P[front] &gt;= K ?"}
+    B --&gt;|Yes| C["best = min(best, j - front)&lt;br/&gt;pop front"]
+    C --&gt; B
+    B --&gt;|No| D{"deque non-empty and&lt;br/&gt;P[back] &gt;= P[j] ?"}
+    D --&gt;|Yes| E["pop back"]
+    E --&gt; D
+    D --&gt;|No| F["push j"]
+    F --&gt; A</pre></figure>
+<p><strong>Trace.</strong> <code>nums = [2, −1, 2]</code>, <code>K = 3</code>, so <code>P = [0, 2, 1, 3]</code></p>
+<div class="table-wrap"><table id="tbl-5" class="trace"><thead><tr><th>j</th><th>P[j]</th><th>Front check (P[j] − P[front] ≥ 3?)</th><th>Back pops (P[back] ≥ P[j])</th><th>deque after</th></tr></thead><tbody>
+<tr><td>0</td><td>0</td><td></td><td></td><td><code>0</code></td></tr>
+<tr><td>1</td><td>2</td><td>2 − 0 = 2 no</td><td>none</td><td><code>0, 1</code></td></tr>
+<tr><td>2</td><td>1</td><td>1 − 0 = 1 no</td><td>pop 1 (2 ≥ 1)</td><td><code>0, 2</code></td></tr>
+<tr><td>3</td><td>3</td><td>3 − 0 = 3 ≥ 3: <strong>best = 3 − 0 = 3</strong>, pop 0; then 3 − 1 = 2 no</td><td>none</td><td><code>2, 3</code></td></tr>
+</tbody></table></div>
+<p>Result <strong>3</strong> ✔</p>
+<div class="stage" id="st-p5" data-anim="shortestK" data-code="code-5" data-flow="fig-6"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">function shortestSubarray(nums: number[], K: number): number {
+  const n = nums.length;
+  const P = new Array&lt;number&gt;(n + 1).fill(0); // prefix sums
+  for (let i = 0; i &lt; n; i++) P[i + 1] = P[i] + nums[i];
+  const deque: number[] = []; // indexes into P; P values increasing front to back
+  let head = 0;
+  let best = Infinity;
+  for (let j = 0; j &lt;= n; j++) {
+    while (deque.length &gt; head &amp;&amp; P[j] - P[deque[head]] &gt;= K) {
+      best = Math.min(best, j - deque[head]);
+      head++; // this front can never give a shorter answer later
+    }
+    while (deque.length &gt; head &amp;&amp; P[deque[deque.length - 1]] &gt;= P[j]) deque.pop(); // worse than j
+    deque.push(j);
+  }
+  return best === Infinity ? -1 : best;
+}
+console.log(shortestSubarray([1], 1)); // 1
+console.log(shortestSubarray([1, 2], 4)); // -1
+console.log(shortestSubarray([2, -1, 2], 3)); // 3
+console.log(shortestSubarray([84, -37, 32, 40, 95], 167)); // 3</code></pre>
+<pre data-lang="go"><code class="language-go">func shortestSubarray(nums []int, K int) int {
+	n := len(nums)
+	P := make([]int, n+1) // prefix sums
+	for i, x := range nums {
+		P[i+1] = P[i] + x
+	}
+	deque := []int{} // indexes into P; P values increasing front to back
+	head := 0
+	best := math.MaxInt
+	for j := 0; j &lt;= n; j++ {
+		for len(deque) &gt; head &amp;&amp; P[j]-P[deque[head]] &gt;= K {
+			best = min(best, j-deque[head])
+			head++ // this front can never give a shorter answer later
+		}
+		for len(deque) &gt; head &amp;&amp; P[deque[len(deque)-1]] &gt;= P[j] {
+			deque = deque[:len(deque)-1] // worse than j
+		}
+		deque = append(deque, j)
+	}
+	if best == math.MaxInt {
+		return -1
+	}
+	return best
+}
+
+func exampleShortestSubarray() {
+	fmt.Println(shortestSubarray([]int{1}, 1))                      // 1
+	fmt.Println(shortestSubarray([]int{1, 2}, 4))                   // -1
+	fmt.Println(shortestSubarray([]int{2, -1, 2}, 3))               // 3
+	fmt.Println(shortestSubarray([]int{84, -37, 32, 40, 95}, 167)) // 3
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Time <code>O(n)</code> (each index enters and leaves the deque once), space <code>O(n)</code>.</p>
+<p><strong>Why this is the "senior" problem:</strong> it combines three ideas (prefix sums, why windows fail with negatives, monotonic deque) and each pop needs a one-sentence justification. Practice saying those justifications aloud.</p>
+</section>
+</section>
+<section class="sec" id="common-mistakes">
+<h2>Common mistakes</h2>
+<ul>
+<li><strong>Using <code>shift()</code> for the queue front in JavaScript</strong> on large inputs (<code>O(n²)</code> total).</li>
+<li><strong>Storing values instead of indexes</strong> in the monotonic deque, then being unable to tell whether the front left the window.</li>
+<li><strong>Wrong order of operations</strong> in sliding-window max: pop dead items, push, <em>then</em> expire the front, <em>then</em> read the answer.</li>
+<li><strong>Reading the answer before the first full window</strong> (<code>i &lt; k − 1</code>).</li>
+<li><strong>Circular queue: ambiguity between full and empty</strong> if you only track <code>head</code> and <code>tail</code>. Track <code>size</code>.</li>
+<li><strong>Using a sliding window</strong> (file 06) for sums with negatives.</li>
+<li><strong>Forgetting that Go's <code>q = q[1:]</code></strong> keeps the whole backing array alive (a slow memory leak for very long runs).</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · Amortized pop with two stacks</h3>
+<p>Explain why the amortized cost of <code>pop</code> in "queue using two stacks" is <code>O(1)</code>, using the words "each item moves at most once".</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Each item is pushed onto the inbox once, moved to the outbox at most once, and popped from the outbox once: at most three constant-time steps per item over its whole life. A single pop can be <code>O(n)</code> when it pours the inbox, but across n operations the total is <code>O(n)</code>, so each is amortized <code>O(1)</code>.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · maxSlidingWindow([4, 2, 12, 11, −5], 2)</h3>
+<p>Run <code>maxSlidingWindow([4, 2, 12, 11, −5], 2)</code> by hand, listing the deque after each step.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>i=0: deque [0]. i=1: [0, 1] → max 4. i=2: 12 pops 1 and 0 → [2] → max 12. i=3: [2, 3] → max 12. i=4: [2, 3, 4], index 2 expires → [3, 4] → max 11. Answer <code>[4, 12, 12, 11]</code>. Check it with Problem 4's second preset.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Indexes, not values</h3>
+<p>Why must the monotonic deque hold <em>indexes</em> and not values?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The front must be dropped when it slides out of the window, and only its index tells you that (<code>index ≤ i − k</code>). Values also repeat, so a value cannot tell two positions apart.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Sliding Window Median</h3>
+<p><em>Sliding Window Median</em> (LeetCode 480) is harder: which data structure replaces the deque, and why?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>A median needs the middle of the window, not just its extreme, so a deque is not enough. Use two heaps (a max-heap for the lower half and a min-heap for the upper half) with lazy deletion, or a balanced ordered structure, for <code>O(n log k)</code>.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · Jump Game VI</h3>
+<p><em>Jump Game VI</em> (LeetCode 1696): <code>dp[i] = nums[i] + max(dp[i−k..i−1])</code>. Which tool from this file gives <code>O(n)</code>?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>A <strong>monotonic deque</strong> over <code>dp</code> values: it holds the indexes of the last k dp values in decreasing order, so <code>max(dp[i−k..i−1])</code> is always at the front. That gives <code>O(n)</code> instead of <code>O(n·k)</code>.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="queue14"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/14.js"></script>
+</body>
+</html>

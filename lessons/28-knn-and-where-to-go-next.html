@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en" data-root="../" data-lesson="28" data-pattern="k-NN, Bloom filter, inverted index">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>28 k-nearest neighbors and where to go next | Algorithm guide</title>
+<meta name="description" content="k-NN animated on a scatter plot: k closest points with a heap, the orange-or-grapefruit classifier with and without normalizing, regression, recommendations, a Bloom filter and an inverted index.">
+<script>try{var t=localStorage.getItem("algov3:theme");if(t)document.documentElement.setAttribute("data-theme",JSON.parse(t));}catch(e){}</script>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<header class="topbar"></header>
+<div class="shell">
+<nav class="rail rail-left" aria-label="All lessons"></nav>
+<main id="main">
+<article class="lesson">
+<header class="lesson-hero">
+<div class="kicker"><span>Lesson 28</span><span>Extras</span><span class="stars" title="Good for depth">★</span></div>
+<h1>k-nearest neighbors and where to go next</h1>
+<p class="sub">Judge something by the company it keeps, then a tour of real-world structures.</p>
+<blockquote><p><strong>Book link:</strong> <em>Grokking Algorithms</em>, chapter 12 (k-nearest neighbors: classifying oranges vs. grapefruit, building a recommendation system, regression, a tour of machine learning) and chapter 13 (where to go next: linear regression, inverted indexes, the Fourier transform, parallel algorithms, MapReduce, Bloom filters and HyperLogLog, HTTPS and Diffie–Hellman, locality-sensitive hashing, min heaps and priority queues, linear programming). This file is lighter on interview "tricks" and heavier on <strong>ideas you should be able to explain</strong> and a few <strong>small implementations</strong> (k-NN, a Bloom filter, an inverted index) that make the ideas concrete. It is the bridge from "coding rounds" to "system design" conversations.</p></blockquote>
+<div class="glance"><div><b>The idea</b><p>To classify or predict for a new point, find the k most similar known points and let them vote (or average).</p></div><div><b>The decisions</b><p>Which features, how to measure distance, which k. Normalize features so one big scale does not dominate.</p></div><div><b>Beyond</b><p>Bloom filters answer "seen it?" in tiny memory; inverted indexes power search; LSH finds near neighbors fast.</p></div></div>
+<div class="callout analogy"><b>How to use the animations</b><p>Press play, or click a stage and step with the arrow keys. Turn on <em>Predict the next move</em> to guess each decision before it is shown. Type your own input to test an idea. The colors mean the same thing in every lesson:</p><div class="inks"><span class="ink p1"><i></i>left, low, slow, write, i</span><span class="ink p2"><i></i>right, high, fast, read, j</span><span class="ink focus"><i></i>being looked at</span><span class="ink anchor"><i></i>fixed for now</span><span class="ink done"><i></i>discarded or skipped</span><span class="ink answer"><i></i>answer</span><span class="ink bug"><i></i>a bug</span></div></div>
+</header>
+<section class="sec" id="the-idea-of-k-nearest-neighbors-k-nn-in-plain-english">
+<h2>1. The idea of k-nearest neighbors (k-NN), in plain English</h2>
+<blockquote><p>"Tell me who your neighbors are, and I will tell you who you are."</p></blockquote>
+<p>Suppose you must decide whether a mystery fruit is an <strong>orange</strong> or a <strong>grapefruit</strong>. You know two facts about each fruit: its <strong>size</strong> and its <strong>color</strong>. Plot every fruit you already know as a dot on a graph (size on one axis, redness on the other). Oranges cluster in one area, grapefruits in another. To classify a new fruit, put its dot on the graph and look at the <strong>k nearest dots</strong> (its neighbors). If most of them are grapefruits, call it a grapefruit.</p>
+<figure class="diagram" id="fig-1"><pre class="mermaid-src">flowchart LR
+    A["New fruit: size 9, redness 0.69"] --&gt; B["Measure the distance to every known fruit"]
+    B --&gt; C["Take the k closest (say k = 3)"]
+    C --&gt; D["Count their labels (vote)"]
+    D --&gt; E["The majority label is the answer"]</pre></figure>
+<p>That is the whole algorithm. There is <strong>no training step</strong>: the "model" is just the stored data.</p>
+<h3 id="the-three-decisions-that-matter">The three decisions that matter</h3>
+<div class="table-wrap"><table id="tbl-1"><thead><tr><th>Decision</th><th>What it means</th><th>Typical choice</th></tr></thead><tbody>
+<tr><td><strong>Features</strong></td><td>What numbers describe each item? Choosing good features is most of the work.</td><td>size, color, price, rating, age…</td></tr>
+<tr><td><strong>Distance</strong></td><td>How do we measure "close"?</td><td><strong>Euclidean</strong> (the straight-line distance from the Pythagorean theorem), or <strong>cosine similarity</strong> for "direction"</td></tr>
+<tr><td><strong><code>k</code></strong></td><td>How many neighbors vote?</td><td>small odd numbers (3, 5, 7); too small is noisy, too large blurs boundaries</td></tr>
+</tbody></table></div>
+<h3 id="distance-formulas-the-book-s-version">Distance formulas (the book's version)</h3>
+<p>For two items with feature lists <code>(a₁, a₂, …)</code> and <code>(b₁, b₂, …)</code>:</p>
+<blockquote><p><strong>Euclidean distance</strong> = √( (a₁−b₁)² + (a₂−b₂)² + … )</p></blockquote>
+<p><strong>Cosine similarity</strong> compares the <em>angle</em> between the two feature vectors rather than their length, and is common for ratings and text: <code>cos = (a·b) / (|a| |b|)</code>, where <code>1</code> means "pointing the same way" and <code>0</code> means "unrelated". It is better than Euclidean distance when one user rates everything high and another rates everything low but they <strong>agree on the relative order</strong>.</p>
+<h3 id="the-classic-pitfall-normalize-your-features">The classic pitfall: normalize your features</h3>
+<p>If one feature is measured in <em>hundreds</em> (price) and another in <em>0 to 1</em> (a score), the big numbers swamp the distance and the small feature is ignored. Rescale each feature to a common range, for example <strong>min-max scaling</strong>: <code>(x − min) / (max − min)</code>, giving values between 0 and 1.</p>
+</section>
+<section class="sec" id="three-uses-of-k-nn-from-the-book">
+<h2>2. Three uses of k-NN (from the book)</h2>
+<ol>
+<li><strong>Classification:</strong> put the item in a category by <strong>voting</strong>: orange vs. grapefruit, spam vs. not spam, which digit is this image.</li>
+<li><strong>Regression:</strong> predict a <strong>number</strong> by <strong>averaging</strong> the neighbors' numbers: how many loaves of bread to bake today, based on the weather, the day of the week, and whether there is a game, using the five most similar past days.</li>
+<li><strong>Recommendations:</strong> to suggest movies to you, find the <strong>users most similar to you</strong> (by their ratings) and recommend what they loved that you have not seen. (This is what the book's Netflix example does.)</li>
+</ol>
+<figure class="diagram" id="fig-2"><pre class="mermaid-src">flowchart TD
+    K["k-NN"] --&gt; C["Classification&lt;br/&gt;neighbors VOTE on a category"]
+    K --&gt; R["Regression&lt;br/&gt;neighbors' numbers are AVERAGED"]
+    K --&gt; M["Recommendations&lt;br/&gt;find similar users, borrow their favorites"]</pre></figure>
+<h3 id="cost">Cost</h3>
+<p>For <code>n</code> stored items with <code>d</code> features:</p>
+<ul>
+<li><strong>Query time:</strong> <code>O(n · d)</code> for the plain version (measure the distance to everyone), plus picking the <code>k</code> smallest (<code>O(n log k)</code> with a heap, or <code>O(n)</code> with quickselect: see files 17 and 09).</li>
+<li><strong>Memory:</strong> <code>O(n · d)</code>: it stores everything.</li>
+<li><strong>Speed-ups:</strong> space-partitioning trees (<strong>k-d trees</strong>, ball trees) work well for few features; for many features use <strong>approximate</strong> nearest-neighbor search (<strong>locality-sensitive hashing</strong>, HNSW graphs).</li>
+</ul>
+<h3 id="machine-learning-in-one-paragraph-from-the-book">Machine learning in one paragraph (from the book)</h3>
+<p><em>Training</em> a model means feeding it examples so it can find patterns. k-NN is the simplest model because "training" is just storing the data. Other models (linear regression, decision trees, neural networks) <em>learn parameters</em> from the data and then throw the data away. The recurring steps: <strong>pick features, collect data, split it into training and test sets, measure how often the model is right on the test set</strong> (so you do not fool yourself).</p>
+</section>
+<section class="sec" id="practice-problems">
+<h2>3. Practice problems</h2>
+<section class="problem" id="p1">
+<h3>Problem 1 · K Closest Points to Origin (LeetCode 973, Medium): "k nearest" as an interview question</h3>
+<p><strong>Task.</strong> Given points on a plane and <code>k</code>, return the <code>k</code> points closest to the origin <code>(0, 0)</code> (Euclidean distance). <code>[[1,3],[-2,2]]</code>, <code>k = 1</code> → <code>[[-2,2]]</code>. <code>[[3,3],[5,-1],[-2,4]]</code>, <code>k = 2</code> → <code>[[3,3],[-2,4]]</code>.</p>
+<p><strong>Two insights.</strong></p>
+<ol>
+<li><strong>Skip the square root.</strong> Comparing <code>x² + y²</code> orders points exactly like the true distance does (the square root never changes the order), and avoids floating-point error.</li>
+<li><strong>You only need the <code>k</code> smallest, not a full sort.</strong> Use a <strong>max-heap of size <code>k</code></strong> (file 17): keep the <code>k</code> best so far; the top of the heap is the <em>worst</em> of them, which gets replaced when a closer point arrives. <code>O(n log k)</code>. (Or quickselect for <code>O(n)</code> average.)</li>
+</ol>
+<div class="stage" id="st-p1" data-anim="kClosest" data-code="code-1"></div>
+<div class="code-tabs" id="code-1">
+<pre data-lang="ts" data-caption="sort, and a heap of size k"><code class="language-ts">const squaredDistance = (p: number[]): number =&gt; p[0] * p[0] + p[1] * p[1]; // no square root needed
+
+// Simple: sort everything. O(n log n).
+function kClosestSorted(points: number[][], k: number): number[][] {
+  return [...points].sort((a, b) =&gt; squaredDistance(a) - squaredDistance(b)).slice(0, k);
+}
+
+// Better when k is small: keep a max-heap of the k best (array-based, written out).
+function kClosest(points: number[][], k: number): number[][] {
+  const heap: number[][] = []; // max-heap by squared distance: the WORST of the k best is on top
+  const worse = (i: number, j: number): boolean =&gt; squaredDistance(heap[i]) &gt; squaredDistance(heap[j]);
+  const swap = (i: number, j: number): void =&gt; {
+    [heap[i], heap[j]] = [heap[j], heap[i]];
+  };
+  const siftUp = (i: number): void =&gt; {
+    while (i &gt; 0 &amp;&amp; worse(i, (i - 1) &gt;&gt; 1)) {
+      swap(i, (i - 1) &gt;&gt; 1);
+      i = (i - 1) &gt;&gt; 1;
+    }
+  };
+  const siftDown = (i: number): void =&gt; {
+    for (;;) {
+      const l = 2 * i + 1, r = 2 * i + 2;
+      let big = i;
+      if (l &lt; heap.length &amp;&amp; worse(l, big)) big = l;
+      if (r &lt; heap.length &amp;&amp; worse(r, big)) big = r;
+      if (big === i) return;
+      swap(i, big);
+      i = big;
+    }
+  };
+  for (const p of points) {
+    if (heap.length &lt; k) {
+      heap.push(p);
+      siftUp(heap.length - 1);
+    } else if (squaredDistance(p) &lt; squaredDistance(heap[0])) {
+      heap[0] = p; // the new point beats the current worst
+      siftDown(0);
+    }
+  }
+  return heap;
+}
+
+console.log(kClosestSorted([[1, 3], [-2, 2]], 1)); // [ [ -2, 2 ] ]
+console.log(kClosest([[3, 3], [5, -1], [-2, 4]], 2).sort((a, b) =&gt; a[0] - b[0])); // [ [ -2, 4 ], [ 3, 3 ] ]
+console.log(kClosest([[1, 1], [2, 2], [3, 3]], 3).length); // 3</code></pre>
+<pre data-lang="go" data-caption="sort, and a heap of size k"><code class="language-go">func squaredDistance(p []int) int { return p[0]*p[0] + p[1]*p[1] } // no square root needed
+
+// Simple: sort everything. O(n log n).
+func kClosestSorted(points [][]int, k int) [][]int {
+	sorted := append([][]int(nil), points...)
+	sort.Slice(sorted, func(i, j int) bool { return squaredDistance(sorted[i]) &lt; squaredDistance(sorted[j]) })
+	return sorted[:k]
+}
+
+// Better when k is small: keep a max-heap of the k best (written out by hand).
+func kClosest(points [][]int, k int) [][]int {
+	heap := make([][]int, 0, k) // max-heap by squared distance: the WORST of the k best is on top
+	worse := func(i, j int) bool { return squaredDistance(heap[i]) &gt; squaredDistance(heap[j]) }
+	siftUp := func(i int) {
+		for i &gt; 0 &amp;&amp; worse(i, (i-1)/2) {
+			heap[i], heap[(i-1)/2] = heap[(i-1)/2], heap[i]
+			i = (i - 1) / 2
+		}
+	}
+	siftDown := func(i int) {
+		for {
+			l, r := 2*i+1, 2*i+2
+			big := i
+			if l &lt; len(heap) &amp;&amp; worse(l, big) {
+				big = l
+			}
+			if r &lt; len(heap) &amp;&amp; worse(r, big) {
+				big = r
+			}
+			if big == i {
+				return
+			}
+			heap[i], heap[big] = heap[big], heap[i]
+			i = big
+		}
+	}
+	for _, p := range points {
+		if len(heap) &lt; k {
+			heap = append(heap, p)
+			siftUp(len(heap) - 1)
+		} else if squaredDistance(p) &lt; squaredDistance(heap[0]) {
+			heap[0] = p // the new point beats the current worst
+			siftDown(0)
+		}
+	}
+	return heap
+}
+
+func exampleKClosest() {
+	fmt.Println(kClosestSorted([][]int{{1, 3}, {-2, 2}}, 1)) // [[-2 2]]
+	result := kClosest([][]int{{3, 3}, {5, -1}, {-2, 4}}, 2)
+	sort.Slice(result, func(i, j int) bool { return result[i][0] &lt; result[j][0] })
+	fmt.Println(result)                                               // [[-2 4] [3 3]]
+	fmt.Println(len(kClosest([][]int{{1, 1}, {2, 2}, {3, 3}}, 3))) // 3
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Sorting: <code>O(n log n)</code>. Heap: <code>O(n log k)</code>, space <code>O(k)</code>.</p>
+</section>
+<section class="problem" id="p2">
+<h3>Problem 2 · A k-NN classifier from scratch (the book's orange vs. grapefruit)</h3>
+<p><strong>Task.</strong> Build <code>classify(query, k)</code>: given labeled fruits <code>(diameter in cm, redness from 0 to 1)</code>, label a new fruit.</p>
+<pre class="plain"><code class="language-text">orange:     (7.0, 0.30)  (7.5, 0.35)  (8.0, 0.32)  (7.2, 0.28)
+grapefruit: (11.0, 0.60) (12.0, 0.65) (10.5, 0.70) (11.5, 0.62)</code></pre>
+<p><strong>Steps.</strong> (1) Min-max <strong>normalize</strong> each feature using the min and max in the training data. (2) For the query, compute the distance to every stored fruit. (3) Take the <code>k</code> closest. (4) Return the most common label.</p>
+<p><strong>Why normalization matters here:</strong> diameters range over 5 cm (7 to 12) while redness ranges over 0.42. In raw units the diameter drowns the color. Take a fruit that is <strong>9 cm and very red (0.69)</strong>:</p>
+<ul>
+<li><strong>Without normalization</strong> the closest fruits by raw distance are an 8 cm orange, a 10.5 cm grapefruit, and a 7.5 cm orange. They vote <code>orange</code>: the redness barely counted.</li>
+<li><strong>With normalization</strong> color counts as much as size. The very red query sits close to the red grapefruits, and the vote is <code>grapefruit</code>.</li>
+</ul>
+<div class="stage" id="st-p2" data-anim="classifyNorm,classifyRaw" data-code="code-2"></div>
+<div class="code-tabs" id="code-2">
+<pre data-lang="ts"><code class="language-ts">type Labeled = { features: number[]; label: string };
+
+const fruits: Labeled[] = [
+  { features: [7.0, 0.3], label: "orange" },
+  { features: [7.5, 0.35], label: "orange" },
+  { features: [8.0, 0.32], label: "orange" },
+  { features: [7.2, 0.28], label: "orange" },
+  { features: [11.0, 0.6], label: "grapefruit" },
+  { features: [12.0, 0.65], label: "grapefruit" },
+  { features: [10.5, 0.7], label: "grapefruit" },
+  { features: [11.5, 0.62], label: "grapefruit" },
+];
+
+function euclidean(a: number[], b: number[]): number {
+  let sum = 0;
+  for (let i = 0; i &lt; a.length; i++) sum += (a[i] - b[i]) ** 2;
+  return Math.sqrt(sum);
+}
+
+// Learn the min and max of every feature from the training data.
+function featureRanges(data: Labeled[]): { min: number[]; max: number[] } {
+  const d = data[0].features.length;
+  const min = new Array&lt;number&gt;(d).fill(Infinity);
+  const max = new Array&lt;number&gt;(d).fill(-Infinity);
+  for (const { features } of data) {
+    features.forEach((v, i) =&gt; {
+      min[i] = Math.min(min[i], v);
+      max[i] = Math.max(max[i], v);
+    });
+  }
+  return { min, max };
+}
+
+function scale(v: number[], min: number[], max: number[]): number[] {
+  return v.map((x, i) =&gt; (max[i] === min[i] ? 0 : (x - min[i]) / (max[i] - min[i])));
+}
+
+function classify(data: Labeled[], query: number[], k: number, normalize = true): string {
+  const { min, max } = featureRanges(data);
+  const prep = (v: number[]): number[] =&gt; (normalize ? scale(v, min, max) : v);
+  const q = prep(query);
+  const nearest = data
+    .map((item) =&gt; ({ label: item.label, dist: euclidean(prep(item.features), q) }))
+    .sort((a, b) =&gt; a.dist - b.dist)
+    .slice(0, k); // the k closest neighbors
+  const votes = new Map&lt;string, number&gt;();
+  for (const n of nearest) votes.set(n.label, (votes.get(n.label) ?? 0) + 1);
+  return [...votes.entries()].sort((a, b) =&gt; b[1] - a[1])[0][0]; // the majority label
+}
+
+console.log(classify(fruits, [7.8, 0.33], 3)); // orange
+console.log(classify(fruits, [11.2, 0.64], 3)); // grapefruit
+console.log(classify(fruits, [9.0, 0.69], 3, false)); // orange      (raw units: size dominates)
+console.log(classify(fruits, [9.0, 0.69], 3, true)); // grapefruit  (normalized: color counts)</code></pre>
+<pre data-lang="go"><code class="language-go">type Labeled struct {
+	features []float64
+	label    string
+}
+
+func euclidean(a, b []float64) float64 {
+	sum := 0.0
+	for i := range a {
+		d := a[i] - b[i]
+		sum += d * d
+	}
+	return math.Sqrt(sum)
+}
+
+// Learn the min and max of every feature from the training data.
+func featureRanges(data []Labeled) (min, max []float64) {
+	d := len(data[0].features)
+	min = make([]float64, d)
+	max = make([]float64, d)
+	for i := 0; i &lt; d; i++ {
+		min[i], max[i] = math.Inf(1), math.Inf(-1)
+	}
+	for _, item := range data {
+		for i, v := range item.features {
+			min[i] = math.Min(min[i], v)
+			max[i] = math.Max(max[i], v)
+		}
+	}
+	return min, max
+}
+
+func scale(v, min, max []float64) []float64 {
+	out := make([]float64, len(v))
+	for i, x := range v {
+		if max[i] != min[i] {
+			out[i] = (x - min[i]) / (max[i] - min[i])
+		}
+	}
+	return out
+}
+
+func classify(data []Labeled, query []float64, k int, normalize bool) string {
+	minV, maxV := featureRanges(data)
+	prep := func(v []float64) []float64 {
+		if normalize {
+			return scale(v, minV, maxV)
+		}
+		return v
+	}
+	q := prep(query)
+	type neighbor struct {
+		label string
+		dist  float64
+	}
+	all := make([]neighbor, len(data))
+	for i, item := range data {
+		all[i] = neighbor{item.label, euclidean(prep(item.features), q)}
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].dist &lt; all[j].dist })
+	votes := make(map[string]int)
+	for _, n := range all[:k] { // the k closest neighbors
+		votes[n.label]++
+	}
+	bestLabel, bestVotes := "", -1
+	for label, v := range votes {
+		if v &gt; bestVotes || (v == bestVotes &amp;&amp; label &lt; bestLabel) { // deterministic tie-break
+			bestLabel, bestVotes = label, v
+		}
+	}
+	return bestLabel // the majority label
+}
+
+func exampleClassify() {
+	fruits := []Labeled{
+		{[]float64{7.0, 0.3}, "orange"},
+		{[]float64{7.5, 0.35}, "orange"},
+		{[]float64{8.0, 0.32}, "orange"},
+		{[]float64{7.2, 0.28}, "orange"},
+		{[]float64{11.0, 0.6}, "grapefruit"},
+		{[]float64{12.0, 0.65}, "grapefruit"},
+		{[]float64{10.5, 0.7}, "grapefruit"},
+		{[]float64{11.5, 0.62}, "grapefruit"},
+	}
+	fmt.Println(classify(fruits, []float64{7.8, 0.33}, 3, true))  // orange
+	fmt.Println(classify(fruits, []float64{11.2, 0.64}, 3, true)) // grapefruit
+	fmt.Println(classify(fruits, []float64{9.0, 0.69}, 3, false)) // orange      (raw units: size dominates)
+	fmt.Println(classify(fruits, []float64{9.0, 0.69}, 3, true))  // grapefruit  (normalized: color counts)
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Per query: <code>O(n · d + n log n)</code> as written (sort); <code>O(n · d + n log k)</code> with a heap.</p>
+</section>
+<section class="problem" id="p3">
+<h3>Problem 3 · k-NN regression and recommendations (the bakery and the movies)</h3>
+<p><strong>Regression (the bakery).</strong> A bakery wants to know how many loaves to bake today. For each past day it recorded three features and the loaves sold:</p>
+<div class="table-wrap"><table id="tbl-2"><thead><tr><th>weather (1 bad to 5 great)</th><th>weekend (0/1)</th><th>big game (0/1)</th><th>loaves sold</th></tr></thead><tbody>
+<tr><td>5</td><td>0</td><td>1</td><td>300</td></tr>
+<tr><td>3</td><td>1</td><td>1</td><td>225</td></tr>
+<tr><td>1</td><td>1</td><td>0</td><td>75</td></tr>
+<tr><td>4</td><td>0</td><td>1</td><td>200</td></tr>
+<tr><td>4</td><td>1</td><td>0</td><td>150</td></tr>
+<tr><td>2</td><td>0</td><td>0</td><td>50</td></tr>
+</tbody></table></div>
+<p>To predict today, find the <code>k</code> past days most similar to today and <strong>average</strong> their loaves. (For <code>k = 3</code> and today = <code>(4, 1, 0)</code> the three nearest past days are <code>(4,1,0)</code>, <code>(3,1,1)</code>, and <code>(4,0,1)</code>; see the note below the code for the arithmetic.)</p>
+<p><strong>Recommendations (the movies).</strong> Each user rates five genres from 1 to 5: comedy, action, drama, horror, romance.</p>
+<pre class="plain"><code class="language-text">Priyanka: 3 4 4 1 4
+Justin:   4 3 5 1 5
+Morpheus: 2 5 1 3 1</code></pre>
+<p>Euclidean distance from Priyanka to Justin is <code>√(1+1+1+0+1) = 2</code>; to Morpheus it is <code>√(1+1+9+4+9) = √24 ≈ 4.9</code>. So Justin is her nearest neighbor: <strong>recommend what Justin loved</strong>. (The book also notes a quirk: some users rate everything high. <strong>Cosine similarity</strong> or normalizing each user's average fixes that.)</p>
+<div class="stage" id="st-p3" data-anim="regress,similar" data-code="code-3"></div>
+<div class="code-tabs" id="code-3">
+<pre data-lang="ts" data-caption="regression by averaging, and the nearest user"><code class="language-ts">function knnRegress(history: { features: number[]; value: number }[], query: number[], k: number): number {
+  const nearest = history
+    .map((h) =&gt; ({ value: h.value, dist: euclidean(h.features, query) })) // euclidean() from Problem 2
+    .sort((a, b) =&gt; a.dist - b.dist)
+    .slice(0, k);
+  return nearest.reduce((sum, n) =&gt; sum + n.value, 0) / nearest.length; // average of the neighbors
+}
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i &lt; a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+function mostSimilarUser(target: number[], others: Map&lt;string, number[]&gt;): string {
+  let bestName = "", bestDist = Infinity;
+  for (const [name, ratings] of others) {
+    const d = euclidean(target, ratings);
+    if (d &lt; bestDist) {
+      bestDist = d;
+      bestName = name;
+    }
+  }
+  return bestName;
+}
+
+const bakery = [
+  { features: [5, 0, 1], value: 300 },
+  { features: [3, 1, 1], value: 225 },
+  { features: [1, 1, 0], value: 75 },
+  { features: [4, 0, 1], value: 200 },
+  { features: [4, 1, 0], value: 150 },
+  { features: [2, 0, 0], value: 50 },
+];
+console.log(knnRegress(bakery, [4, 1, 0], 3)); // 191.66666666666666  (150, 200, 225 average: see note below)
+const people = new Map&lt;string, number[]&gt;([
+  ["Justin", [4, 3, 5, 1, 5]],
+  ["Morpheus", [2, 5, 1, 3, 1]],
+]);
+const priyanka = [3, 4, 4, 1, 4];
+console.log(mostSimilarUser(priyanka, people)); // Justin
+console.log(euclidean(priyanka, people.get("Justin")!), euclidean(priyanka, people.get("Morpheus")!).toFixed(2)); // 2 4.90
+console.log(cosineSimilarity([1, 2, 3], [2, 4, 6])); // 1   (same direction: perfectly similar)</code></pre>
+<pre data-lang="go" data-caption="regression by averaging, and the nearest user"><code class="language-go">type Past struct {
+	features []float64
+	value    float64
+}
+
+func knnRegress(history []Past, query []float64, k int) float64 {
+	type neighbor struct{ value, dist float64 }
+	all := make([]neighbor, len(history))
+	for i, h := range history {
+		all[i] = neighbor{h.value, euclidean(h.features, query)} // euclidean() from Problem 2
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].dist &lt; all[j].dist })
+	sum := 0.0
+	for _, n := range all[:k] {
+		sum += n.value
+	}
+	return sum / float64(k) // average of the neighbors
+}
+
+func cosineSimilarity(a, b []float64) float64 {
+	dot, na, nb := 0.0, 0.0, 0.0
+	for i := range a {
+		dot += a[i] * b[i]
+		na += a[i] * a[i]
+		nb += b[i] * b[i]
+	}
+	return dot / (math.Sqrt(na) * math.Sqrt(nb))
+}
+
+func mostSimilarUser(target []float64, names []string, others [][]float64) string {
+	bestName, bestDist := "", math.Inf(1)
+	for i, ratings := range others {
+		if d := euclidean(target, ratings); d &lt; bestDist {
+			bestDist, bestName = d, names[i]
+		}
+	}
+	return bestName
+}
+
+func exampleRegressionAndRecommend() {
+	bakery := []Past{
+		{[]float64{5, 0, 1}, 300},
+		{[]float64{3, 1, 1}, 225},
+		{[]float64{1, 1, 0}, 75},
+		{[]float64{4, 0, 1}, 200},
+		{[]float64{4, 1, 0}, 150},
+		{[]float64{2, 0, 0}, 50},
+	}
+	fmt.Println(knnRegress(bakery, []float64{4, 1, 0}, 3)) // 191.66666666666666
+	names := []string{"Justin", "Morpheus"}
+	others := [][]float64{{4, 3, 5, 1, 5}, {2, 5, 1, 3, 1}}
+	priyanka := []float64{3, 4, 4, 1, 4}
+	fmt.Println(mostSimilarUser(priyanka, names, others))                                  // Justin
+	fmt.Println(euclidean(priyanka, others[0]), fmt.Sprintf("%.2f", euclidean(priyanka, others[1]))) // 2 4.90
+	fmt.Println(cosineSimilarity([]float64{1, 2, 3}, []float64{2, 4, 6}))                  // 1
+}</code></pre>
+</div>
+<p><strong>Note on the bakery number.</strong> For today's features <code>(4, 1, 0)</code> the three nearest past days are the identical day <code>(4, 1, 0)</code> (150), then <code>(3, 1, 1)</code> (225, distance <code>√2</code>) and <code>(4, 0, 1)</code> (200, distance <code>√2</code>): <code>(150 + 225 + 200) / 3 = 191.67</code>.</p>
+<p><strong>Complexity.</strong> <code>O(n · d + n log n)</code> per query.</p>
+</section>
+</section>
+<section class="sec" id="where-to-go-next-a-short-tour-of-the-book-s-final-chapter">
+<h2>4. Where to go next: a short tour of the book's final chapter</h2>
+<p>Each of these is one idea you can explain in 30 seconds. They are the bridge between "algorithm interviews" and "system design interviews".</p>
+<h3 id="4-1-inverted-indexes-how-search-engines-find-pages">4.1 Inverted indexes: how search engines find pages</h3>
+<p>A <strong>forward index</strong> maps <em>document → words</em>. A search engine needs the reverse: <em>word → the documents that contain it</em>. That map is an <strong>inverted index</strong>. To answer a query with several words, look up each word's <strong>list of document ids</strong> and <strong>intersect</strong> the lists (the same two-pointer idea as file 24).</p>
+<figure class="diagram" id="fig-3"><pre class="mermaid-src">flowchart LR
+    D1["doc 1: the quick brown fox"] --&gt; I["Inverted index"]
+    D2["doc 2: the lazy dog"] --&gt; I
+    D3["doc 3: quick brown dogs and the fox"] --&gt; I
+    I --&gt; W1["quick: 1, 3"]
+    I --&gt; W2["fox: 1, 3"]
+    I --&gt; W3["the: 1, 2, 3"]
+    W1 --&gt; Q["Query 'quick fox': intersect the lists to get 1, 3"]
+    W2 --&gt; Q</pre></figure>
+<h3 id="4-2-bloom-filters-and-hyperloglog-answering-have-i-seen-this">4.2 Bloom filters and HyperLogLog: answering "have I seen this?" with tiny memory</h3>
+<ul>
+<li>A <strong>Bloom filter</strong> is a bit array plus a few hash functions. To <strong>add</strong> an item, set the bits that its hashes point at. To <strong>check</strong> an item, look at those same bits. If <strong>any</strong> is <code>0</code>, the item is <strong>definitely not</strong> present. If <strong>all</strong> are <code>1</code>, it is <strong>probably</strong> present (other items may have set the same bits by chance: a <em>false positive</em>). It <strong>never</strong> gives a false negative, cannot delete items, and uses a small, fixed amount of memory regardless of the item size. <em>Uses:</em> "is this URL on the malware list?", "does this username exist?" before an expensive lookup, databases skipping disk reads.</li>
+<li><strong>HyperLogLog</strong> estimates <strong>how many distinct items</strong> a huge stream contains, using a few kilobytes, with an error of about 1 to 2 percent. <em>Uses:</em> unique visitors per day.</li>
+</ul>
+<h3 id="4-3-the-fourier-transform">4.3 The Fourier transform</h3>
+<p>It breaks a signal (a sound, an image row) into the <strong>sine waves</strong> that add up to it: like unmixing a smoothie into its fruits. <em>Uses:</em> audio compression (MP3), JPEG, noise removal, Shazam-style recognition. The <strong>Fast Fourier Transform</strong> computes it in <code>O(n log n)</code> and also multiplies huge polynomials/numbers quickly.</p>
+<h3 id="4-4-parallel-algorithms-and-mapreduce">4.4 Parallel algorithms and MapReduce</h3>
+<p>When one computer is too slow, split the work across many (cores or machines).</p>
+<ul>
+<li><strong>Parallel algorithms</strong> must divide the problem so pieces do not depend on each other (parallel merge sort splits the array, sorts halves at the same time, then merges).</li>
+<li><strong>MapReduce</strong> is a pattern: the <strong>map</strong> step runs the same function on many pieces of data in parallel and emits key/value pairs; the <strong>reduce</strong> step combines all values for each key. <em>Example:</em> count words in a billion pages: <em>map</em> each page to <code>(word, 1)</code> pairs, <em>reduce</em> by summing per word. Frameworks: Hadoop, Spark.</li>
+</ul>
+<h3 id="4-5-https-and-the-diffie-hellman-key-exchange">4.5 HTTPS and the Diffie–Hellman key exchange</h3>
+<p>Two strangers must agree on a <strong>secret key</strong> over a channel that an eavesdropper is listening to. <strong>Diffie–Hellman</strong> does it with math that is easy in one direction and very hard to reverse (modular exponentiation vs. the discrete logarithm). The famous paint analogy: each person mixes a secret color with a shared public color, they swap the mixtures, and each adds their own secret color again, so both end with the <strong>same</strong> final color, which the eavesdropper (who only saw mixtures) cannot reproduce. This is how a browser and a server agree on the key that encrypts an HTTPS session.</p>
+<h3 id="4-6-locality-sensitive-hashing-lsh">4.6 Locality-sensitive hashing (LSH)</h3>
+<p>Normal hashes scatter similar inputs apart. An <strong>LSH</strong> does the opposite: <strong>similar items land in the same bucket</strong> with high probability. So to find the neighbors of an item, hash it and look only inside its bucket instead of comparing against everything. <em>Uses:</em> near-duplicate detection, "similar images", approximate nearest-neighbor search at huge scale (the practical partner of k-NN).</p>
+<h3 id="4-7-linear-programming-and-linear-regression">4.7 Linear programming and linear regression</h3>
+<ul>
+<li><strong>Linear regression</strong> fits a <strong>line</strong> through data to predict a number (the cousin of k-NN regression, but it learns two parameters and discards the data). <em>Uses:</em> trend forecasting.</li>
+<li><strong>Linear programming</strong> maximizes or minimizes a linear goal under linear constraints (like "maximize profit given limited hours and materials"). The <strong>simplex</strong> method solves it. Many graph problems, such as max flow and shortest paths, can be phrased this way.</li>
+</ul>
+<h3 id="4-8-min-heaps-and-priority-queues-again">4.8 Min heaps and priority queues (again)</h3>
+<p>The book closes the loop on the heap from file 17: Dijkstra, Huffman coding, and scheduling are all "always pick the best next item".</p>
+</section>
+<section class="sec" id="practice-problems-two-data-structures-that-appear-in-real-sy">
+<h2>5. Practice problems: two data structures that appear in real systems</h2>
+<section class="problem" id="p4">
+<h3>Problem 4 · A Bloom filter you can run</h3>
+<p><strong>Task.</strong> Implement <code>add(item)</code> and <code>mightContain(item)</code>; show that there are <strong>no false negatives</strong> and measure the <strong>false-positive rate</strong>.</p>
+<p><strong>Design.</strong></p>
+<ul>
+<li><code>m</code> bits and <code>k</code> hash functions. A good starting point for <code>n</code> items and a target error rate <code>p</code>: <code>m = −n · ln(p) / (ln 2)²</code> and <code>k = (m / n) · ln 2</code>. For <code>n = 1000</code>, <code>p = 1%</code>: <code>m ≈ 9586</code> bits, <code>k ≈ 7</code>.</li>
+<li>Instead of <code>k</code> independent hash functions, use <strong>double hashing</strong>: compute two hashes <code>h1</code> and <code>h2</code> and let the <code>i</code>-th index be <code>(h1 + i · h2) mod m</code>.</li>
+<li>Our hash is <strong>FNV-1a</strong> (a tiny, well-known string hash), so the TypeScript and Go versions produce the <em>same</em> bit patterns and the <em>same</em> counts.</li>
+</ul>
+<figure class="diagram" id="fig-4"><pre class="mermaid-src">flowchart TD
+    A["add('apple')"] --&gt; B["h1, h2 = hashes of 'apple'"]
+    B --&gt; C["for i in 0..k-1: set bit (h1 + i*h2) mod m"]
+    D["mightContain('pear')"] --&gt; E["same hash positions"]
+    E --&gt; F{"every one of the k bits set?"}
+    F --&gt;|"no"| G["definitely NOT present"]
+    F --&gt;|"yes"| H["probably present (maybe a false positive)"]</pre></figure>
+<div class="stage" id="st-p4" data-anim="bloom" data-code="code-4"></div>
+<div class="code-tabs" id="code-4">
+<pre data-lang="ts"><code class="language-ts">function fnv1a(text: string, seed = 2166136261): number {
+  let h = seed &gt;&gt;&gt; 0;
+  for (let i = 0; i &lt; text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619) &gt;&gt;&gt; 0; // 32-bit multiply, kept unsigned
+  }
+  return h;
+}
+
+class BloomFilter {
+  private bits: Uint8Array; // one byte per bit, for clarity (a real one packs 8 bits per byte)
+  constructor(private m: number, private k: number) {
+    this.bits = new Uint8Array(m);
+  }
+  private positions(item: string): number[] {
+    const h1 = fnv1a(item);
+    const h2 = (fnv1a(item, 0x9747b28c) | 1) &gt;&gt;&gt; 0; // odd; &gt;&gt;&gt; 0 makes it unsigned (| 1 alone gives a SIGNED 32-bit result in JavaScript)
+    const out: number[] = [];
+    for (let i = 0; i &lt; this.k; i++) out.push((h1 + i * h2) % this.m); // double hashing
+    return out;
+  }
+  add(item: string): void {
+    for (const p of this.positions(item)) this.bits[p] = 1;
+  }
+  mightContain(item: string): boolean {
+    return this.positions(item).every((p) =&gt; this.bits[p] === 1); // any 0 means "definitely not"
+  }
+}
+
+const bloom = new BloomFilter(9586, 7); // sized for 1000 items at about a 1% false-positive rate
+for (let i = 0; i &lt; 1000; i++) bloom.add("user" + i);
+
+let missed = 0; // false negatives: must be zero
+for (let i = 0; i &lt; 1000; i++) if (!bloom.mightContain("user" + i)) missed++;
+let falsePositives = 0;
+for (let i = 0; i &lt; 10000; i++) if (bloom.mightContain("other" + i)) falsePositives++;
+console.log("false negatives:", missed); // false negatives: 0
+console.log("false positives out of 10000:", falsePositives); // 76  (0.76%, under the 1% target; Go prints the same)</code></pre>
+<pre data-lang="go"><code class="language-go">func fnv1a(text string, seed uint32) uint32 {
+	h := seed
+	for i := 0; i &lt; len(text); i++ {
+		h ^= uint32(text[i])
+		h *= 16777619 // 32-bit multiply wraps around automatically
+	}
+	return h
+}
+
+type BloomFilter struct {
+	bits []bool // one entry per bit, for clarity (a real one packs 8 bits per byte)
+	m, k uint64
+}
+
+func NewBloomFilter(m, k int) *BloomFilter {
+	return &amp;BloomFilter{bits: make([]bool, m), m: uint64(m), k: uint64(k)}
+}
+
+func (b *BloomFilter) positions(item string) []uint64 {
+	h1 := uint64(fnv1a(item, 2166136261))
+	h2 := uint64(fnv1a(item, 0x9747b28c)) | 1 // odd, so the steps spread over all positions
+	out := make([]uint64, b.k)
+	for i := uint64(0); i &lt; b.k; i++ {
+		out[i] = (h1 + i*h2) % b.m // double hashing
+	}
+	return out
+}
+
+func (b *BloomFilter) Add(item string) {
+	for _, p := range b.positions(item) {
+		b.bits[p] = true
+	}
+}
+
+func (b *BloomFilter) MightContain(item string) bool {
+	for _, p := range b.positions(item) {
+		if !b.bits[p] {
+			return false // any 0 means "definitely not"
+		}
+	}
+	return true
+}
+
+func exampleBloomFilter() {
+	bloom := NewBloomFilter(9586, 7) // sized for 1000 items at about a 1% false-positive rate
+	for i := 0; i &lt; 1000; i++ {
+		bloom.Add("user" + strconv.Itoa(i))
+	}
+	missed := 0 // false negatives: must be zero
+	for i := 0; i &lt; 1000; i++ {
+		if !bloom.MightContain("user" + strconv.Itoa(i)) {
+			missed++
+		}
+	}
+	falsePositives := 0
+	for i := 0; i &lt; 10000; i++ {
+		if bloom.MightContain("other" + strconv.Itoa(i)) {
+			falsePositives++
+		}
+	}
+	fmt.Println("false negatives:", missed)                      // false negatives: 0
+	fmt.Println("false positives out of 10000:", falsePositives) // 76  (0.76%, under the 1% target; TypeScript prints the same)
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> <code>add</code> and <code>mightContain</code> take <code>O(k)</code> time; memory is <code>m</code> bits, independent of how long each item is.</p>
+<p><strong>A real bug worth remembering (found while testing this very guide).</strong> The first TypeScript version wrote <code>fnv1a(item, seed) | 1</code> for the second hash. In JavaScript, <strong>any bitwise operator returns a <em>signed</em> 32-bit integer</strong>, so values at or above 2³¹ turn <strong>negative</strong>. The computed index <code>(h1 + i * h2) % m</code> then became negative, the bit was written to a place that does not exist, and the filter reported <strong>346 false negatives</strong>, which a Bloom filter must never do. Adding <code>&gt;&gt;&gt; 0</code> (convert back to unsigned) fixed it, after which TypeScript and Go gave identical results. The lesson: when you mix hashing with bit operators in JavaScript, force the result unsigned with <code>&gt;&gt;&gt; 0</code>, and always test the "no false negatives" property.</p>
+<p><strong>What to say in an interview.</strong> "A Bloom filter trades <strong>exactness for memory</strong>. It is perfect in front of an expensive lookup: a <em>no</em> answer is final and saves the lookup; a <em>yes</em> answer is checked against the real store." Mention that it cannot delete (a <strong>counting Bloom filter</strong> can) and that the false-positive rate rises as it fills up.</p>
+</section>
+<section class="problem" id="p5">
+<h3>Problem 5 · An inverted index with an AND query</h3>
+<p><strong>Task.</strong> Build an inverted index over small documents and answer a query of several words with <strong>all words present</strong> (an AND search). Documents:</p>
+<pre class="plain"><code class="language-text">1: "the quick brown fox"
+2: "the lazy dog"
+3: "quick brown dogs and the fox"</code></pre>
+<p><code>search("quick fox")</code> → <code>[1, 3]</code>. <code>search("the")</code> → <code>[1, 2, 3]</code>. <code>search("cat")</code> → <code>[]</code>.</p>
+<p><strong>Plan.</strong></p>
+<ol>
+<li><strong>Index:</strong> for each document (in id order) split into words, lowercase, and append the doc id to each distinct word's list. Ids are added in increasing order, so every list is <strong>already sorted</strong>.</li>
+<li><strong>Query:</strong> look up each word's list, then <strong>intersect</strong> them with the two-pointer merge (file 24). Start with the shortest list to do less work.</li>
+</ol>
+<figure class="diagram" id="fig-5"><pre class="mermaid-src">flowchart TD
+    A["query: quick fox"] --&gt; B["list for quick: [1, 3]"]
+    A --&gt; C["list for fox: [1, 3]"]
+    B --&gt; D["intersect two sorted lists with two pointers"]
+    C --&gt; D
+    D --&gt; E["[1, 3]"]</pre></figure>
+<div class="stage" id="st-p5" data-anim="inverted" data-code="code-5"></div>
+<div class="code-tabs" id="code-5">
+<pre data-lang="ts"><code class="language-ts">class InvertedIndex {
+  private index = new Map&lt;string, number[]&gt;(); // word -&gt; sorted list of document ids
+  addDocument(id: number, text: string): void {
+    for (const word of new Set(text.toLowerCase().split(/\s+/))) { // Set: count each word once per doc
+      const list = this.index.get(word);
+      if (list) list.push(id); // ids arrive in increasing order, so the list stays sorted
+      else this.index.set(word, [id]);
+    }
+  }
+  search(query: string): number[] {
+    const lists = query.toLowerCase().split(/\s+/).map((w) =&gt; this.index.get(w) ?? []);
+    if (lists.some((l) =&gt; l.length === 0)) return []; // a word nobody has: no result
+    lists.sort((a, b) =&gt; a.length - b.length); // start with the shortest list
+    return lists.reduce((acc, list) =&gt; intersectSorted(acc, list));
+  }
+}
+
+function intersectSorted(a: number[], b: number[]): number[] {
+  const out: number[] = [];
+  let i = 0, j = 0;
+  while (i &lt; a.length &amp;&amp; j &lt; b.length) {
+    if (a[i] === b[j]) {
+      out.push(a[i]);
+      i++;
+      j++;
+    } else if (a[i] &lt; b[j]) i++;
+    else j++;
+  }
+  return out;
+}
+
+const search = new InvertedIndex();
+search.addDocument(1, "the quick brown fox");
+search.addDocument(2, "the lazy dog");
+search.addDocument(3, "quick brown dogs and the fox");
+console.log(search.search("quick fox")); // [ 1, 3 ]
+console.log(search.search("the")); // [ 1, 2, 3 ]
+console.log(search.search("cat")); // []
+console.log(search.search("quick dog")); // []   ("dogs" in doc 3 is a different word from "dog")</code></pre>
+<pre data-lang="go"><code class="language-go">type InvertedIndex struct{ index map[string][]int } // word -&gt; sorted list of document ids
+
+func NewInvertedIndex() *InvertedIndex { return &amp;InvertedIndex{index: make(map[string][]int)} }
+
+func (ix *InvertedIndex) AddDocument(id int, text string) {
+	seen := make(map[string]bool) // count each word once per document
+	for _, word := range strings.Fields(strings.ToLower(text)) {
+		if !seen[word] {
+			seen[word] = true
+			ix.index[word] = append(ix.index[word], id) // ids arrive in increasing order, so lists stay sorted
+		}
+	}
+}
+
+func intersectSorted(a, b []int) []int {
+	out := []int{}
+	i, j := 0, 0
+	for i &lt; len(a) &amp;&amp; j &lt; len(b) {
+		switch {
+		case a[i] == b[j]:
+			out = append(out, a[i])
+			i++
+			j++
+		case a[i] &lt; b[j]:
+			i++
+		default:
+			j++
+		}
+	}
+	return out
+}
+
+func (ix *InvertedIndex) Search(query string) []int {
+	words := strings.Fields(strings.ToLower(query))
+	lists := make([][]int, 0, len(words))
+	for _, w := range words {
+		list := ix.index[w]
+		if len(list) == 0 {
+			return []int{} // a word nobody has: no result
+		}
+		lists = append(lists, list)
+	}
+	sort.Slice(lists, func(i, j int) bool { return len(lists[i]) &lt; len(lists[j]) }) // start with the shortest list
+	result := lists[0]
+	for _, list := range lists[1:] {
+		result = intersectSorted(result, list)
+	}
+	return result
+}
+
+func exampleInvertedIndex() {
+	ix := NewInvertedIndex()
+	ix.AddDocument(1, "the quick brown fox")
+	ix.AddDocument(2, "the lazy dog")
+	ix.AddDocument(3, "quick brown dogs and the fox")
+	fmt.Println(ix.Search("quick fox"))  // [1 3]
+	fmt.Println(ix.Search("the"))        // [1 2 3]
+	fmt.Println(ix.Search("cat"))        // []
+	fmt.Println(ix.Search("quick dog"))  // []
+}</code></pre>
+</div>
+<p><strong>Complexity.</strong> Index: time <code>O(total words)</code>. Query: <code>O(sum of the list lengths)</code> (the two-pointer merges), and starting with the rarest word keeps intermediate results small.</p>
+<p><strong>What real search engines add:</strong> ranking (TF-IDF, BM25), phrase queries (store word <em>positions</em>), stemming ("dogs" → "dog"), compression of the id lists, and sharding across machines.</p>
+</section>
+</section>
+<section class="sec" id="a-learning-path-after-this-guide">
+<h2>A learning path after this guide</h2>
+<figure class="diagram" id="fig-6"><pre class="mermaid-src">flowchart TD
+    A["This guide: patterns + data structures + core algorithms"] --&gt; B["Practice: timed mock interviews (file 29)"]
+    A --&gt; C["System design: caching, sharding, consistent hashing, queues, databases"]
+    A --&gt; D["Concurrency: threads, locks, async, goroutines and channels"]
+    A --&gt; E["Databases and storage: indexes (B+ trees), transactions"]
+    A --&gt; F["Applied ML: features, train/test split, linear models, evaluation"]</pre></figure>
+</section>
+<section class="sec" id="common-mistakes-k-nn">
+<h2>Common mistakes (k-NN)</h2>
+<ul>
+<li><strong>Not normalizing features</strong> (the big-scale feature silently dominates).</li>
+<li><strong>Using <code>k = 1</code></strong> (very noisy) or a <code>k</code> equal to the dataset size (always votes for the majority class).</li>
+<li><strong>Using an even <code>k</code></strong> with two classes (ties). Prefer odd <code>k</code>, or a deterministic tie-break.</li>
+<li><strong>Computing the square root needlessly</strong> when only the <em>order</em> of distances matters.</li>
+<li><strong>Testing on the training data</strong> (it will look perfect). Hold out test data.</li>
+<li><strong>Using k-NN on huge, high-dimensional data</strong> without approximate methods: distances become meaningless ("the curse of dimensionality") and queries become too slow.</li>
+</ul>
+</section>
+<section class="sec" id="try-it-without-looking">
+<h2>Try it without looking</h2>
+<p>Try each one on paper or in an editor first. Open the hint only when you are stuck, and the answer only after you have an attempt.</p>
+<div class="exercise" id="ex1">
+<h3>1 · k-NN in three sentences</h3>
+<p>Explain k-NN to a friend with the orange/grapefruit story in three sentences.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>To decide whether a new fruit is an orange or a grapefruit, look at the fruits you already know that are most like it in size and color. Take the k closest, say 3. Whatever most of them are, call the new fruit that.</p></div></details>
+</div>
+<div class="exercise" id="ex2">
+<h3>2 · Squared distances</h3>
+<p>Why do we compare <strong>squared</strong> distances in K Closest Points? When would you need the true distance?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>The square root is increasing, so it never changes which point is closer: comparing <code>x² + y²</code> gives the same order, with no slow square root and no floating-point rounding. You need the true distance when the number itself matters: reporting it, comparing it with a radius given in real units, or adding distances together.</p></div></details>
+</div>
+<div class="exercise" id="ex3">
+<h3>3 · Can a Bloom filter be wrong?</h3>
+<p>A Bloom filter says "not present" for an item. Can it be wrong? A "present"? Explain both.</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>"Not present" is <strong>always right</strong>: adding an item sets all its bits, and bits are never cleared, so a 0 at any of its positions proves it was never added. "Present" <strong>can be wrong</strong>: other items may have set all of its bits by chance (a false positive). The second preset of the Bloom animation crowds a small filter to show this.</p></div></details>
+</div>
+<div class="exercise" id="ex4">
+<h3>4 · Sorted posting lists</h3>
+<p>Why is each inverted-index list stored <strong>sorted</strong>, and what does that buy the AND query?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p>Two sorted lists intersect with two pointers in <code>O(a + b)</code>, like the merge step of merge sort: advance whichever pointer has the smaller id. Starting from the shortest list keeps the intermediate results small, and sorted lists also allow skip pointers or galloping to jump ahead. Without sorting you would need a hash set per query.</p></div></details>
+</div>
+<div class="exercise" id="ex5">
+<h3>5 · MapReduce word count</h3>
+<p>In MapReduce word count, what are the keys and values emitted by <em>map</em>, and what does <em>reduce</em> receive?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><strong>Map</strong> reads a chunk of text and emits <code>(word, 1)</code> for every word. The framework groups by key, so <strong>reduce</strong> receives <code>(word, [1, 1, …])</code> and emits <code>(word, sum)</code>. Each machine maps its own chunk; each reducer handles its own share of the words.</p></div></details>
+</div>
+<div class="exercise" id="ex6">
+<h3>6 · Exact k-NN or LSH</h3>
+<p>Which would you pick to find near-duplicate documents among a billion: exact k-NN or LSH, and why?</p>
+
+<details class="reveal"><summary>Answer</summary><div class="reveal-body"><p><strong>LSH.</strong> Exact k-NN compares every document with every other: about 10¹⁸ comparisons for a billion. Locality-sensitive hashing hashes similar documents into the same buckets with high probability, so you compare only within buckets. You accept a small chance of missing a pair in return for a huge speed-up.</p></div></details>
+</div>
+<h3 id="check-yourself">Check yourself</h3>
+<div class="quiz" data-quiz="knn28"></div>
+<nav class="pager" data-auto aria-label="Previous and next lesson"></nav>
+</section>
+
+</article>
+</main>
+<aside class="rail rail-right" aria-label="On this page"></aside>
+</div>
+<script src="../assets/js/core.js"></script>
+<script src="../lib/prism-core.min.js"></script>
+<script src="../lib/prism-clike.min.js"></script>
+<script src="../lib/prism-javascript.min.js"></script>
+<script src="../lib/prism-typescript.min.js"></script>
+<script src="../lib/prism-go.min.js"></script>
+<script src="../lib/prism-bash.min.js"></script>
+<script src="../lib/mermaid.min.js"></script>
+<script src="../assets/js/progress.js"></script>
+<script src="../assets/js/diagrams.js"></script>
+<script src="../assets/js/stage.js"></script>
+<script src="../assets/js/viz/array.js"></script>
+<script src="../assets/js/viz/kit.js"></script>
+<script src="../assets/js/viz/bars.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/lessons/28.js"></script>
+</body>
+</html>
